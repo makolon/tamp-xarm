@@ -128,6 +128,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# IsaacSim
+.DS_Store
+.thumbs
+
 # Spyder project settings
 .spyderproject
 .spyproject
