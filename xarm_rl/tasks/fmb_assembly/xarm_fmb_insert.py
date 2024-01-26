@@ -1,8 +1,4 @@
-import math
-
-import numpy as np
 import torch
-from omni.isaac.cloner import Cloner
 from omni.isaac.core.objects import DynamicCuboid
 from omni.isaac.core.prims import RigidPrim, RigidPrimView
 from omni.isaac.core.utils.prims import get_prim_at_path
@@ -10,13 +6,11 @@ from omni.isaac.core.utils.stage import get_current_stage
 from omni.isaac.core.utils.torch.rotations import *
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp
-from xarm_rl.tasks.base.rl_task import RLTask
-from xarm_rl.robots.articulations.xarm import xArm
-from xarm_rl.robots.articulations.views.xarm_view import xArmView
+from xarm_rl.tasks.fmb_assembly.fmb_base import xArmFMBBaseTask
 from pxr import Usd, UsdGeom
 
 
-class xArmFMBAssembly(RLTask):
+class xArmFMBAssembly(xArmFMBBaseTask):
     def __init__(self, name, sim_config, env, offset=None) -> None:
         self.update_config(sim_config)
 
@@ -24,7 +18,7 @@ class xArmFMBAssembly(RLTask):
         self._num_observations = 19
         self._num_actions = 12
 
-        RLTask.__init__(self, name, env)
+        xArmFMBBaseTask.__init__(self, name, env)
         return
 
     def update_config(self, sim_config):

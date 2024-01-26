@@ -42,25 +42,8 @@ class xArmFMBBaseTask(RLTask):
         self._table_height = self._task_cfg["env"]["table_height"]
         self._table_width = self._task_cfg["env"]["table_width"]
         self._table_depth = self._task_cfg["env"]["table_depth"]
-        self._base_height = self._task_cfg["env"]["base_height"]
-        self._base_width = self._task_cfg["env"]["base_width"]
-        self._base_depth = self._task_cfg["env"]["base_depth"]
-
-        # Set physics parameters for gearbox parts
-        self._gear_mass = self._sim_config.task_config["sim"]["gear_parts"]["mass"]
-        self._gear_density = self._sim_config.task_config["sim"]["gear_parts"]["density"]
-        self._gear_static_friction = self._sim_config.task_config["sim"]["gear_parts"]["static_friction"]
-        self._gear_dynamic_friction = self._sim_config.task_config["sim"]["gear_parts"]["dynamic_friction"]
-        self._gear_restitution = self._sim_config.task_config["sim"]["gear_parts"]["restitution"]
-        self._shaft_mass = self._sim_config.task_config["sim"]["shaft_parts"]["mass"]
-        self._shaft_density = self._sim_config.task_config["sim"]["shaft_parts"]["density"]
-        self._shaft_static_friction = self._sim_config.task_config["sim"]["shaft_parts"]["static_friction"]
-        self._shaft_dynamic_friction = self._sim_config.task_config["sim"]["shaft_parts"]["dynamic_friction"]
-        self._shaft_restitution = self._sim_config.task_config["sim"]["shaft_parts"]["restitution"]
 
         # Set physics parameters for gripper
-        self._gripper_mass = self._sim_config.task_config["sim"]["gripper"]["mass"]
-        self._gripper_density = self._sim_config.task_config["sim"]["gripper"]["density"]
         self._gripper_static_friction = self._sim_config.task_config["sim"]["gripper"]["static_friction"]
         self._gripper_dynamic_friction = self._sim_config.task_config["sim"]["gripper"]["dynamic_friction"]
         self._gripper_restitution = self._sim_config.task_config["sim"]["gripper"]["restitution"]
@@ -77,47 +60,25 @@ class xArmFMBBaseTask(RLTask):
         self._pick_success = self._task_cfg["rl"]["pick_threshold"]
         self._place_success = self._task_cfg["rl"]["place_threshold"]
         self._insert_success = self._task_cfg['rl']['insert_threshold']
-        self._residual_observation = self._task_cfg['rl']['residual_observation']
-        self._residual_dynamics = self._task_cfg['rl']['residual_dynamics']
         self._action_speed_scale = self._task_cfg["env"]["actionSpeedScale"]
         self._max_episode_length = self._task_cfg["env"]["maxEpisodeLength"]
-
-        # Load experts demonstraions
-        self.exp_actions, self.env_info = self.load_exp_dataset()
 
         # Set up environment from loaded demonstration
         self.set_up_environment()
 
-        # Dof joint gains
-        self.joint_kps = torch.tensor([1e9, 1e9, 5.7296e10, 1e9, 1e9, 5.7296e10, 5.7296e10, 5.7296e10,
-            5.7296e10, 5.7296e10, 5.7296e10, 2.8648e4, 2.8648e4, 5.7296e10, 5.7296e10], device=self._device)
-        self.joint_kds = torch.tensor([1.4, 1.4, 80.2141, 1.4, 0.0, 80.2141, 0.0, 80.2141, 0.0, 80.2141,
-            80.2141, 17.1887, 17.1887, 17.1887, 17.1887], device=self._device)
-
-        # Dof joint friction coefficients
-        self.joint_friction_coefficients = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], device=self._device)
-
         # Joint & body names
-        self._torso_joint_name = ["torso_lift_joint"]
-        self._base_joint_names = ["joint_x", "joint_y", "joint_rz"]
-        self._arm_names = ["arm_lift_joint", "arm_flex_joint", "arm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
-        self._gripper_proximal_names = ["hand_l_proximal_joint", "hand_r_proximal_joint"]
+        self._arm_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
+        self._gripper_names = ["hand_l_proximal_joint", "hand_r_proximal_joint"]
 
         # Values are set in post_reset after model is loaded
-        self.torso_dof_idx = []
-        self.base_dof_idxs = []
         self.arm_dof_idxs = []
-        self.gripper_proximal_dof_idxs = []
+        self.gripper_dof_idxs = []
 
         # Dof joint position limits
-        self.torso_dof_lower = []
-        self.torso_dof_upper = []
-        self.base_dof_lower = []
-        self.base_dof_upper = []
         self.arm_dof_lower = []
         self.arm_dof_upper = []
-        self.gripper_proximal_dof_lower = []
-        self.gripper_proximal_dof_upper = []
+        self.gripper_dof_lower = []
+        self.gripper_dof_upper = []
 
         # Reward settings
         self.is_collided = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
@@ -126,9 +87,6 @@ class xArmFMBBaseTask(RLTask):
         self.pick_success = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
         self.place_success = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
         self.insert_success = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
-
-        # Demonstration steps
-        self.replay_count = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
 
         # Gripper settings
         self.gripper_close = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
@@ -139,92 +97,13 @@ class xArmFMBBaseTask(RLTask):
         return
 
     def set_up_environment(self) -> None:
-        # Environment object settings: (reset() randomizes the environment)
-        obj_name_candit = ["gear1", "gear2", "gear3", "shaft1", "shaft2"]
-        dynamic_obj_name, static_obj_name = [], []
-        for i in range(self._num_envs):
-            dynamic_obj_name.append(self._target_obj_names[i])
-            static_obj_name.append([obj for obj in obj_name_candit if obj != self._target_obj_names[i]])
-
-        self._dynamic_obj_names = dynamic_obj_name
-        self._static_obj_names = static_obj_name
-
-        self._hsr_position = torch.tensor([0.0, 0.0, 0.01], device=self._device)
-        self._hsr_rotation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
+        # Environment object settings
+        self._xarm_position = torch.tensor([0.0, 0.0, 0.0], device=self._device)
+        self._xarm_rotation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
         self._table_position = torch.tensor([1.2, -0.2, self._table_height/2], device=self._device)
         self._table_rotation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
-        self._gear_base_position = torch.tensor([1.2, 0.0, self._table_height+self._gear_base_height/2], device=self._device)
-        self._gear_base_rotation = torch.tensor([0.92387953, 0.0, 0.0, -0.38268343], device=self._device)
-        self._base_positions = torch.tensor([[1.2, 0.30, self._table_height+self._base_height/2],
-                                             [1.2, -0.50, self._table_height+self._base_height/2],
-                                             [1.2, -0.75, self._table_height+self._base_height/2]], device=self._device)
-        self._base_rotations = torch.tensor([[1.0, 0.0, 0.0, 0.0],
-                                             [1.0, 0.0, 0.0, 0.0],
-                                             [1.0, 0.0, 0.0, 0.0]], device=self._device)
-
-        self.init_dynamic_pos = {
-            'gear1': torch.tensor([1.2, 0.30, self._table_height+self._base_height], device=self._device),
-            'gear2': torch.tensor([1.2, -0.50, self._table_height+self._base_height], device=self._device),
-            'gear3': torch.tensor([1.2, -0.75, self._table_height+self._base_height], device=self._device),
-            'shaft1': torch.tensor([1.2, 0.50, self._table_height+self._shaft_height], device=self._device),
-            'shaft2': torch.tensor([1.2, -0.30, self._table_height+self._shaft_height], device=self._device),
-            'gearbox_base': torch.tensor([1.1, 0.0, self._table_height+self._gear_base_height], device=self._device)}
-        self.init_dynamic_orn = {
-            'gear1': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'gear2': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'gear3': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'shaft1': torch.tensor([0.0, 0.0, 1.0, 0.0], device=self._device),
-            'shaft2': torch.tensor([0.0, 0.0, 1.0, 0.0], device=self._device),
-            'gearbox_base': torch.tensor([0.92387953, 0.0, 0.0, -0.38268343], device=self._device)}
-        self.init_static_pos = {
-            'gear1': torch.tensor([1.2, 0.30, self._table_height+self._base_height], device=self._device),
-            'gear2': torch.tensor([1.2, -0.50, self._table_height+self._base_height], device=self._device),
-            'gear3': torch.tensor([1.2, -0.75, self._table_height+self._base_height], device=self._device),
-            'shaft1': torch.tensor([1.2, 0.50, self._table_height+self._shaft_height], device=self._device),
-            'shaft2': torch.tensor([1.2, -0.30, self._table_height+self._shaft_height], device=self._device),
-            'table': torch.tensor([1.2, 0.0, 0.0], device=self._device),
-            'box': torch.tensor([1.2, 0.0, 0.0, 0.0], device=self._device),
-            'gearbox_base': torch.tensor([1.1, 0.0, self._table_height+self._gear_base_height], device=self._device)}
-        self.init_static_orn = {
-            'gear1': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'gear2': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'gear3': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'shaft1': torch.tensor([0.0, 0.0, 1.0, 0.0], device=self._device),
-            'shaft2': torch.tensor([0.0, 0.0, 1.0, 0.0], device=self._device),
-            'table': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'box': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
-            'gearbox_base': torch.tensor([0.92387953, 0.0, 0.0, -0.38268343], device=self._device)}
-
-        # For target pose
-        virtual_shaft1_positions = []
-        virtual_shaft1_rotations = []
-        virtual_shaft2_positions = []
-        virtual_shaft2_rotations = []
-
-        shaft1_static_env_ids = []
-        shaft2_static_env_ids = []
-        for i in range(self._num_envs):
-            if 'gear1' in self._dynamic_obj_names[i]:
-                virtual_shaft1_positions.append(self.env_info['initial_object_pose'][i]['shaft1'][0])
-                virtual_shaft1_rotations.append(self.env_info['initial_object_pose'][i]['shaft1'][1])
-                shaft1_static_env_ids.append(i)
-            elif 'gear2' in self._dynamic_obj_names[i]:
-                virtual_shaft2_positions.append(self.env_info['initial_object_pose'][i]['shaft2'][0])
-                virtual_shaft2_rotations.append(self.env_info['initial_object_pose'][i]['shaft2'][1])
-                shaft2_static_env_ids.append(i)
-
-        self._virtual_shaft1_position = torch.tensor(virtual_shaft1_positions, dtype=torch.float, device=self._device)
-        self._virtual_shaft1_rotation = torch.tensor(virtual_shaft1_rotations, dtype=torch.float, device=self._device)
-        self._virtual_shaft2_position = torch.tensor(virtual_shaft2_positions, dtype=torch.float, device=self._device)
-        self._virtual_shaft2_rotation = torch.tensor(virtual_shaft2_rotations, dtype=torch.float, device=self._device)
-
-        self.shaft1_static_env_ids = torch.tensor(shaft1_static_env_ids, device=self._device)
-        self.shaft2_static_env_ids = torch.tensor(shaft2_static_env_ids, device=self._device)
 
     def set_up_scene(self, scene) -> None:
-        # Create gearbox parts materials
-        self.create_gearbox_material()
-
         # Create gripper materials
         self.create_gripper_material()
 
@@ -243,11 +122,11 @@ class xArmFMBBaseTask(RLTask):
         scene.add(self._robots._fingertip_centered)
 
         # Add parts to scene
-        self._shaft1 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft1/shaft1", name="shaft1_view", reset_xform_properties=False)
-        self._shaft2 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft2/shaft2", name="shaft2_view", reset_xform_properties=False)
-        self._gear1 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear1/gear1", name="gear1_view", reset_xform_properties=False)
-        self._gear2 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear2/gear2", name="gear2_view", reset_xform_properties=False)
-        self._gear3 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear3/gear3", name="gear3_view", reset_xform_properties=False)
+        self._block1 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft1/shaft1", name="shaft1_view", reset_xform_properties=False)
+        self._block2 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft2/shaft2", name="shaft2_view", reset_xform_properties=False)
+        self._block3 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear1/gear1", name="gear1_view", reset_xform_properties=False)
+        self._block4 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear2/gear2", name="gear2_view", reset_xform_properties=False)
+        self._block5 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear3/gear3", name="gear3_view", reset_xform_properties=False)
 
         scene.add(self._shaft1)
         scene.add(self._shaft2)
@@ -255,39 +134,11 @@ class xArmFMBBaseTask(RLTask):
         scene.add(self._gear2)
         scene.add(self._gear3)
 
-        static_shaft1_env_ids = []
-        static_shaft2_env_ids = []
-        static_gear1_env_ids = []
-        static_gear2_env_ids = []
-        static_gear3_env_ids = []
-
-        # Bookkeep for remove physics properties
-        static_env_ids = torch.arange(0, self._num_envs)
-        for env_id, obj_names in enumerate(self._static_obj_names):
-            if env_id == 0:
-                continue
-            if 'shaft1' in obj_names:
-                static_shaft1_env_ids.append(static_env_ids[env_id])
-            if 'shaft2' in obj_names:
-                static_shaft2_env_ids.append(static_env_ids[env_id])
-            if 'gear1' in obj_names:
-                static_gear1_env_ids.append(static_env_ids[env_id])
-            if 'gear2' in obj_names:
-                static_gear2_env_ids.append(static_env_ids[env_id])
-            if 'gear3' in obj_names:
-                static_gear3_env_ids.append(static_env_ids[env_id])
-
-        self.static_shaft1_env_ids = torch.tensor(static_shaft1_env_ids, device=self._device)
-        self.static_shaft2_env_ids = torch.tensor(static_shaft2_env_ids, device=self._device)
-        self.static_gear1_env_ids = torch.tensor(static_gear1_env_ids, device=self._device)
-        self.static_gear2_env_ids = torch.tensor(static_gear2_env_ids, device=self._device)
-        self.static_gear3_env_ids = torch.tensor(static_gear3_env_ids, device=self._device)
-
-        self._parts = {'shaft1': self._shaft1, 'shaft2': self._shaft2,
-                       'gear1': self._gear1, 'gear2': self._gear2, 'gear3': self._gear3}
+        self._parts = {'block1': self._block1, 'shaft2': self._block2,
+                       'gear1': self._block3, 'gear2': self._block4, 'gear3': self._block5}
 
     def add_xarm(self):
-        # Add HSR
+        # Add xArm
         for i in range(self._num_envs):
             xarm = xArm(prim_path=f"/World/envs/env_{i}/xarm",
                        name="xarm",
@@ -298,12 +149,12 @@ class xArmFMBBaseTask(RLTask):
             # Add physics material
             physicsUtils.add_physics_material_to_prim(
                 self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/hand_r_distal_link/collisions/mesh_0"), # TODO: Fix
+                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/hand_r_distal_link/collisions/mesh_0"), # TODO: Fix name
                 self.gripperPhysicsMaterialPath
             )
             physicsUtils.add_physics_material_to_prim(
                 self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/hand_l_distal_link/collisions/mesh_0"), # TODO: Fix
+                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/hand_l_distal_link/collisions/mesh_0"), # TODO: Fix name
                 self.gripperPhysicsMaterialPath
             )
 
@@ -350,16 +201,6 @@ class xArmFMBBaseTask(RLTask):
     def post_physics_step(self):
         raise NotImplementedError()
 
-    def calculate_command(self, curr_pose, replay_indices):
-        # Calculate control step
-        control_step = torch.unsqueeze(self.progress_buf % self.control_frequency_inv + 1, dim=1)
-
-        # Calculate delta command
-        target_pose = self.exp_actions[torch.arange(self._num_envs), replay_indices, :8]
-        delta_pose = target_pose - curr_pose
-        delta_pose = delta_pose / self.control_frequency_inv * control_step
-        return delta_pose.clone().detach()
-
     def is_done(self) -> None:
         self.reset_buf = torch.where(
             self.progress_buf[:] >= self._max_episode_length - 1,
@@ -368,14 +209,12 @@ class xArmFMBBaseTask(RLTask):
         )
 
     def set_dof_idxs(self):
-        [self.torso_dof_idx.append(self._robots.get_dof_index(name)) for name in self._torso_joint_name]
-        [self.base_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._base_joint_names]
         [self.arm_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._arm_names]
-        [self.gripper_proximal_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._gripper_proximal_names]
+        [self.gripper_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._gripper_names]
 
         # Movable joints
-        self.actuated_dof_indices = torch.LongTensor(self.base_dof_idxs+self.arm_dof_idxs+self.gripper_proximal_dof_idxs).to(self._device) # torch.LongTensor([0, 1, 2, 3, 5, 7, 9, 10, 11, 12]).to(self._device)
-        self.movable_dof_indices = torch.LongTensor(self.base_dof_idxs+self.arm_dof_idxs).to(self._device) # torch.LongTensor([0, 1, 2, 3, 5, 7, 9, 10]).to(self._device)
+        self.actuated_dof_indices = torch.LongTensor(self.arm_dof_idxs+self.gripper_dof_idxs).to(self._device)
+        self.movable_dof_indices = torch.LongTensor(self.arm_dof_idxs).to(self._device)
 
     def set_dof_limits(self): # dof position limits
         # (num_envs, num_dofs, 2)
@@ -384,48 +223,38 @@ class xArmFMBBaseTask(RLTask):
         dof_limits_upper = dof_limits[0, :, 1].to(self._device)
 
         # Set relevant joint position limit values
-        self.torso_dof_lower = dof_limits_lower[self.torso_dof_idx]
-        self.torso_dof_upper = dof_limits_upper[self.torso_dof_idx]
-        self.base_dof_lower = dof_limits_lower[self.base_dof_idxs]
-        self.base_dof_upper = dof_limits_upper[self.base_dof_idxs]
         self.arm_dof_lower = dof_limits_lower[self.arm_dof_idxs]
         self.arm_dof_upper = dof_limits_upper[self.arm_dof_idxs]
-        self.gripper_proximal_dof_lower = dof_limits_lower[self.gripper_proximal_dof_idxs]
-        self.gripper_proximal_dof_upper = dof_limits_upper[self.gripper_proximal_dof_idxs]
+        self.gripper_dof_lower = dof_limits_lower[self.gripper_dof_idxs]
+        self.gripper_dof_upper = dof_limits_upper[self.gripper_dof_idxs]
 
         self.robot_dof_lower_limits, self.robot_dof_upper_limits = torch.t(dof_limits[0].to(device=self._device))
 
     def set_default_state(self):
         # Start at 'home' positions
-        self.torso_start = self.initial_dof_positions[:, self.torso_dof_idx]
-        self.base_start = self.initial_dof_positions[:, self.base_dof_idxs]
         self.arm_start = self.initial_dof_positions[:, self.arm_dof_idxs]
-        self.gripper_proximal_start = self.initial_dof_positions[:, self.gripper_proximal_dof_idxs]
+        self.gripper_start = self.initial_dof_positions[:, self.gripper_proximal_dof_idxs]
 
         # Set default joint state
         joint_states = self._robots.get_joints_default_state()
         jt_pos = joint_states.positions
-        jt_pos[:, self.torso_dof_idx] = self.torso_start.float()
-        jt_pos[:, self.base_dof_idxs] = self.base_start.float()
         jt_pos[:, self.arm_dof_idxs] = self.arm_start.float()
-        jt_pos[:, self.gripper_proximal_dof_idxs] = self.gripper_proximal_start.float()
+        jt_pos[:, self.gripper_proximal_dof_idxs] = self.gripper_start.float()
 
         jt_vel = joint_states.velocities
-        jt_vel[:, self.torso_dof_idx] = torch.zeros_like(self.torso_start, device=self._device, dtype=torch.float)
-        jt_vel[:, self.base_dof_idxs] = torch.zeros_like(self.base_start, device=self._device, dtype=torch.float)
         jt_vel[:, self.arm_dof_idxs] = torch.zeros_like(self.arm_start, device=self._device, dtype=torch.float)
-        jt_vel[:, self.gripper_proximal_dof_idxs] = torch.zeros_like(self.gripper_proximal_start, device=self._device, dtype=torch.float)
+        jt_vel[:, self.gripper_proximal_dof_idxs] = torch.zeros_like(self.gripper_start, device=self._device, dtype=torch.float)
 
         self._robots.set_joints_default_state(positions=jt_pos, velocities=jt_vel)
 
         # Initialize target positions
         self.dof_position_targets = jt_pos
 
-    def set_joint_gains(self):
-        self._robots.set_gains(kps=self.joint_kps, kds=self.joint_kds)
+    def set_joint_gains(self, joint_kps: torch.Tensor, joint_kds: torch.Tensor):
+        self._robots.set_gains(kps=joint_kps, kds=joint_kds)
 
-    def set_joint_frictions(self):
-        self._robots.set_friction_coefficients(self.joint_friction_coefficients)
+    def set_joint_frictions(self, friction_coefficients: torch.Tensor):
+        self._robots.set_friction_coefficients(values=friction_coefficients)
 
     def _close_gripper(self, env_ids, sim_steps=None):
         env_ids_32 = env_ids.type(torch.int32)
@@ -433,14 +262,14 @@ class xArmFMBBaseTask(RLTask):
 
         # Set gripper target force
         gripper_dof_effort = torch.tensor([-30., -30.], device=self._device)
-        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
 
         # Step sim
         if sim_steps != None:
             for _ in range(sim_steps):
                 SimulationContext.step(self._env._world, render=True)
 
-        self.dof_position_targets[env_ids_64[:, None], self.gripper_proximal_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self.dof_position_targets[env_ids_64[:, None], self.gripper_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
         self.gripper_hold[env_ids_64] = True
 
     def _open_gripper(self, env_ids, sim_steps=None):
@@ -449,18 +278,18 @@ class xArmFMBBaseTask(RLTask):
 
         # Remove gripper force
         gripper_dof_effort = torch.tensor([0., 0.], device=self._device)
-        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
 
         # Set gripper target angle
         gripper_dof_pos = torch.tensor([0.5, 0.5], device=self._device)
-        self._robots.set_joint_position_targets(gripper_dof_pos, indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self._robots.set_joint_position_targets(gripper_dof_pos, indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
 
         # Step sim
         if sim_steps != None:
             for _ in range(sim_steps):
                 SimulationContext.step(self._env._world, render=True)
 
-        self.dof_position_targets[env_ids_64[:, None], self.gripper_proximal_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self.dof_position_targets[env_ids_64[:, None], self.gripper_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
         self.gripper_hold[env_ids_64] = False
 
     def _hold_gripper(self, env_ids):
@@ -468,8 +297,8 @@ class xArmFMBBaseTask(RLTask):
         env_ids_64 = env_ids.type(torch.int64)
 
         gripper_dof_effort = torch.tensor([-30., -30.], device=self._device)
-        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
-        self.dof_position_targets[env_ids_64[:, None], self.gripper_proximal_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_proximal_dof_idxs)
+        self._robots.set_joint_efforts(gripper_dof_effort, indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
+        self.dof_position_targets[env_ids_64[:, None], self.gripper_dof_idxs] = self._robots.get_joint_positions(indices=env_ids_32, joint_indices=self.gripper_dof_idxs)
 
     def load_exp_dataset(self):
         raise NotImplementedError()
