@@ -1,1 +1,1 @@
-docker build -t hsr_isaac:2022.2.1 .
+docker build -t xarm_isaac:2023.1.1 .

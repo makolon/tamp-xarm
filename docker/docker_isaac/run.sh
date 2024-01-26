@@ -1,8 +1,8 @@
 #!/bin/bash
 
 docker run -it \
-  -v ~/tamp-hsr:/root/tamp-hsr \
-  -v ~/docker/isaac-sim/kit/cache/Kit:/isaac-sim/kit/cache/Kit:rw \
+  -v ~/tamp-xarm:/root/tamp-xarm \
+  -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
   -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
   -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
   -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
@@ -11,8 +11,8 @@ docker run -it \
   -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
   -v ~/docker/isaac-sim/documents:/root/Documents:rw \
   -e ACCEPT_EULA=Y \
-  -e DISPLAY=unix$DISPLAY \
+  -e DISPLAY=$DISPLAY \
   -e NVIDIA_VISIBLE_DEVICES=all \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   --net=host \
-  --gpus all --rm --name "hsr_isaac" hsr_isaac:2022.2.1
+  --gpus all --rm --name "xarm_isaac" xarm_isaac:2023.1.1
