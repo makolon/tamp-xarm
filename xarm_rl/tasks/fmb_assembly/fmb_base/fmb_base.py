@@ -68,7 +68,7 @@ class xArmFMBBaseTask(RLTask):
 
         # Joint & body names
         self._arm_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
-        self._gripper_names = ["hand_l_proximal_joint", "hand_r_proximal_joint"]
+        self._gripper_names = ["left_drive_joint", "right_drive_joint"]
 
         # Values are set in post_reset after model is loaded
         self.arm_dof_idxs = []
