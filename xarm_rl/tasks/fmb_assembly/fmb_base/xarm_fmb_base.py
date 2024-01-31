@@ -60,7 +60,7 @@ class xArmFMBBaseTask(RLTask):
         self._pick_success = self._task_cfg["rl"]["pick_threshold"]
         self._place_success = self._task_cfg["rl"]["place_threshold"]
         self._insert_success = self._task_cfg['rl']['insert_threshold']
-        self._action_speed_scale = self._task_cfg["env"]["actionSpeedScale"]
+        self._action_scale = self._task_cfg["env"]["actionScale"]
         self._max_episode_length = self._task_cfg["env"]["maxEpisodeLength"]
 
         # Set up environment from loaded demonstration
@@ -94,7 +94,6 @@ class xArmFMBBaseTask(RLTask):
         self.gripper_hold = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
 
         RLTask.__init__(self, name, env)
-        return
 
     def set_up_environment(self) -> None:
         # Environment object settings
@@ -120,22 +119,6 @@ class xArmFMBBaseTask(RLTask):
         scene.add(self._robots._lfingers)
         scene.add(self._robots._rfingers)
         scene.add(self._robots._fingertip_centered)
-
-        # Add parts to scene
-        self._block1 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft1/shaft1", name="shaft1_view", reset_xform_properties=False)
-        self._block2 = RigidPrimView(prim_paths_expr="/World/envs/.*/shaft2/shaft2", name="shaft2_view", reset_xform_properties=False)
-        self._block3 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear1/gear1", name="gear1_view", reset_xform_properties=False)
-        self._block4 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear2/gear2", name="gear2_view", reset_xform_properties=False)
-        self._block5 = RigidPrimView(prim_paths_expr="/World/envs/.*/gear3/gear3", name="gear3_view", reset_xform_properties=False)
-
-        scene.add(self._shaft1)
-        scene.add(self._shaft2)
-        scene.add(self._gear1)
-        scene.add(self._gear2)
-        scene.add(self._gear3)
-
-        self._parts = {'block1': self._block1, 'shaft2': self._block2,
-                       'gear1': self._block3, 'gear2': self._block4, 'gear3': self._block5}
 
     def add_xarm(self):
         # Add xArm

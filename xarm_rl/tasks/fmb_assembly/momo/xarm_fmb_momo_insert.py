@@ -6,11 +6,11 @@ from omni.isaac.core.utils.stage import get_current_stage
 from omni.isaac.core.utils.torch.rotations import *
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp
-from xarm_rl.tasks.fmb_assembly.fmb_base import xArmFMBBaseTask
+from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask
 from pxr import Usd, UsdGeom
 
 
-class xArmFMBAssembly(xArmFMBBaseTask):
+class xArmFMBMOMOInsert(xArmFMBBaseTask):
     def __init__(self, name, sim_config, env, offset=None) -> None:
         self.update_config(sim_config)
 

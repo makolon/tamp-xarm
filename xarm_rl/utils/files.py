@@ -24,4 +24,4 @@ def get_usd_path():
 
 def get_cfg_path():
     path = path = Path(xarm_rl.__path__[0]).resolve()/ 'cfg'
-    return 
+    return path

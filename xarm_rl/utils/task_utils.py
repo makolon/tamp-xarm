@@ -28,54 +28,46 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-def initialize_task(config, env, init_sim=True):
-    from .config_utils.sim_config import SimConfig
-    sim_config = SimConfig(config)
-
-    # from xarm_rl.tasks.example.hsr_example import HSRExampleTask
-    # from xarm_rl.tasks.example.hsr_fetch import HSRExampleFetchTask
-    # from xarm_rl.tasks.example.hsr_reach import HSRExampleReachTask
-    # from xarm_rl.tasks.example.hsr_pick import HSRExamplePickTask
-    # from xarm_rl.tasks.example.hsr_cabinet import HSRExampleCabinetTask
-    # from xarm_rl.tasks.residual.hsr_residual_example import HSRResidualExampleTask
-    # from xarm_rl.tasks.residual.hsr_residual_fetch import HSRResidualFetchTask
-    # from xarm_rl.tasks.residual.hsr_residual_stack import HSRResidualStackTask
-    # from xarm_rl.tasks.factory.factory_task_nut_bolt_pick import FactoryTaskNutBoltPick
-    from xarm_rl.tasks.gearbox.hsr_gearbox_pick import HSRGearboxPickTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_place import HSRGearboxPlaceTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_insert import HSRGearboxInsertTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_all import HSRGearboxAllTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_residual_pick import HSRGearboxResidualPickTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_residual_place import HSRGearboxResidualPlaceTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_residual_insert import HSRGearboxResidualInsertTask
-    from xarm_rl.tasks.gearbox.hsr_gearbox_residual_all import HSRGearboxResidualAllTask
+def import_tasks():
+    from xarm_rl.tasks.fmb_assembly.xarm_fmb_insert import xArmFMBInsert
+    from xarm_rl.tasks.fmb_assembly.xarm_fmb_pick import xArmFMBPick
+    from xarm_rl.tasks.fmb_assembly.xarm_fmb_place import xArmFMBPlace
 
     # Mappings from strings to environments
     task_map = {
-        # "HSRExample": HSRExampleTask,
-        # "HSRExampleFetch": HSRExampleFetchTask,
-        # "HSRExampleReach": HSRExampleReachTask,
-        # "HSRExamplePick": HSRExamplePickTask,
-        # "HSRExampleCabinet": HSRExampleCabinetTask,
-        # "HSRResidualExample": HSRResidualExampleTask,
-        # "HSRResidualFetch": HSRResidualFetchTask,
-        # "HSRResidualStack": HSRResidualStackTask,
-        # "FactoryTaskNutBoltPick": FactoryTaskNutBoltPick,
-        "HSRGearboxPick": HSRGearboxPickTask,
-        "HSRGearboxPlace": HSRGearboxPlaceTask,
-        "HSRGearboxInsert": HSRGearboxInsertTask,
-        "HSRGearboxAll": HSRGearboxAllTask,
-        "HSRGearboxResidualPick": HSRGearboxResidualPickTask,
-        "HSRGearboxResidualPlace": HSRGearboxResidualPlaceTask,
-        "HSRGearboxResidualInsert": HSRGearboxResidualInsertTask,
-        "HSRGearboxResidualAll": HSRGearboxResidualAllTask
+        "xArmFMBInsert": xArmFMBInsert,
+        "xArmFMBPick": xArmFMBPick,
+        "xArmFMBPlace": xArmFMBPlace,
     }
+    task_map_warp = {}
+
+    return task_map, task_map_warp
+
+
+def initialize_task(config, env, init_sim=True):
+    from xarm_rl.utils.config_utils.sim_config import SimConfig
+
+    sim_config = SimConfig(config)
+    task_map, task_map_warp = import_tasks()
 
     cfg = sim_config.config
+    if cfg["warp"]:
+        task_map = task_map_warp
+
     task = task_map[cfg["task_name"]](
         name=cfg["task_name"], sim_config=sim_config, env=env
     )
 
-    env.set_task(task=task, sim_params=sim_config.get_physics_params(), backend="torch", init_sim=init_sim)
+    backend = "warp" if cfg["warp"] else "torch"
+
+    rendering_dt = sim_config.get_physics_params()["rendering_dt"]
+
+    env.set_task(
+        task=task,
+        sim_params=sim_config.get_physics_params(),
+        backend=backend,
+        init_sim=init_sim,
+        rendering_dt=rendering_dt,
+    )
 
     return task

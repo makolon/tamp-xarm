@@ -29,6 +29,7 @@
 
 from datetime import datetime
 
+import numpy as np
 import torch
 from omni.isaac.gym.vec_env import VecEnvBase
 

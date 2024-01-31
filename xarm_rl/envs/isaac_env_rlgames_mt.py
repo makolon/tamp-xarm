@@ -27,31 +27,45 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from typing import Dict
+import numpy as np
+import torch
+from omni.isaac.gym.vec_env import TaskStopException, VecEnvMT
 
-from omegaconf import DictConfig, OmegaConf
-
-
-def omegaconf_to_dict(d: DictConfig) -> Dict:
-    """Converts an omegaconf DictConfig to a python Dict, respecting variable interpolation."""
-    ret = {}
-    for k, v in d.items():
-        if isinstance(v, DictConfig):
-            ret[k] = omegaconf_to_dict(v)
-        else:
-            ret[k] = v
-    return ret
+from .isaac_env_rlgames import VecEnvRLGames
 
 
-def print_dict(val, nesting: int = -4, start: bool = True):
-    """Outputs a nested dictionory."""
-    if type(val) == dict:
-        if not start:
-            print("")
-        nesting += 4
-        for k in val:
-            print(nesting * " ", end="")
-            print(k, end=": ")
-            print_dict(val[k], nesting, start=False)
-    else:
-        print(val)
+# VecEnv Wrapper for RL training
+class VecEnvRLGamesMT(VecEnvRLGames, VecEnvMT):
+    def _parse_data(self, data):
+        self._obs = data["obs"]
+        self._rew = data["rew"].to(self._task.rl_device)
+        self._states = torch.clamp(data["states"], -self._task.clip_obs, self._task.clip_obs).to(self._task.rl_device)
+        self._resets = data["reset"].to(self._task.rl_device)
+        self._extras = data["extras"]
+
+    def step(self, actions):
+        if self._stop:
+            raise TaskStopException()
+
+        if self._task.randomize_actions:
+            actions = self._task._dr_randomizer.apply_actions_randomization(
+                actions=actions, reset_buf=self._task.reset_buf
+            )
+
+        actions = torch.clamp(actions, -self._task.clip_actions, self._task.clip_actions).to(self._task.device)
+
+        self.send_actions(actions)
+        data = self.get_data()
+
+        if self._task.randomize_observations:
+            self._obs = self._task._dr_randomizer.apply_observations_randomization(
+                observations=self._obs.to(self._task.rl_device), reset_buf=self._task.reset_buf
+            )
+
+        self._obs = torch.clamp(self._obs, -self._task.clip_obs, self._task.clip_obs).to(self._task.rl_device)
+
+        obs_dict = {}
+        obs_dict["obs"] = self._obs
+        obs_dict["states"] = self._states
+
+        return obs_dict, self._rew, self._resets, self._extras
