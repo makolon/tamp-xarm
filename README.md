@@ -1,4 +1,4 @@
-# TAMP-xARM
+# TAMP-xArm
 This repository implement PDDLStream for xArm7 and offer parallel reinforcement learning environment on Isaac Sim.
 
 ## Getting Started
