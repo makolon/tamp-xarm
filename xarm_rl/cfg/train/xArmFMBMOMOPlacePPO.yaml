@@ -34,7 +34,7 @@ params:
   load_path: ${...checkpoint}
 
   config:
-    name: ${resolve_default:xArmFMBPick,${....experiment}}
+    name: ${resolve_default:xArmFMBMOMOPlace,${....experiment}}
     full_experiment_name: ${.name}
     device: ${....rl_device}
     device_name: ${....rl_device}
@@ -64,7 +64,7 @@ params:
     entropy_coef: 0.0
     truncate_grads: False
     e_clip: 0.2
-    horizon_length: 512
+    horizon_length: 128
     minibatch_size: 512
     mini_epochs: 8
     critic_coef: 2

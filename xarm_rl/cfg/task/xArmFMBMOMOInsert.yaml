@@ -1,5 +1,5 @@
 # used to create the object
-name: xArmFMBPlace
+name: xArmFMBMOMOInsert
 
 physics_engine: ${..physics_engine}
 
@@ -30,6 +30,38 @@ env:
   table_height: 0.11
   table_width: 0.47
   table_depth: 1.82
+
+  gamma: 0.999
+  move_group: "whole_body"
+  randomize_robot_on_reset: False
+  action_type: "relative"
+  target_space: "task"
+  num_actions: 3 # 6 if relative and task, 7 if absolute and task, 8 if joint
+  num_grasp_objects: 6 # objects
+  num_observations: 19 # observation space
+  num_gripper_move_sim_steps: 1 # 20 # number of timesteps to reserve for moving gripper before first step of episode
+  num_gripper_close_sim_steps: 1 # 25 # number of timesteps to reserve for closing gripper after last step of episode
+  num_gripper_open_sim_steps: 1 # 25 # number of timesteps to reserve for closing gripper after last step of episode
+  num_gripper_lift_sim_steps: 1 # 25 # number of timesteps to reserve for lift after last step of episode
+
+  table_height: 0.11
+  table_width: 0.47
+  table_depth: 1.82
+  base_height: 0.06
+  base_width: 0.03
+  base_depth: 0.08
+  gear_base_height: 0.01
+  gear_base_width: 0.27
+  gear_base_depth: 0.27
+  block1_height: 0.11
+  block1_width: 0.030
+  block1_depth: 0.030
+  block2_height: 0.11
+  block2_width: 0.035
+  block2_depth: 0.035
+  shaft_height: 0.115
+  shaft_width: 0.05
+  shaft_depth: 0.05
 
 sim:
   dt: 0.00833333333 # 1/120 s
@@ -143,8 +175,8 @@ sim:
   gripper:
     mass: 0.01
     density: 100
-    static_friction: 1.0
-    dynamic_friction: 1.0
+    static_friction: 1.0 # 0.3
+    dynamic_friction: 1.0 # 0.0
     restitution: 0.0
 
 rl:
@@ -159,6 +191,8 @@ rl:
   distance_scale: 0.01 # length of line of keypoints
   target_position_distance_scale: 0.01
   target_rotation_distance_scale: 0.01
-  place_success_bonus: 10.0 # bonus if block has beed placed in a certain resion
+  insert_success_bonus: 10.0 # bonus if block has beed inserted in a certain resion
   collision_penalty: 0.5 # collision penalty
+  insert_threshold: 0.02
+  pick_threshold: 0.30
   place_threshold: 0.02

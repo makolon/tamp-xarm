@@ -4,60 +4,78 @@ task_name: ${task.name}
 experiment: ''
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 1024
+num_envs: 16
 
 # seed - set to -1 to choose random seed
-seed: -1
+seed: 42
 # set to True for deterministic performance
 torch_deterministic: False
 
-# (Optional) Use the isaac sim configuration from file
-sim_app_cfg_path: "" # "/isaac_app_configs/omni.isaac.sim.python.kit"
 # set the maximum number of learning iterations to train for. overrides default per-environment setting
-max_iterations: 1500
+max_iterations: ''
 
 ## Device config
 physics_engine: 'physx'
 # whether to use cpu or gpu pipeline
-pipeline: 'gpu' # 'cpu' or 'gpu'
+pipeline: 'gpu'
 # whether to use cpu or gpu physx
-sim_device: 'gpu' # 'cpu' or 'gpu'
+sim_device: 'gpu'
 # used for gpu simulation only - device id for running sim and task if pipeline=gpu
 device_id: 0
 # device to run RL
-rl_device: 'cuda:0' #'cpu' or 'cuda:0'
+rl_device: 'cuda:0'
 # multi-GPU training
 multi_gpu: False
 
 ## PhysX arguments
-num_threads: 4 # Number of worker threads per scene used by PhysX - for CPU PhysX only.
+num_threads: 4 # Number of worker threads used by PhysX - for CPU PhysX only.
 solver_type: 1 # 0: pgs, 1: tgs
 
-# RL Arguments
+# RLGames Arguments
 # test - if set, run policy in inference mode (requires setting checkpoint to load)
 test: False
 # used to set checkpoint path
 checkpoint: ''
+# evaluate checkpoint
+evaluation: False
 
-# enable/disable headless mode and rendering (in pygame window)
+# disables rendering
 headless: False
 # enables native livestream
 enable_livestream: False
 # timeout for MT script
-mt_timeout: 30
+mt_timeout: 300
+
+# enables viewport recording
+enable_recording: False
+# interval between video recordings (in steps)
+recording_interval: 2000
+# length of the recorded video (in steps)
+recording_length: 100
+# fps for writing recorded video
+recording_fps: 30
+# directory to save recordings in
+recording_dir: ''
 
 # Wandb settings (optional)
 wandb_activate: True
 wandb_group: ''
 wandb_name: ${train.params.config.name}
 wandb_entity: ''
-wandb_project: 'tamp-hsr'
+wandb_project: 'tamp-xarm'
+
+# path to a kit app file
+kit_app: ''
+
+# Warp
+warp: False
 
 # set default task and default training config based on task
 defaults:
-  - task: xArmFMBPick
+  - _self_
+  - task: xArmFMBMOMOPick
   - train: ${task}PPO
-  - hydra/job_logging: disabled
+  - override hydra/job_logging: disabled
 
 # set the directory where the output files get saved
 hydra:

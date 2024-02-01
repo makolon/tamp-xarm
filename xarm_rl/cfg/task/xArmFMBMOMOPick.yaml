@@ -1,5 +1,5 @@
 # used to create the object
-name: xArmFMBPick
+name: xArmFMBMOMOPick
 
 physics_engine: ${..physics_engine}
 
@@ -161,4 +161,6 @@ rl:
   target_rotation_distance_scale: 0.01
   pick_success_bonus: 10.0 # bonus if block has beed picked in a certain resion
   collision_penalty: 0.5 # collision penalty
+  insert_threshold: 0.02
   pick_threshold: 0.30
+  place_threshold: 0.02
