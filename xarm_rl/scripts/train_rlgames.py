@@ -33,13 +33,13 @@ import gym
 import hydra
 import torch
 from omegaconf import DictConfig
-import omniisaacgymenvs
+import xarm_rl
 from xarm_rl.envs.isaac_env_rlgames import VecEnvRLGames
 from xarm_rl.utils.config_utils.path_utils import retrieve_checkpoint_path, get_experience
 from xarm_rl.utils.hydra_cfg.hydra_utils import *
 from xarm_rl.utils.hydra_cfg.reformat import omegaconf_to_dict, print_dict
 from xarm_rl.utils.rlgames.rlgames_utils import RLGPUAlgoObserver, RLGPUEnv
-from xarm_rl.utils.task_util import initialize_task
+from xarm_rl.utils.task_utils import initialize_task
 from rl_games.common import env_configurations, vecenv
 from rl_games.torch_runner import Runner
 
@@ -113,7 +113,7 @@ def parse_hydra_configs(cfg: DictConfig):
     )
 
     # parse experiment directory
-    module_path = os.path.abspath(os.path.join(os.path.dirname(omniisaacgymenvs.__file__)))
+    module_path = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__path__[0])))
     experiment_dir = os.path.join(module_path, "runs", cfg.train.params.config.name)
 
     # use gym RecordVideo wrapper for viewport recording
