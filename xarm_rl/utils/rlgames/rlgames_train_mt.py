@@ -37,7 +37,7 @@ import traceback
 import hydra
 from omegaconf import DictConfig
 from omni.isaac.gym.vec_env.vec_env_mt import TrainerMT
-import omniisaacgymenvs
+import xarm_rl
 from xarm_rl.envs.isaac_env_rlgames_mt import VecEnvRLGamesMT
 from xarm_rl.utils.config_utils.path_utils import retrieve_checkpoint_path
 from xarm_rl.utils.hydra_cfg.hydra_utils import *
@@ -83,7 +83,7 @@ class RLGTrainer:
             player_config["dir_to_monitor"] = os.path.dirname(self.cfg.checkpoint)
             self.rlg_config_dict["params"]["config"]["player"] = player_config
 
-        module_path = os.path.abspath(os.path.join(os.path.dirname(omniisaacgymenvs.__file__)))
+        module_path = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__path__[0])))
         self.rlg_config_dict["params"]["config"]["train_dir"] = os.path.join(module_path, "runs")
 
         # load config

@@ -95,10 +95,12 @@ class xArmFMBBaseTask(RLTask):
 
     def set_up_environment(self) -> None:
         # Environment object settings
-        self._xarm_position = torch.tensor([0.0, 0.0, 0.0], device=self._device)
-        self._xarm_rotation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
-        self._table_position = torch.tensor([1.2, -0.2, self._table_height/2], device=self._device)
-        self._table_rotation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
+        self.initial_dof_positions = torch.tensor([0.0, -0.3, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0], device=self._device)
+
+        self._xarm_translation = torch.tensor([0.0, 0.0, 0.0], device=self._device)
+        self._xarm_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
+        self._table_translation = torch.tensor([1.2, -0.2, self._table_height/2], device=self._device)
+        self._table_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
 
     def set_up_scene(self, scene) -> None:
         # Create gripper materials
@@ -111,30 +113,32 @@ class xArmFMBBaseTask(RLTask):
         self.add_table()
 
         # Add robot to scene
-        self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm", name="xarm_view")
+        self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm7", name="xarm_view")
         scene.add(self._robots)
         scene.add(self._robots._hands)
         scene.add(self._robots._lfingers)
         scene.add(self._robots._rfingers)
+        scene.add(self._robots._fingertip_centered)
 
     def add_xarm(self):
         # Add xArm
         for i in range(self._num_envs):
-            xarm = xArm(prim_path=f"/World/envs/env_{i}/xarm",
-                       name="xarm",
-                       translation=self._xarm_position,
-                       orientation=self._xarm_rotation)
+            xarm = xArm(prim_path=f"/World/envs/env_{i}/xarm7",
+                        name="xarm7",
+                        translation=self._xarm_translation,
+                        orientation=self._xarm_orientation)
             self._sim_config.apply_articulation_settings("xarm", get_prim_at_path(xarm.prim_path), self._sim_config.parse_actor_config("xarm"))
+            # xarm.set_xarm_properties(stage=self._stage, prim=xarm.prim)
 
             # Add physics material
             physicsUtils.add_physics_material_to_prim(
                 self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/right_finger/collisions/mesh_0"),
+                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm7/right_finger/collisions/mesh_0"),
                 self.gripperPhysicsMaterialPath
             )
             physicsUtils.add_physics_material_to_prim(
                 self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm/left_finger/collisions/mesh_0"),
+                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm7/left_finger/collisions/mesh_0"),
                 self.gripperPhysicsMaterialPath
             )
 
@@ -143,8 +147,8 @@ class xArmFMBBaseTask(RLTask):
         for i in range(self._num_envs):
             table = FixedCuboid(prim_path=f"/World/envs/env_{i}/table",
                                 name="table",
-                                translation=self.env_info['initial_object_pose'][i]['table'][0],
-                                orientation=self.init_static_orn['table'],
+                                translation=self._table_translation,
+                                orientation=self._table_orientation,
                                 size=1.0,
                                 color=torch.tensor([0.75, 0.75, 0.75]),
                                 scale=torch.tensor([self._table_width, self._table_depth, self._table_height]))
@@ -157,7 +161,6 @@ class xArmFMBBaseTask(RLTask):
         utils.addRigidBodyMaterial(
             self._stage,
             self.gripperPhysicsMaterialPath,
-            density=self._gripper_density,
             staticFriction=self._gripper_static_friction,
             dynamicFriction=self._gripper_dynamic_friction,
             restitution=self._gripper_restitution

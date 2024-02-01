@@ -27,7 +27,7 @@ from omni.isaac.core.utils.extensions import disable_extension, enable_extension
 from omni.isaac.core.utils.torch.maths import set_seed
 from omni.isaac.core.utils.viewports import set_camera_view
 from omni.isaac.core.world import World
-import omniisaacgymenvs
+import xarm_rl
 from xarm_rl.envs.isaac_env_rlgames_mt import VecEnvRLGamesMT
 from xarm_rl.utils.config_utils.sim_config import SimConfig
 from xarm_rl.utils.hydra_cfg.reformat import omegaconf_to_dict, print_dict
@@ -305,8 +305,7 @@ class RLExtension(omni.ext.IExt):
             launch_simulation_app=False,
         )
         # parse experiment directory
-        module_path = os.path.abspath(os.path.join(os.path.dirname(omniisaacgymenvs.__file__)))
-        experiment_dir = os.path.join(module_path, "runs", self._cfg.train.params.config.name)
+        experiment_dir = os.path.join("runs", self._cfg.train.params.config.name)
 
         # use gym RecordVideo wrapper for viewport recording
         if self._cfg.enable_recording:
@@ -397,13 +396,13 @@ class RLExtension(omni.ext.IExt):
     def _on_test_cb_update(self, value):
         self._test = value
         if value is True and self._checkpoint_path.strip() == "":
-            module_path = os.path.abspath(os.path.join(os.path.dirname(omniisaacgymenvs.__file__)))
+            module_path = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__path__[0])))
             self._checkpoint_str.set_value(os.path.join(module_path, f"runs/{self._task_name}/nn/{self._task_name}.pth"))
 
     def _on_resume_cb_update(self, value):
         self._resume = value
         if value is True and self._checkpoint_path.strip() == "":
-            module_path = os.path.abspath(os.path.join(os.path.dirname(omniisaacgymenvs.__file__)))
+            module_path = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__path__[0])))
             self._checkpoint_str.set_value(os.path.join(module_path, f"runs/{self._task_name}/nn/{self._task_name}.pth"))
 
     def _on_evaluate_cb_update(self, value):

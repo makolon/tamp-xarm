@@ -43,7 +43,7 @@ from omni.isaac.core.utils.prims import define_prim
 from omni.isaac.core.utils.stage import get_current_stage
 from omni.isaac.core.utils.types import ArticulationAction
 from omni.isaac.gym.tasks.rl_task import RLTaskInterface
-from omniisaacgymenvs.utils.domain_randomization.randomize import Randomizer
+from xarm_rl.utils.domain_randomization.randomize import Randomizer
 from pxr import Gf, UsdGeom, UsdLux
 
 

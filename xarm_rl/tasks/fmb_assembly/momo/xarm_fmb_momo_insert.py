@@ -55,6 +55,7 @@ class xArmFMBMOMOInsert(xArmFMBBaseTask):
         # Add static base
         for env_idx in range(self._num_envs):
             base = spawn_static_object(name='base',
+                                       task_name='fmb/momo/assembly1',
                                        prim_path=f"/World/envs/env_{env_idx}",
                                        object_translation=self._base_translation,
                                        object_orientation=self._base_orientation)
@@ -67,6 +68,7 @@ class xArmFMBMOMOInsert(xArmFMBBaseTask):
         for env_idx in range(self._num_envs):
             for obj_name in self._parts_names:
                 parts = spawn_dynamic_object(name=obj_name,
+                                             task_name='fmb/momo/assembly1',
                                              prim_path=f"/World/envs/env_{env_idx}",
                                              object_translation=self._parts_translation[obj_name],
                                              object_orientation=self._parts_orientation[obj_name])

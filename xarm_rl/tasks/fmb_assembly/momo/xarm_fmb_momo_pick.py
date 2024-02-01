@@ -55,6 +55,7 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         # Add static base
         for env_idx in range(self._num_envs):
             base = spawn_static_object(name='base',
+                                       task_name='fmb/momo/assembly1',
                                        prim_path=f"/World/envs/env_{env_idx}",
                                        object_translation=self._base_translation,
                                        object_orientation=self._base_orientation)
@@ -67,19 +68,13 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         for env_idx in range(self._num_envs):
             for obj_name in self._parts_names:
                 parts = spawn_dynamic_object(name=obj_name,
+                                             task_name='fmb/momo/assembly1',
                                              prim_path=f"/World/envs/env_{env_idx}",
                                              object_translation=self._parts_translation[obj_name],
                                              object_orientation=self._parts_orientation[obj_name])
                 self._sim_config.apply_articulation_settings(obj_name,
                                                 get_prim_at_path(parts.prim_path),
                                                 self._sim_config.parse_actor_config(obj_name))
-
-                # Add physics material
-                physicsUtils.add_physics_material_to_prim(
-                    self._stage,
-                    self._stage.GetPrimAtPath(f"/World/envs/env_{env_idx}/{obj_name}/{obj_name}/collisions/mesh_0"),
-                    self.shaftPhysicsMaterialPath
-                )
 
     def get_observations(self) -> dict:
         # Get end effector positions and orientations

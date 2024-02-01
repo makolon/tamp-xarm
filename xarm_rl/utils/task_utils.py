@@ -29,15 +29,15 @@
 
 
 def import_tasks():
-    from xarm_rl.tasks.fmb_assembly.xarm_fmb_insert import xArmFMBInsert
-    from xarm_rl.tasks.fmb_assembly.xarm_fmb_pick import xArmFMBPick
-    from xarm_rl.tasks.fmb_assembly.xarm_fmb_place import xArmFMBPlace
+    from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_insert import xArmFMBMOMOInsert
+    from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_pick import xArmFMBMOMOPick
+    from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_place import xArmFMBMOMOPlace
 
     # Mappings from strings to environments
     task_map = {
-        "xArmFMBInsert": xArmFMBInsert,
-        "xArmFMBPick": xArmFMBPick,
-        "xArmFMBPlace": xArmFMBPlace,
+        "xArmFMBMOMOInsert": xArmFMBMOMOInsert,
+        "xArmFMBMOMOPick": xArmFMBMOMOPick,
+        "xArmFMBMOMOPlace": xArmFMBMOMOPlace,
     }
     task_map_warp = {}
 

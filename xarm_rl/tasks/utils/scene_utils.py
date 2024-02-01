@@ -13,25 +13,10 @@ from omni.isaac.core.utils.prims import get_prim_at_path, is_prim_path_valid
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.core.utils.torch.rotations import euler_angles_to_quats
 
-def spawn_obstacle(name, prim_path, device):
-    object_translation = torch.tensor([1.7, 0.0, 0.055], device=device)
-    object_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
 
+def spawn_dynamic_object(name, task_name, prim_path, object_translation, object_orientation):
     # Spawn object model from usd path
-    object_usd_path = os.path.join(get_usd_path(), 'gearbox', name, name+'.usd')
-
-    add_reference_to_stage(object_usd_path, prim_path+"/obstacle/"+name)
-    obst_prim = XFormPrim(
-        prim_path=prim_path+"/obstacle/"+name,
-        translation=object_translation,
-        orientation=object_orientation
-    )
-
-    return obst_prim
-
-def spawn_dynamic_object(name, prim_path, object_translation, object_orientation):
-    # Spawn object model from usd path
-    object_usd_path = os.path.join(get_usd_path(), 'gearbox_dynamic', name, name+'.usd')
+    object_usd_path = os.path.join(get_usd_path(), task_name, name, name+'.usd')
 
     add_reference_to_stage(object_usd_path, prim_path+"/"+name)
     obj_prim = XFormPrim(
@@ -42,9 +27,10 @@ def spawn_dynamic_object(name, prim_path, object_translation, object_orientation
 
     return obj_prim
 
-def spawn_static_object(name, prim_path, object_translation, object_orientation):
+
+def spawn_static_object(name, task_name, prim_path, object_translation, object_orientation):
     # Spawn object model from usd path
-    object_usd_path = os.path.join(get_usd_path(), 'gearbox_static', name, name+'.usd')
+    object_usd_path = os.path.join(get_usd_path(), task_name, name, name+'.usd')
 
     add_reference_to_stage(object_usd_path, prim_path+"/"+name)
     obj_prim = XFormPrim(
@@ -55,25 +41,6 @@ def spawn_static_object(name, prim_path, object_translation, object_orientation)
 
     return obj_prim
 
-def setup_gearbox_scene(env_ids, indices, obstacles, obstacles_state, grasp_objs, grasp_objs_state, device):
-    # Place all grasp objects on the tabular obstacle (without overlaps)
-    for idx, _ in enumerate(obstacles):
-        obst_position = obstacles_state[idx][env_ids, :3]
-        obst_orientation = obstacles_state[idx][env_ids, 3:]
-        obstacles[idx].set_world_poses(positions=obst_position,
-                                        orientations=obst_orientation,
-                                        indices=indices)
-    for idx, _ in enumerate(grasp_objs):
-        grasp_obj_position = grasp_objs_state[idx][env_ids, :3]
-        grsap_obj_orientation = grasp_objs_state[idx][env_ids, 3:]
-        grasp_objs[idx].set_world_poses(positions=grasp_obj_position,
-                                        orientations=grsap_obj_orientation,
-                                        indices=indices)
-
-    # Pick one object to be the grasp object and compute its grasp:
-    goal_obj_index = np.random.randint(len(grasp_objs))
-
-    return grasp_objs[goal_obj_index]
 
 class DynamicObject(RigidPrim, GeometryPrim):
     """Creates and adds a prim to stage from USD reference path, and wraps the prim with RigidPrim and GeometryPrim to 
