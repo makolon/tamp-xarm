@@ -106,11 +106,11 @@ class xArmFMBBaseTask(RLTask):
         # Create gripper materials
         self.create_gripper_material()
 
-        # Set up scene
-        super().set_up_scene(scene, replicate_physics=False)
-
         self.add_xarm()
         self.add_table()
+
+        # Set up scene
+        super().set_up_scene(scene, replicate_physics=False)
 
         # Add robot to scene
         self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm7", name="xarm_view")
@@ -118,41 +118,25 @@ class xArmFMBBaseTask(RLTask):
         scene.add(self._robots._hands)
         scene.add(self._robots._lfingers)
         scene.add(self._robots._rfingers)
-        scene.add(self._robots._fingertip_centered)
 
     def add_xarm(self):
         # Add xArm
-        for i in range(self._num_envs):
-            xarm = xArm(prim_path=f"/World/envs/env_{i}/xarm7",
-                        name="xarm7",
-                        translation=self._xarm_translation,
-                        orientation=self._xarm_orientation)
-            self._sim_config.apply_articulation_settings("xarm", get_prim_at_path(xarm.prim_path), self._sim_config.parse_actor_config("xarm"))
-            # xarm.set_xarm_properties(stage=self._stage, prim=xarm.prim)
-
-            # Add physics material
-            physicsUtils.add_physics_material_to_prim(
-                self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm7/right_finger/collisions/mesh_0"),
-                self.gripperPhysicsMaterialPath
-            )
-            physicsUtils.add_physics_material_to_prim(
-                self._stage,
-                self._stage.GetPrimAtPath(f"/World/envs/env_{i}/xarm7/left_finger/collisions/mesh_0"),
-                self.gripperPhysicsMaterialPath
-            )
+        xarm = xArm(prim_path=self.default_zero_env_path + "/xarm7",
+                    name="xarm7",
+                    translation=self._xarm_translation,
+                    orientation=self._xarm_orientation)
+        self._sim_config.apply_articulation_settings("xarm", get_prim_at_path(xarm.prim_path), self._sim_config.parse_actor_config("xarm"))
 
     def add_table(self):
         # Add table
-        for i in range(self._num_envs):
-            table = FixedCuboid(prim_path=f"/World/envs/env_{i}/table",
-                                name="table",
-                                translation=self._table_translation,
-                                orientation=self._table_orientation,
-                                size=1.0,
-                                color=torch.tensor([0.75, 0.75, 0.75]),
-                                scale=torch.tensor([self._table_width, self._table_depth, self._table_height]))
-            self._sim_config.apply_articulation_settings("table", get_prim_at_path(table.prim_path), self._sim_config.parse_actor_config("table"))
+        table = FixedCuboid(prim_path=self.default_zero_env_path + "/table",
+                            name="table",
+                            translation=self._table_translation,
+                            orientation=self._table_orientation,
+                            size=1.0,
+                            color=torch.tensor([0.75, 0.75, 0.75]),
+                            scale=torch.tensor([self._table_width, self._table_depth, self._table_height]))
+        self._sim_config.apply_articulation_settings("table", get_prim_at_path(table.prim_path), self._sim_config.parse_actor_config("table"))
 
     def create_gripper_material(self):
         self._stage = get_current_stage()

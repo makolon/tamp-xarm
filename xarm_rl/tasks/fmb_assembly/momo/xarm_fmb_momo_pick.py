@@ -8,6 +8,7 @@ from omni.isaac.core.utils.torch.maths import tensor_clamp
 from omni.physx.scripts import physicsUtils
 from xarm_rl.tasks.utils.scene_utils import spawn_dynamic_object, spawn_static_object
 from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask
+from xarm_rl.robots.articulations.views.xarm_view import xArmView
 from pxr import Usd, UsdGeom
 
 
@@ -53,28 +54,26 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
 
     def add_base(self) -> None:
         # Add static base
-        for env_idx in range(self._num_envs):
-            base = spawn_static_object(name='base',
-                                       task_name='fmb/momo/assembly1',
-                                       prim_path=f"/World/envs/env_{env_idx}",
-                                       object_translation=self._base_translation,
-                                       object_orientation=self._base_orientation)
-            self._sim_config.apply_articulation_settings('base',
-                                                get_prim_at_path(base.prim_path),
-                                                self._sim_config.parse_actor_config('base'))
+        base = spawn_static_object(name='base',
+                                    task_name='fmb/momo/assembly1',
+                                    prim_path=self.default_zero_env_path,
+                                    object_translation=self._base_translation,
+                                    object_orientation=self._base_orientation)
+        self._sim_config.apply_articulation_settings('base',
+                                            get_prim_at_path(base.prim_path),
+                                            self._sim_config.parse_actor_config('base'))
 
     def add_parts(self) -> None:
         # Add movable parts
-        for env_idx in range(self._num_envs):
-            for obj_name in self._parts_names:
-                parts = spawn_dynamic_object(name=obj_name,
-                                             task_name='fmb/momo/assembly1',
-                                             prim_path=f"/World/envs/env_{env_idx}",
-                                             object_translation=self._parts_translation[obj_name],
-                                             object_orientation=self._parts_orientation[obj_name])
-                self._sim_config.apply_articulation_settings(obj_name,
-                                                get_prim_at_path(parts.prim_path),
-                                                self._sim_config.parse_actor_config(obj_name))
+        for obj_name in self._parts_names:
+            parts = spawn_dynamic_object(name=obj_name,
+                                            task_name='fmb/momo/assembly1',
+                                            prim_path=self.default_zero_env_path,
+                                            object_translation=self._parts_translation[obj_name],
+                                            object_orientation=self._parts_orientation[obj_name])
+            self._sim_config.apply_articulation_settings(obj_name,
+                                            get_prim_at_path(parts.prim_path),
+                                            self._sim_config.parse_actor_config(obj_name))
 
     def get_observations(self) -> dict:
         # Get end effector positions and orientations
