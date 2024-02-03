@@ -29,6 +29,11 @@ class xArmView(ArticulationView):
             name="rfingers_view",
             reset_xform_properties=False,
         )
+        self._fingertip_centered = RigidPrimView(
+            prim_paths_expr="/World/envs/.*/xarm7/fingertip_centered",
+            name="fingertips_view",
+            reset_xform_properties=False,
+        )
 
     def initialize(self, physics_sim_view):
         super().initialize(physics_sim_view)

@@ -103,21 +103,7 @@ class xArmFMBBaseTask(RLTask):
         self._table_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
 
     def set_up_scene(self, scene) -> None:
-        # Create gripper materials
-        self.create_gripper_material()
-
-        self.add_xarm()
-        self.add_table()
-
-        # Set up scene
-        super().set_up_scene(scene, replicate_physics=False)
-
-        # Add robot to scene
-        self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm7", name="xarm_view")
-        scene.add(self._robots)
-        scene.add(self._robots._hands)
-        scene.add(self._robots._lfingers)
-        scene.add(self._robots._rfingers)
+        raise NotImplementedError()
 
     def add_xarm(self):
         # Add xArm

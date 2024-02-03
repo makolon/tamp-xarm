@@ -35,12 +35,24 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         }
 
     def set_up_scene(self, scene) -> None:
-        # Set up scene
-        super().set_up_scene(scene)
+        # Create gripper materials
+        self.create_gripper_material()
 
-        # Add FMB MOMO objects
+        self.add_xarm()
+        self.add_table()
         self.add_base()
         self.add_parts()
+
+        # Set up scene
+        super().set_up_scene(scene, replicate_physics=False)
+
+        # # Add robot to scene
+        self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm7", name="xarm_view")
+        scene.add(self._robots)
+        scene.add(self._robots._hands)
+        scene.add(self._robots._lfingers)
+        scene.add(self._robots._rfingers)
+        scene.add(self._robots._fingertip_centered)
 
         # Add parts to scene
         for obj_name in self._parts_names:
@@ -55,10 +67,10 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
     def add_base(self) -> None:
         # Add static base
         base = spawn_static_object(name='base',
-                                    task_name='fmb/momo/assembly1',
-                                    prim_path=self.default_zero_env_path,
-                                    object_translation=self._base_translation,
-                                    object_orientation=self._base_orientation)
+                                   task_name='fmb/momo/assembly1',
+                                   prim_path=self.default_zero_env_path,
+                                   object_translation=self._base_translation,
+                                   object_orientation=self._base_orientation)
         self._sim_config.apply_articulation_settings('base',
                                             get_prim_at_path(base.prim_path),
                                             self._sim_config.parse_actor_config('base'))
@@ -67,10 +79,10 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         # Add movable parts
         for obj_name in self._parts_names:
             parts = spawn_dynamic_object(name=obj_name,
-                                            task_name='fmb/momo/assembly1',
-                                            prim_path=self.default_zero_env_path,
-                                            object_translation=self._parts_translation[obj_name],
-                                            object_orientation=self._parts_orientation[obj_name])
+                                         task_name='fmb/momo/assembly1',
+                                         prim_path=self.default_zero_env_path,
+                                         object_translation=self._parts_translation[obj_name],
+                                         object_orientation=self._parts_orientation[obj_name])
             self._sim_config.apply_articulation_settings(obj_name,
                                             get_prim_at_path(parts.prim_path),
                                             self._sim_config.parse_actor_config(obj_name))
