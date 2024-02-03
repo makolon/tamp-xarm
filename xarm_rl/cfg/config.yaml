@@ -57,8 +57,7 @@ recording_fps: 30
 # directory to save recordings in
 recording_dir: ''
 
-# Wandb settings (optional)
-wandb_activate: True
+wandb_activate: False
 wandb_group: ''
 wandb_name: ${train.params.config.name}
 wandb_entity: ''
