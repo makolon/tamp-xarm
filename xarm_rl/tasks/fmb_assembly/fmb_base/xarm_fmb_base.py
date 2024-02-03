@@ -91,19 +91,19 @@ class xArmFMBBaseTask(RLTask):
         self.gripper_open = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
         self.gripper_hold = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
 
+        # Set ik controller
+        self.ik_controller = self.set_ik_controller()
+
         RLTask.__init__(self, name, env)
 
     def set_up_environment(self) -> None:
         # Environment object settings
         self.initial_dof_positions = torch.tensor([0.0, -0.3, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0], device=self._device)
 
-        self._xarm_translation = torch.tensor([0.0, 0.0, 0.0], device=self._device)
+        self._xarm_translation = torch.tensor([0.0, 0.0, self._table_height], device=self._device)
         self._xarm_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
-        self._table_translation = torch.tensor([1.2, -0.2, self._table_height/2], device=self._device)
+        self._table_translation = torch.tensor([0.3, 0.0, self._table_height/2], device=self._device)
         self._table_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
-
-    def set_up_scene(self, scene) -> None:
-        raise NotImplementedError()
 
     def add_xarm(self):
         # Add xArm
@@ -164,6 +164,10 @@ class xArmFMBBaseTask(RLTask):
     def set_dof_idxs(self):
         [self.arm_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._arm_names]
         [self.gripper_dof_idxs.append(self._robots.get_dof_index(name)) for name in self._gripper_names]
+
+        # Movable joints
+        self.actuated_dof_indices = torch.LongTensor(self.arm_dof_idxs+self.gripper_dof_idxs).to(self._device)
+        self.movable_dof_indices = torch.LongTensor(self.arm_dof_idxs).to(self._device)
 
     def set_dof_limits(self): # dof position limits
         # (num_envs, num_dofs, 2)

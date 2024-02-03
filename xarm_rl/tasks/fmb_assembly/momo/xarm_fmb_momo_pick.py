@@ -1,5 +1,5 @@
 import torch
-from omni.isaac.core.prims import RigidPrimView
+from omni.isaac.core.prims import RigidPrimView, GeometryPrimView
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import get_current_stage
 from omni.isaac.core.utils.torch.rotations import *
@@ -19,13 +19,13 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         self._parts = dict()
         self._parts_names = ['block1', 'block2', 'block3', 'block4']
 
-        self._base_translation = torch.tensor([0.4, -0.1, 0.1], device=self._device)
+        self._base_translation = torch.tensor([0.3, -0.1, self._table_height], device=self._device)
         self._base_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
         self._parts_translation = {
-            'block1': torch.tensor([0.5, 0.1, 0.1], device=self._device),
-            'block2': torch.tensor([0.6, 0.2, 0.1], device=self._device),
-            'block3': torch.tensor([0.7, 0.1, 0.1], device=self._device),
-            'block4': torch.tensor([0.5, 0.2, 0.1], device=self._device),
+            'block1': torch.tensor([0.3, 0.0, self._table_height], device=self._device),
+            'block2': torch.tensor([0.4, 0.1, self._table_height], device=self._device),
+            'block3': torch.tensor([0.4, 0.0, self._table_height], device=self._device),
+            'block4': torch.tensor([0.3, 0.1, self._table_height], device=self._device),
         }
         self._parts_orientation = {
             'block1': torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device),
@@ -46,7 +46,7 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         # Set up scene
         super().set_up_scene(scene, replicate_physics=False)
 
-        # # Add robot to scene
+        # Add robot to scene
         self._robots = xArmView(prim_paths_expr="/World/envs/.*/xarm7", name="xarm_view")
         scene.add(self._robots)
         scene.add(self._robots._hands)
@@ -94,11 +94,11 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         end_effector_orientations = end_effector_orientations[:, [3, 0, 1, 2]]
 
         # Get dof positions
-        dof_pos = self._robots.get_joint_positions(clone=False)
+        dof_pos = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices, clone=False)
 
-        self.obs_buf[..., 0:12] = dof_pos
-        self.obs_buf[..., 12:15] = end_effector_positions
-        self.obs_buf[..., 15:19] = end_effector_orientations
+        self.obs_buf[..., 0:7] = dof_pos
+        self.obs_buf[..., 7:10] = end_effector_positions
+        self.obs_buf[..., 10:14] = end_effector_orientations
 
         observations = {self._robots.name: {"obs_buf": self.obs_buf}}
         return observations
@@ -112,11 +112,19 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
             self.reset_idx(reset_env_ids)
 
         # Calculate targte pose
-        self.actions = actions.clone().to(self._device)
-        targets = self.xarm_dof_targets + self._dt * self.actions * self._action_scale
+        ik_action = self._dt * self._action_scale * actions.to(self._device)
+        self.ik_controller.set_command(ik_action)
 
-        # Clamp action
-        self.xarm_dof_targets[:] = tensor_clamp(targets, self.xarm_dof_lower_limits, self.xarm_dof_upper_limits)
+        # Calculate end effector pose & jacobian
+        ee_pos, ee_rot = self._robots._fingertip_centered.get_world_poses()
+        ee_pos -= self._env_pos
+        robot_jacobian = self._robots.get_jacobians(clone=False)[:, self._robots._body_indices['xarm_gripper_base_link']-1, :, self.movable_dof_indices]
+
+        self.xarm_dof_targets[..., self.movable_dof_indices] = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices)
+        self.xarm_dof_targets[..., self.movable_dof_indices] += self.ik_controller.compute_delta(ee_pos, ee_rot, robot_jacobian)
+        self.xarm_dof_targets[:] = tensor_clamp(
+            self.xarm_dof_targets, self.robot_dof_lower_limits, self.robot_dof_upper_limits
+        )
 
         # Set target pose
         env_ids_int32 = torch.arange(self._robots.count, dtype=torch.int32, device=self._device)
@@ -151,12 +159,12 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         self.progress_buf[env_ids] = 0
 
     def post_reset(self):
+        self.set_dof_idxs()
+        self.set_dof_limits()
+
+        # Initialize dof position & dof targets
         self.num_xarm_dofs = self._robots.num_dof
         self.xarm_dof_pos = torch.zeros((self._num_envs, self.num_xarm_dofs), device=self._device)
-        
-        dof_limits = self._robots.get_dof_limits()
-        self.xarm_dof_lower_limits = dof_limits[0, :, 0].to(device=self._device)
-        self.xarm_dof_upper_limits = dof_limits[0, :, 1].to(device=self._device)
         self.xarm_dof_targets = torch.zeros(
             (self._num_envs, self.num_xarm_dofs), dtype=torch.float, device=self._device
         )
@@ -176,6 +184,19 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         # randomize all envs
         indices = torch.arange(self._num_envs, dtype=torch.int64, device=self._device)
         self.reset_idx(indices)
+
+    def post_physics_step(self):
+        """Step buffers. Refresh tensors. Compute observations and reward. Reset environments."""
+        self.progress_buf[:] += 1
+        if self._env._world.is_playing():
+            # In this policy, episode length is constant
+            self.get_observations()
+            self.get_states()
+            self.calculate_metrics()
+            self.is_done()
+            self.get_extras()
+
+        return self.obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def check_pick_success(self):
         return True
