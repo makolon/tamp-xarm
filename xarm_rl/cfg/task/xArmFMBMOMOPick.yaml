@@ -15,7 +15,7 @@ env:
   enableDebugVis: False
   clipObservations: 5.0
   clipActions: 1.0
-  actionScale: 7.5
+  actionScale: 2.0
 
   gamma: 0.999
   randomize_robot_on_reset: False
@@ -155,7 +155,6 @@ rl:
   clamp_rot: True
   clamp_rot_thresh: 1.0e-6
   action_penalty_scale: 0.0 # scale on action penalty
-  max_episode_length: 192 # 200
   distance_scale: 0.01 # length of line of keypoints
   target_position_distance_scale: 0.01
   target_rotation_distance_scale: 0.01
