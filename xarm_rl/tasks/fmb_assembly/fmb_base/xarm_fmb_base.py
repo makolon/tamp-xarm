@@ -98,7 +98,8 @@ class xArmFMBBaseTask(RLTask):
 
     def set_up_environment(self) -> None:
         # Environment object settings
-        self.initial_dof_positions = torch.tensor([0.0, -0.524, 0.0, 0.0, 0.0, 0.524, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self._device)
+        self.initial_dof_positions = torch.tensor([0.0, -0.698, 0.0, 0.349, 0.0, 1.047, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self._device)
+        self.initial_dof_velocities = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self._device)
 
         self._xarm_translation = torch.tensor([0.0, 0.0, self._table_height], device=self._device)
         self._xarm_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
@@ -112,6 +113,7 @@ class xArmFMBBaseTask(RLTask):
                     translation=self._xarm_translation,
                     orientation=self._xarm_orientation)
         self._sim_config.apply_articulation_settings("xarm", get_prim_at_path(xarm.prim_path), self._sim_config.parse_actor_config("xarm"))
+        xarm.set_xarm_properties(stage=self._stage, prim=xarm.prim)
 
     def add_table(self):
         # Add table

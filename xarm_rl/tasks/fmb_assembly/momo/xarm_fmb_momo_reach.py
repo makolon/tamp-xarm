@@ -119,9 +119,9 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             indices=env_ids_32
         )
 
-        ball_x = torch_rand_float(0.1, 0.3, (self._num_envs, 1), self._device)
-        ball_y = torch_rand_float(-0.2, 0.2, (self._num_envs, 1), self._device)
-        ball_z = torch_rand_float(0.1, 0.5, (self._num_envs, 1), self._device)
+        ball_x = torch_rand_float(0.1, 0.6, (self._num_envs, 1), self._device)
+        ball_y = torch_rand_float(-0.4, 0.4, (self._num_envs, 1), self._device)
+        ball_z = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
         ball_pos = torch.cat([ball_x, ball_y, ball_z], dim=1)
         ball_pos += self._env_pos[:, 0:3]
         ball_rot = self.initial_ball_rot.clone()
@@ -145,8 +145,6 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
 
         # Initialize robot positions / velocities
         self.initial_robot_pos, self.initial_robot_rot = self._robots.get_world_poses()
-        self.initial_dof_positions = self._robots.get_joint_positions()
-        self.initial_dof_velocities = torch.zeros_like(self.initial_dof_positions, device=self._device)
 
         # Initialize ball positions / velocities
         self.initial_ball_pos, self.initial_ball_rot = self._balls.get_world_poses()
@@ -155,6 +153,31 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         indices = torch.arange(self._num_envs, dtype=torch.int64, device=self._device)
         self.reset_idx(indices)
 
+    def calculate_metrics(self) -> None:
+        # Distance from hand to the ball
+        dist = torch.norm(self.obs_buf[..., 7:10] - self.obs_buf[..., 14:17], p=2, dim=-1)
+        dist_reward = 1.0 / (1.0 + dist ** 2)
+        dist_reward *= dist_reward
+        dist_reward = torch.where(dist <= 0.1, dist_reward * 2, dist_reward)
+
+        self.rew_buf[:] = dist_reward
+
+        is_last_step = (self.progress_buf[0] >= self._max_episode_length - 1)
+        if is_last_step:
+            reach_success = self.check_reach_success()
+            self.rew_buf[:] += reach_success * self._task_cfg['rl']['reach_success_bonus']
+            self.extras['reach_success'] = torch.mean(reach_success.float())
+
+    def check_reach_success(self):
+        dist = torch.norm(self.obs_buf[..., 7:10] - self.obs_buf[..., 14:17], p=2, dim=-1)
+
+        reach_success = torch.where(
+            dist < torch.tensor([0.03], device=self._device),
+            torch.ones((self._num_envs,), device=self._device),
+            torch.zeros((self._num_envs,), device=self._device)
+        )
+        return reach_success
+    
     def post_physics_step(self):
         """Step buffers. Refresh tensors. Compute observations and reward. Reset environments."""
         self.progress_buf[:] += 1
@@ -167,12 +190,3 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             self.get_extras()
 
         return self.obs_buf, self.rew_buf, self.reset_buf, self.extras
-
-    def calculate_metrics(self) -> None:
-        # Distance from hand to the ball
-        dist = torch.norm(self.obs_buf[..., 7:10] - self.obs_buf[..., 14:17], p=2, dim=-1)
-        dist_reward = 1.0 / (1.0 + dist ** 2)
-        dist_reward *= dist_reward
-        dist_reward = torch.where(dist <= 0.02, dist_reward * 2, dist_reward)
-
-        self.rew_buf[:] = dist_reward
