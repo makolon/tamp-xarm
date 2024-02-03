@@ -98,7 +98,7 @@ class xArmFMBBaseTask(RLTask):
 
     def set_up_environment(self) -> None:
         # Environment object settings
-        self.initial_dof_positions = torch.tensor([0.0, -0.3, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0], device=self._device)
+        self.initial_dof_positions = torch.tensor([0.0, -0.524, 0.0, 0.0, 0.0, 0.524, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self._device)
 
         self._xarm_translation = torch.tensor([0.0, 0.0, self._table_height], device=self._device)
         self._xarm_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)

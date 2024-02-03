@@ -19,7 +19,7 @@ class xArmFMBMOMOPick(xArmFMBBaseTask):
         self._parts = dict()
         self._parts_names = ['block1', 'block2', 'block3', 'block4']
 
-        self._base_translation = torch.tensor([0.3, -0.1, self._table_height], device=self._device)
+        self._base_translation = torch.tensor([0.3, -0.2, self._table_height], device=self._device)
         self._base_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
         self._parts_translation = {
             'block1': torch.tensor([0.3, 0.0, self._table_height], device=self._device),
