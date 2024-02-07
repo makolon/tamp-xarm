@@ -33,6 +33,7 @@ def import_tasks():
     from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_pick import xArmFMBMOMOPick
     from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_place import xArmFMBMOMOPlace
     from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_reach import xArmFMBMOMOReach
+    from xarm_rl.tasks.fmb_assembly.momo.xarm_fmb_momo_camera_reach import xArmFMBMOMOCameraReach
 
     # Mappings from strings to environments
     task_map = {
@@ -40,6 +41,7 @@ def import_tasks():
         "xArmFMBMOMOPick": xArmFMBMOMOPick,
         "xArmFMBMOMOPlace": xArmFMBMOMOPlace,
         "xArmFMBMOMOReach": xArmFMBMOMOReach,
+        "xArmFMBMOMOCameraReach": xArmFMBMOMOCameraReach
     }
     task_map_warp = {}
 

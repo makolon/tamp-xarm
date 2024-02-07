@@ -48,6 +48,7 @@ class xArmFMBBaseTask(RLTask):
 
         # Choose num_obs and num_actions based on task.
         self._num_observations = self._task_cfg["env"]["num_observations"]
+        self._num_states = self._task_cfg["env"]["num_states"]
         self._num_actions = self._task_cfg["env"]["num_actions"]
 
         # Set inverse kinematics configurations

@@ -80,7 +80,7 @@ def get_experience(headless, enable_livestream, enable_viewport, enable_recordin
     if kit_app == '':
         if enable_viewport:
             import xarm_rl
-            experience = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__file__), '../apps/omni.isaac.sim.python.gym.camera.kit'))
+            experience = os.path.abspath(os.path.join(os.path.dirname(xarm_rl.__file__), 'apps/omni.isaac.sim.python.gym.camera.kit'))
         else:
             experience = f'{os.environ["EXP_PATH"]}/omni.isaac.sim.python.gym.kit'
             if headless and not enable_livestream and not enable_recording:
