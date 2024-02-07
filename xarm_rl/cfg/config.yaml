@@ -4,7 +4,7 @@ task_name: ${task.name}
 experiment: ''
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 8192
+num_envs: 4096
 
 # seed - set to -1 to choose random seed
 seed: 42
@@ -72,7 +72,7 @@ warp: False
 # set default task and default training config based on task
 defaults:
   - _self_
-  - task: xArmFMBMOMOPick
+  - task: xArmFMBMOMOReach
   - train: ${task}PPO
   - override hydra/job_logging: disabled
 

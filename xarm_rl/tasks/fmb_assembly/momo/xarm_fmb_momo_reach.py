@@ -3,11 +3,11 @@ from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import RigidPrimView
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import get_current_stage
-from omni.isaac.core.utils.torch.rotations import *
+from omni.isaac.core.utils.torch.rotations import quat_mul, quat_conjugate
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp, torch_rand_float
 from omni.physx.scripts import physicsUtils
-from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask
+from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask, axis_angle_from_quat
 from xarm_rl.robots.articulations.views.xarm_view import xArmView
 from pxr import Usd, UsdGeom
 
@@ -57,21 +57,24 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         # Get ball positions and orientations
         ball_positions, ball_orientations = self._balls.get_world_poses(clone=False)
         ball_positions  = ball_positions[:, 0:3] - self._env_pos
-        ball_orientations = ball_orientations[:, [3, 0, 1, 2]]
 
         # Get end effector positions and orientations
         end_effector_positions, end_effector_orientations = self._robots._fingertip_centered.get_world_poses(clone=False)
         end_effector_positions = end_effector_positions[:, 0:3] - self._env_pos
-        end_effector_orientations = end_effector_orientations[:, [3, 0, 1, 2]]
 
         # Get dof positions
         dof_pos = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices, clone=False)
 
+        # Calculate position and orientation difference
+        diff_pos = end_effector_positions - ball_positions
+        ball_quat_norm = quat_mul(ball_orientations, quat_conjugate(ball_orientations))[:, 0]
+        ball_quat_inv = quat_conjugate(ball_orientations) / ball_quat_norm.unsqueeze(-1)
+        diff_quat = quat_mul(end_effector_orientations, ball_quat_inv).to(self._device)
+        diff_rot = axis_angle_from_quat(diff_quat)
+
         self.obs_buf[..., 0:7] = dof_pos
-        self.obs_buf[..., 7:10] = end_effector_positions
-        self.obs_buf[..., 10:14] = end_effector_orientations
-        self.obs_buf[..., 14:17] = ball_positions
-        self.obs_buf[..., 17:21] = ball_orientations
+        self.obs_buf[..., 7:10] = diff_pos
+        self.obs_buf[..., 10:13] = diff_rot
 
         observations = {self._robots.name: {"obs_buf": self.obs_buf}}
         return observations
@@ -85,16 +88,8 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             self.reset_idx(reset_env_ids)
 
         # Calculate targte pose
-        ik_action = self._dt * self._action_scale * actions.to(self._device)
-        self.ik_controller.set_command(ik_action)
-
-        # Calculate end effector pose & jacobian
-        ee_pos, ee_rot = self._robots._fingertip_centered.get_world_poses()
-        ee_pos -= self._env_pos
-        robot_jacobian = self._robots.get_jacobians(clone=False)[:, self._robots._body_indices['xarm_gripper_base_link']-1, :, self.movable_dof_indices]
-
         self.xarm_dof_targets[..., self.movable_dof_indices] = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices)
-        self.xarm_dof_targets[..., self.movable_dof_indices] += self.ik_controller.compute_delta(ee_pos, ee_rot, robot_jacobian)
+        self.xarm_dof_targets[..., self.movable_dof_indices] += self._dt * self._action_scale * actions.to(self._device)
         self.xarm_dof_targets[:] = tensor_clamp(
             self.xarm_dof_targets, self.robot_dof_lower_limits, self.robot_dof_upper_limits
         )
@@ -119,8 +114,8 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             indices=env_ids_32
         )
 
-        ball_x = torch_rand_float(0.1, 0.6, (self._num_envs, 1), self._device)
-        ball_y = torch_rand_float(-0.4, 0.4, (self._num_envs, 1), self._device)
+        ball_x = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
+        ball_y = torch_rand_float(-0.3, 0.3, (self._num_envs, 1), self._device)
         ball_z = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
         ball_pos = torch.cat([ball_x, ball_y, ball_z], dim=1)
         ball_pos += self._env_pos[:, 0:3]
@@ -155,10 +150,10 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
 
     def calculate_metrics(self) -> None:
         # Distance from hand to the ball
-        dist = torch.norm(self.obs_buf[..., 7:10] - self.obs_buf[..., 14:17], p=2, dim=-1)
+        dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
         dist_reward = 1.0 / (1.0 + dist ** 2)
         dist_reward *= dist_reward
-        dist_reward = torch.where(dist <= 0.1, dist_reward * 2, dist_reward)
+        dist_reward = torch.where(dist <= 0.1, dist_reward * 5, dist_reward)
 
         self.rew_buf[:] = dist_reward
 
@@ -169,7 +164,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             self.extras['reach_success'] = torch.mean(reach_success.float())
 
     def check_reach_success(self):
-        dist = torch.norm(self.obs_buf[..., 7:10] - self.obs_buf[..., 14:17], p=2, dim=-1)
+        dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
 
         reach_success = torch.where(
             dist < torch.tensor([0.03], device=self._device),
@@ -177,7 +172,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             torch.zeros((self._num_envs,), device=self._device)
         )
         return reach_success
-    
+
     def post_physics_step(self):
         """Step buffers. Refresh tensors. Compute observations and reward. Reset environments."""
         self.progress_buf[:] += 1

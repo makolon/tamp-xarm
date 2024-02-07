@@ -307,11 +307,11 @@ def quaternion_multiply(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.stack((ow, ox, oy, oz), -1)
 
 @torch.jit.script
-def calc_diff_pos(p1, p2):
+def calc_diff_pos(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
     return p1 - p2
 
 @torch.jit.script
-def calc_diff_rot(q1, q2):
+def calc_diff_rot(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     # Normalize the input quaternions
     q1 = normalize(q1)
     q2 = normalize(q2)
@@ -322,3 +322,21 @@ def calc_diff_rot(q1, q2):
     q_diff = quaternion_multiply(q2, q1_inv)
 
     return q_diff
+
+@torch.jit.script
+def axis_angle_from_quat(quat: torch.Tensor) -> torch.Tensor:
+
+    """Convert tensor of quaternions to tensor of axis-angles."""
+    # Reference: https://github.com/facebookresearch/pytorch3d/blob/bee31c48d3d36a8ea268f9835663c52ff4a476ec/pytorch3d/transforms/rotation_conversions.py#L516-L544
+
+    eps = torch.tensor([1.0e-6], device=quat.device)
+
+    mag = torch.linalg.norm(quat[:, 1:4], dim=1)
+    half_angle = torch.atan2(mag, quat[:, 0])
+    angle = 2.0 * half_angle
+    sin_half_angle_over_angle = torch.where(
+        torch.abs(angle) > eps, torch.sin(half_angle) / angle, 1 / 2 - angle**2.0 / 48
+    )
+    axis_angle = quat[:, 1:4] / sin_half_angle_over_angle.unsqueeze(-1)
+
+    return axis_angle
