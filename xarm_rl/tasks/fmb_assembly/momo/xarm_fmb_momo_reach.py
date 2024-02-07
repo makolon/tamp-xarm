@@ -1,9 +1,10 @@
 import torch
-from omni.isaac.core.objects import DynamicSphere
+import numpy as np
+from omni.isaac.core.objects import DynamicCuboid
 from omni.isaac.core.prims import RigidPrimView
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import get_current_stage
-from omni.isaac.core.utils.torch.rotations import quat_mul, quat_conjugate
+from omni.isaac.core.utils.torch.rotations import quat_mul, quat_conjugate, quat_from_euler_xyz
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp, torch_rand_float
 from omni.physx.scripts import physicsUtils
@@ -16,14 +17,14 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
     def __init__(self, name, sim_config, env) -> None:
         xArmFMBBaseTask.__init__(self, name, sim_config, env)
 
-        self._ball_translation = torch.tensor([0.3, 0.0, 0.2], device=self._device)
-        self._ball_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
+        self._box_translation = torch.tensor([0.3, 0.0, 0.2], device=self._device)
+        self._box_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
 
     def set_up_scene(self, scene) -> None:
         # Create gripper materials
         self.create_gripper_material()
 
-        self.add_ball()
+        self.add_box()
         self.add_xarm()
         self.add_table()
 
@@ -38,38 +39,38 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         scene.add(self._robots._rfingers)
         scene.add(self._robots._fingertip_centered)
 
-        # Add ball to scene
-        self._balls = RigidPrimView(prim_paths_expr="/World/envs/.*/Ball/ball", name="ball_view", reset_xform_properties=False)
-        scene.add(self._balls)
+        # Add box to scene
+        self._boxs = RigidPrimView(prim_paths_expr="/World/envs/.*/Box/box", name="box_view", reset_xform_properties=False)
+        scene.add(self._boxs)
 
-    def add_ball(self):
-        ball = DynamicSphere(
-            prim_path=self.default_zero_env_path + "/Ball/ball",
-            translation=self._ball_translation,
-            orientation=self._ball_orientation,
-            name="ball",
-            radius=0.02,
+    def add_box(self):
+        box = DynamicCuboid(
+            prim_path=self.default_zero_env_path + "/Box/box",
+            translation=self._box_translation,
+            orientation=self._box_orientation,
+            name="box",
+            scale=torch.tensor([0.03, 0.03, 0.06]),
             color=torch.tensor([0.2, 0.4, 0.6])
         )
-        self._sim_config.apply_articulation_settings("ball", get_prim_at_path(ball.prim_path), self._sim_config.parse_actor_config("ball"))
+        self._sim_config.apply_articulation_settings("box", get_prim_at_path(box.prim_path), self._sim_config.parse_actor_config("box"))
 
     def get_observations(self) -> dict:
-        # Get ball positions and orientations
-        ball_positions, ball_orientations = self._balls.get_world_poses(clone=False)
-        ball_positions  = ball_positions[:, 0:3] - self._env_pos
+        # Get box positions and orientations
+        box_positions, box_orientations = self._boxs.get_world_poses(clone=False)
+        box_positions -= self._env_pos[:, 0:3]
 
         # Get end effector positions and orientations
         end_effector_positions, end_effector_orientations = self._robots._fingertip_centered.get_world_poses(clone=False)
-        end_effector_positions = end_effector_positions[:, 0:3] - self._env_pos
+        end_effector_positions -= self._env_pos[:, 0:3]
 
         # Get dof positions
         dof_pos = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices, clone=False)
 
         # Calculate position and orientation difference
-        diff_pos = end_effector_positions - ball_positions
-        ball_quat_norm = quat_mul(ball_orientations, quat_conjugate(ball_orientations))[:, 0]
-        ball_quat_inv = quat_conjugate(ball_orientations) / ball_quat_norm.unsqueeze(-1)
-        diff_quat = quat_mul(end_effector_orientations, ball_quat_inv).to(self._device)
+        diff_pos = end_effector_positions - box_positions
+        box_quat_norm = quat_mul(box_orientations, quat_conjugate(box_orientations))[:, 0]
+        box_quat_inv = quat_conjugate(box_orientations) / box_quat_norm.unsqueeze(-1)
+        diff_quat = quat_mul(end_effector_orientations, box_quat_inv).to(self._device)
         diff_rot = axis_angle_from_quat(diff_quat)
 
         self.obs_buf[..., 0:7] = dof_pos
@@ -114,14 +115,21 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             indices=env_ids_32
         )
 
-        ball_x = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
-        ball_y = torch_rand_float(-0.3, 0.3, (self._num_envs, 1), self._device)
-        ball_z = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
-        ball_pos = torch.cat([ball_x, ball_y, ball_z], dim=1)
-        ball_pos += self._env_pos[:, 0:3]
-        ball_rot = self.initial_ball_rot.clone()
+        # Randomize box position
+        box_px = torch_rand_float(0.2, 0.5, (self._num_envs, 1), self._device)
+        box_py = torch_rand_float(-0.3, 0.3, (self._num_envs, 1), self._device)
+        box_pz = torch_rand_float(0.2, 0.4, (self._num_envs, 1), self._device)
+        box_pos = torch.cat([box_px, box_py, box_pz], dim=1)
+        box_pos += self._env_pos[:, 0:3]
 
-        self._balls.set_world_poses(ball_pos[env_ids_64], ball_rot[env_ids_64], indices=env_ids_32)
+        # Randomize box rotation
+        box_rx = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
+        box_ry = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
+        box_rz = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
+        box_rot = quat_from_euler_xyz(box_rx, box_ry, box_rz)
+
+        # Reset robo state for boxes in selected envs
+        self._boxs.set_world_poses(box_pos[env_ids_64], box_rot[env_ids_64], indices=env_ids_32)
 
         # bookkeeping
         self.reset_buf[env_ids] = 0
@@ -141,15 +149,15 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         # Initialize robot positions / velocities
         self.initial_robot_pos, self.initial_robot_rot = self._robots.get_world_poses()
 
-        # Initialize ball positions / velocities
-        self.initial_ball_pos, self.initial_ball_rot = self._balls.get_world_poses()
+        # Initialize box positions / velocities
+        self.initial_box_pos, self.initial_box_rot = self._boxs.get_world_poses()
 
-        # randomize all envs
+        # Randomize all envs
         indices = torch.arange(self._num_envs, dtype=torch.int64, device=self._device)
         self.reset_idx(indices)
 
     def calculate_metrics(self) -> None:
-        # Distance from hand to the ball
+        # Distance from hand to the box
         dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
         dist_reward = 1.0 / (1.0 + dist ** 2)
         dist_reward *= dist_reward
@@ -160,18 +168,21 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         is_last_step = (self.progress_buf[0] >= self._max_episode_length - 1)
         if is_last_step:
             reach_success = self.check_reach_success()
-            self.rew_buf[:] += reach_success * self._task_cfg['rl']['reach_success_bonus']
-            self.extras['reach_success'] = torch.mean(reach_success.float())
+            self.rew_buf[:] += reach_success.float() * self._task_cfg['rl']['reach_success_bonus']
 
     def check_reach_success(self):
-        dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
+        pos_dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
+        rot_dist = torch.norm(self.obs_buf[..., 10:13], p=2, dim=-1)
 
-        reach_success = torch.where(
-            dist < torch.tensor([0.03], device=self._device),
-            torch.ones((self._num_envs,), device=self._device),
-            torch.zeros((self._num_envs,), device=self._device)
-        )
+        reach_success = torch.where(pos_dist < torch.tensor([0.03], device=self._device), True, False)
+        reach_success = torch.where(rot_dist < torch.tensor([0.03], device=self._device), reach_success, False)
         return reach_success
+
+    def get_extras(self):
+        is_last_step = (self.progress_buf[0] >= self._max_episode_length - 1)
+        if is_last_step:
+            reach_success = self.check_reach_success()
+            self.extras['reach_success'] = torch.mean(reach_success.float())
 
     def post_physics_step(self):
         """Step buffers. Refresh tensors. Compute observations and reward. Reset environments."""
