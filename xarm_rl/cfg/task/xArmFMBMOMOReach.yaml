@@ -11,11 +11,11 @@ env:
   maxEffort: 400.0
   controlFrequencyInv: 2 # 60 Hz
 
-  maxEpisodeLength: 128
+  maxEpisodeLength: 200
   enableDebugVis: False
   clipObservations: 5.0
   clipActions: 1.0
-  actionScale: 2.0
+  actionScale: 7.5
 
   gamma: 0.999
   randomize_robot_on_reset: False
@@ -95,7 +95,7 @@ sim:
     contact_offset: 0.005
     rest_offset: 0.0
 
-  ball:
+  box:
     # -1 to use default values
     override_usd_defaults: False
     make_kinematic: True
@@ -158,7 +158,7 @@ rl:
   distance_scale: 0.01 # length of line of keypoints
   target_position_distance_scale: 0.01
   target_rotation_distance_scale: 0.01
-  reach_success_bonus: 50.0 # bonus if block has beed picked in a certain resion
+  reach_success_bonus: 100.0 # bonus if block has beed picked in a certain resion
   collision_penalty: 0.5 # collision penalty
   insert_threshold: 0.02
   pick_threshold: 0.30
