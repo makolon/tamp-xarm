@@ -40,8 +40,8 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         scene.add(self._robots._fingertip_centered)
 
         # Add box to scene
-        self._boxs = RigidPrimView(prim_paths_expr="/World/envs/.*/Box/box", name="box_view", reset_xform_properties=False)
-        scene.add(self._boxs)
+        self._boxes = RigidPrimView(prim_paths_expr="/World/envs/.*/Box/box", name="box_view", reset_xform_properties=False)
+        scene.add(self._boxes)
 
     def add_box(self):
         box = DynamicCuboid(
@@ -56,7 +56,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
 
     def get_observations(self) -> dict:
         # Get box positions and orientations
-        box_positions, box_orientations = self._boxs.get_world_poses(clone=False)
+        box_positions, box_orientations = self._boxes.get_world_poses(clone=False)
         box_positions -= self._env_pos[:, 0:3]
 
         # Get end effector positions and orientations
@@ -129,7 +129,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         box_rot = quat_from_euler_xyz(box_rx, box_ry, box_rz)
 
         # Reset robo state for boxes in selected envs
-        self._boxs.set_world_poses(box_pos[env_ids_64], box_rot[env_ids_64], indices=env_ids_32)
+        self._boxes.set_world_poses(box_pos[env_ids_64], box_rot[env_ids_64], indices=env_ids_32)
 
         # bookkeeping
         self.reset_buf[env_ids] = 0
@@ -150,7 +150,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         self.initial_robot_pos, self.initial_robot_rot = self._robots.get_world_poses()
 
         # Initialize box positions / velocities
-        self.initial_box_pos, self.initial_box_rot = self._boxs.get_world_poses()
+        self.initial_box_pos, self.initial_box_rot = self._boxes.get_world_poses()
 
         # Randomize all envs
         indices = torch.arange(self._num_envs, dtype=torch.int64, device=self._device)
@@ -161,7 +161,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
         dist_reward = 1.0 / (1.0 + dist ** 2)
         dist_reward *= dist_reward
-        dist_reward = torch.where(dist <= 0.1, dist_reward * 5, dist_reward)
+        dist_reward = torch.where(dist <= 0.1, dist_reward * 2, dist_reward)
 
         self.rew_buf[:] = dist_reward
 
