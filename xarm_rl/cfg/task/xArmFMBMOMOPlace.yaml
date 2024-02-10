@@ -11,11 +11,11 @@ env:
   maxEffort: 400.0
   controlFrequencyInv: 2 # 60 Hz
 
-  maxEpisodeLength: 192
+  maxEpisodeLength: 128
   enableDebugVis: False
   clipObservations: 5.0
   clipActions: 1.0
-  actionScale: 2.0
+  actionScale: 7.5
 
   gamma: 0.999
   randomize_robot_on_reset: False
@@ -23,7 +23,8 @@ env:
   target_space: "task"
   num_actions: 6 # 6 if relative and task, 7 if absolute and task, 8 if joint
   num_objects: 5 # objects
-  num_observations: 14 # observation space
+  num_observations: 13 # observation space
+  num_states: 13 # state space
   num_gripper_open_sim_steps: 1 # number of timesteps to reserve for closing gripper after last step of episode
   num_gripper_close_sim_steps: 1 # number of timesteps to reserve for closing gripper after last step of episode
 

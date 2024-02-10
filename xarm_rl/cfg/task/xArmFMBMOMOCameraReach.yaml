@@ -17,6 +17,7 @@ env:
   clipActions: 1.0
   actionScale: 7.5
 
+  exportImages: False
   cameraWidth: 240
   cameraHeight: 160
 
