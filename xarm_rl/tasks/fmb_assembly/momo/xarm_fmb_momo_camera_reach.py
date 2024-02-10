@@ -9,7 +9,8 @@ from omni.isaac.core.utils.torch.rotations import quat_mul, quat_conjugate, quat
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp, torch_rand_float
 from omni.physx.scripts import physicsUtils
-from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask, axis_angle_from_quat
+from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask
+from xarm_rl.tasks.utils.math_utils import axis_angle_from_quat
 from xarm_rl.robots.articulations.views.xarm_view import xArmView
 from pxr import Usd, UsdGeom
 
@@ -21,10 +22,11 @@ class xArmFMBMOMOCameraReach(xArmFMBBaseTask):
         self._box_translation = torch.tensor([0.3, 0.0, 0.2], device=self._device)
         self._box_orientation = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self._device)
 
+        self._export_images = self._task_cfg["env"]["exportImages"]
         self._camera_width = self._task_cfg["env"]["cameraWidth"]
         self._camera_height = self._task_cfg["env"]["cameraHeight"]
-        self._camera_position = (-4.2, 0.0, 3.0)
-        self._camera_rotation = (0, -6.1155, -180)
+        self._camera_position = (1.8, 0.0, 1.0)
+        self._camera_rotation = (0, -30, 0)
 
         self.observation_space = spaces.Box(
             np.ones((self._camera_width, self._camera_height, 3), dtype=np.float32) * -np.Inf,
@@ -67,7 +69,7 @@ class xArmFMBMOMOCameraReach(xArmFMBBaseTask):
             translation=self._box_translation,
             orientation=self._box_orientation,
             name="box",
-            scale=torch.tensor([0.03, 0.03, 0.06]),
+            scale=torch.tensor([0.03, 0.03, 0.03]),
             color=torch.tensor([0.2, 0.4, 0.6])
         )
         self._sim_config.apply_articulation_settings("box", get_prim_at_path(box.prim_path), self._sim_config.parse_actor_config("box"))
@@ -113,6 +115,11 @@ class xArmFMBMOMOCameraReach(xArmFMBBaseTask):
         images = self.pytorch_listener.get_rgb_data()
         if images is not None:
             self.obs_buf = torch.swapaxes(images, 1, 3).clone().float() / 255.0
+
+            if self._export_images:
+                from torchvision.utils import save_image, make_grid
+                img = images / 255.0
+                save_image(make_grid(img, nrows=2), 'reach_image.png')
 
         observations = {self._robots.name: {"obs_buf": self.obs_buf}}
         return observations

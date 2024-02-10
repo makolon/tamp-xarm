@@ -123,7 +123,7 @@ class xArmFMBBaseTask(RLTask):
                             translation=self._table_translation,
                             orientation=self._table_orientation,
                             size=1.0,
-                            color=torch.tensor([0.75, 0.75, 0.75]),
+                            color=torch.tensor([0.5, 0.5, 0.5]),
                             scale=torch.tensor([self._table_width, self._table_depth, self._table_height]))
         self._sim_config.apply_articulation_settings("table", get_prim_at_path(table.prim_path), self._sim_config.parse_actor_config("table"))
 
@@ -159,7 +159,7 @@ class xArmFMBBaseTask(RLTask):
 
     def is_done(self) -> None:
         self.reset_buf = torch.where(
-            self.progress_buf[:] >= self._max_episode_length - 1,
+            self.progress_buf[:] >= self._max_episode_length,
             torch.ones_like(self.reset_buf),
             self.reset_buf
         )
@@ -278,66 +278,3 @@ class xArmFMBBaseTask(RLTask):
 
         gravity = [0.0, 0.0, 0.0]
         self._env._world._physics_sim_view.set_gravity(carb.Float3(gravity[0], gravity[1], gravity[2]))
-
-
-@torch.jit.script
-def norm_diff_pos(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
-    # Calculate norm
-    diff_norm = torch.norm(p1 - p2, p=2, dim=-1)
-
-    return diff_norm
-
-@torch.jit.script
-def norm_diff_rot(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    # Calculate norm
-    diff_norm1 = torch.norm(q1 - q2, p=2, dim=-1)
-    diff_norm2 = torch.norm(q2 - q1, p=2, dim=-1)
-
-    diff_norm = torch.min(diff_norm1, diff_norm2)
-
-    return diff_norm
-
-@torch.jit.script
-def quaternion_multiply(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    aw, ax, ay, az = torch.unbind(a, -1)
-    bw, bx, by, bz = torch.unbind(b, -1)
-    ow = aw * bw - ax * bx - ay * by - az * bz
-    ox = aw * bx + ax * bw + ay * bz - az * by
-    oy = aw * by - ax * bz + ay * bw + az * bx
-    oz = aw * bz + ax * by - ay * bx + az * bw
-    return torch.stack((ow, ox, oy, oz), -1)
-
-@torch.jit.script
-def calc_diff_pos(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
-    return p1 - p2
-
-@torch.jit.script
-def calc_diff_rot(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    # Normalize the input quaternions
-    q1 = normalize(q1)
-    q2 = normalize(q2)
-
-    # Calculate the quaternion product between q2 and the inverse of q1
-    scaling = torch.tensor([1, -1, -1, -1], device=q1.device)
-    q1_inv = q1 * scaling
-    q_diff = quaternion_multiply(q2, q1_inv)
-
-    return q_diff
-
-@torch.jit.script
-def axis_angle_from_quat(quat: torch.Tensor) -> torch.Tensor:
-
-    """Convert tensor of quaternions to tensor of axis-angles."""
-    # Reference: https://github.com/facebookresearch/pytorch3d/blob/bee31c48d3d36a8ea268f9835663c52ff4a476ec/pytorch3d/transforms/rotation_conversions.py#L516-L544
-
-    eps = torch.tensor([1.0e-6], device=quat.device)
-
-    mag = torch.linalg.norm(quat[:, 1:4], dim=1)
-    half_angle = torch.atan2(mag, quat[:, 0])
-    angle = 2.0 * half_angle
-    sin_half_angle_over_angle = torch.where(
-        torch.abs(angle) > eps, torch.sin(half_angle) / angle, 1 / 2 - angle**2.0 / 48
-    )
-    axis_angle = quat[:, 1:4] / sin_half_angle_over_angle.unsqueeze(-1)
-
-    return axis_angle

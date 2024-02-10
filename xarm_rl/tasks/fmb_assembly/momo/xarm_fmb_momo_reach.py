@@ -8,7 +8,8 @@ from omni.isaac.core.utils.torch.rotations import quat_mul, quat_conjugate, quat
 from omni.isaac.core.utils.torch.transformations import *
 from omni.isaac.core.utils.torch.maths import tensor_clamp, torch_rand_float
 from omni.physx.scripts import physicsUtils
-from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask, axis_angle_from_quat
+from xarm_rl.tasks.fmb_assembly.fmb_base.xarm_fmb_base import xArmFMBBaseTask
+from xarm_rl.tasks.utils.math_utils import axis_angle_from_quat
 from xarm_rl.robots.articulations.views.xarm_view import xArmView
 from pxr import Usd, UsdGeom
 
@@ -49,7 +50,7 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
             translation=self._box_translation,
             orientation=self._box_orientation,
             name="box",
-            scale=torch.tensor([0.03, 0.03, 0.06]),
+            scale=torch.tensor([0.03, 0.03, 0.03]),
             color=torch.tensor([0.2, 0.4, 0.6])
         )
         self._sim_config.apply_articulation_settings("box", get_prim_at_path(box.prim_path), self._sim_config.parse_actor_config("box"))
@@ -67,6 +68,8 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         dof_pos = self._robots.get_joint_positions(joint_indices=self.movable_dof_indices, clone=False)
 
         # Calculate position and orientation difference
+        # Other computation is simple difference between rotation vectors
+        #   diff_rot = axis_angle_from_quat(ee_rot) - axis_angle_from_quat(box_rot)
         diff_pos = end_effector_positions - box_positions
         box_quat_norm = quat_mul(box_orientations, quat_conjugate(box_orientations))[:, 0]
         box_quat_inv = quat_conjugate(box_orientations) / box_quat_norm.unsqueeze(-1)
@@ -123,9 +126,9 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
         box_pos += self._env_pos[:, 0:3]
 
         # Randomize box rotation
-        box_rx = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
-        box_ry = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
-        box_rz = torch_rand_float(-np.pi, np.pi, (self._num_envs, 1), self._device).squeeze(-1)
+        box_rx = torch_rand_float(-np.pi/4, np.pi/4, (self._num_envs, 1), self._device).squeeze(-1)
+        box_ry = torch_rand_float(-np.pi/4, np.pi/4, (self._num_envs, 1), self._device).squeeze(-1)
+        box_rz = torch_rand_float(-np.pi/4, np.pi/4, (self._num_envs, 1), self._device).squeeze(-1)
         box_rot = quat_from_euler_xyz(box_rx, box_ry, box_rz)
 
         # Reset robo state for boxes in selected envs
@@ -165,24 +168,26 @@ class xArmFMBMOMOReach(xArmFMBBaseTask):
 
         self.rew_buf[:] = dist_reward
 
-        is_last_step = (self.progress_buf[0] >= self._max_episode_length - 1)
+        is_last_step = (self.progress_buf[0] >= self._max_episode_length)
         if is_last_step:
-            reach_success = self.check_reach_success()
-            self.rew_buf[:] += reach_success.float() * self._task_cfg['rl']['reach_success_bonus']
+            pos_reach_success, rot_reach_success = self.check_reach_success()
+            self.rew_buf[:] += pos_reach_success.float() * self._task_cfg['rl']['reach_success_bonus']
+            self.rew_buf[:] += rot_reach_success.float() * self._task_cfg['rl']['reach_success_bonus']
 
     def check_reach_success(self):
         pos_dist = torch.norm(self.obs_buf[..., 7:10], p=2, dim=-1)
         rot_dist = torch.norm(self.obs_buf[..., 10:13], p=2, dim=-1)
 
-        reach_success = torch.where(pos_dist < torch.tensor([0.03], device=self._device), True, False)
-        reach_success = torch.where(rot_dist < torch.tensor([0.03], device=self._device), reach_success, False)
-        return reach_success
+        pos_reach_success = torch.where(pos_dist < torch.tensor([0.03], device=self._device), True, False)
+        rot_reach_success = torch.where(rot_dist < torch.tensor([0.06], device=self._device), True, False)
+        return pos_reach_success, rot_reach_success
 
     def get_extras(self):
-        is_last_step = (self.progress_buf[0] >= self._max_episode_length - 1)
+        is_last_step = (self.progress_buf[0] >= self._max_episode_length)
         if is_last_step:
-            reach_success = self.check_reach_success()
-            self.extras['reach_success'] = torch.mean(reach_success.float())
+            pos_reach_success, rot_reach_success = self.check_reach_success()
+            self.extras['position_reach_success'] = torch.mean(pos_reach_success.float())
+            self.extras['rotation_reach_success'] = torch.mean(rot_reach_success.float())
 
     def post_physics_step(self):
         """Step buffers. Refresh tensors. Compute observations and reward. Reset environments."""
