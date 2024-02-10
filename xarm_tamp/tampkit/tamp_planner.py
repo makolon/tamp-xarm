@@ -1,12 +1,11 @@
-#!/usr/bin/env python
 import numpy as np
 from collections import namedtuple
 
 from utils.pybullet_tools.xarm_problems import PROBLEMS
 from utils.pybullet_tools.xarm_utils import get_arm_joints, get_gripper_joints, get_group_joints, get_group_conf
-from tampkit.pybullet_tools.utils import (
+from tampkit.sim_tools.utils import (
     # Simulation utility
-    connect, disconnect, save_state, has_gui, restore_state, wait_if_gui, \
+    connect, disconnect, has_gui, wait_if_gui, \
     # Getter
     get_pose, get_distance, get_joint_positions, get_max_limit, \
     is_placement, point_from_pose, \
