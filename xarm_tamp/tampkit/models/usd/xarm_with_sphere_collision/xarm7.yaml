@@ -1,0 +1,162 @@
+# The robot description defines the generalized coordinates and how to map those
+# to the underlying URDF dofs.
+
+api_version: 1.0
+
+# Defines the generalized coordinates. Each generalized coordinate is assumed
+# to have an entry in the URDF.
+# Lula will only use these joints to control the robot position.
+cspace:
+    - joint1
+    - joint2
+    - joint3
+    - joint4
+    - joint5
+    - joint6
+    - joint7
+    - left_drive_joint
+    - right_drive_joint
+default_q: [
+    -0.0,0.0002,-0.0002,-0.0,-0.0002,0.0008,0.0,0.0,-0.0004
+]
+
+# Most dimensions of the cspace have a direct corresponding element
+# in the URDF. This list of rules defines how unspecified coordinates
+# should be extracted or how values in the URDF should be overwritten.
+
+cspace_to_urdf_rules:
+    - {name: left_finger_joint, rule: fixed, value: 0.0331}
+    - {name: right_finger_joint, rule: fixed, value: 0.0322}
+    - {name: left_finger_fixed_joint, rule: fixed, value: 0.0459}
+    - {name: right_finger_fixed_joint, rule: fixed, value: -0.0444}
+
+# Lula uses collision spheres to define the robot geometry in order to avoid
+# collisions with external obstacles.  If no spheres are specified, Lula will
+# not be able to avoid obstacles.
+
+collision_spheres:
+  - link_base:
+    - "center": [0.0, 0.0, 0.05]
+      "radius": 0.06
+    - "center": [0.0, 0.0, 0.1]
+      "radius": 0.06
+    - "center": [0.0, 0.0, 0.15]
+      "radius": 0.06
+  - link1:
+    - "center": [0.0, 0.0, -0.06]
+      "radius": 0.06
+    - "center": [0.0, -0.015, -0.005]
+      "radius": 0.06
+    - "center": [0.0, 0.04, 0.0]
+      "radius": 0.06
+  - link2:
+    - "center": [0.0, 0.0, 0.09]
+      "radius": 0.06
+    - "center": [0.0, -0.055, 0.09]
+      "radius": 0.06
+    - "center": [0.0, -0.11, 0.09]
+      "radius": 0.06
+    - "center": [0.0, -0.11, 0.045]
+      "radius": 0.06
+    - "center": [0.0, -0.11, 0.0]
+      "radius": 0.06
+    - "center": [0.0, -0.16, 0.0]
+      "radius": 0.06
+  - link3:
+    - "center": [0.0, 0.0, -0.1]
+      "radius": 0.065
+    - "center": [0.0, 0.0, -0.03]
+      "radius": 0.065
+    - "center": [0.04, 0.02, 0.0]
+      "radius": 0.065
+    - "center": [0.04, -0.04, 0.0]
+      "radius": 0.065
+  - link4:
+    - "center": [0.0, 0.0, 0.09]
+      "radius": 0.065
+    - "center": [0.04, -0.045, 0.09]
+      "radius": 0.065
+    - "center": [0.08, -0.09, 0.09]
+      "radius": 0.065
+    - "center": [0.08, -0.09, 0.05]
+      "radius": 0.065
+    - "center": [0.08, -0.09, 0.0]
+      "radius": 0.065
+    - "center": [0.08, -0.15, 0.0]
+      "radius": 0.065
+  - link5:
+    - "center": [0.0, 0.05, 0.0]
+      "radius": 0.06
+    - "center": [0.0, 0.05, -0.05]
+      "radius": 0.06
+    - "center": [0.0, 0.03, -0.1]
+      "radius": 0.06
+    - "center": [0.0, 0.0, -0.15]
+      "radius": 0.06
+  - link6:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.05
+    - "center": [0.075, 0.0, 0.0]
+      "radius": 0.05
+    - "center": [0.075, 0.05, 0.0]
+      "radius": 0.05
+    - "center": [0.0, 0.0, 0.03]
+      "radius": 0.05
+    - "center": [0.035, 0.0, 0.03]
+      "radius": 0.05
+  - link7:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.05
+  - xarm_gripper_base_link:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.042
+    - "center": [0.0, -0.025, 0.04]
+      "radius": 0.042
+    - "center": [0.0, 0.025, 0.04]
+      "radius": 0.042
+    - "center": [0.0, -0.025, 0.08]
+      "radius": 0.042
+    - "center": [0.0, 0.025, 0.08]
+      "radius": 0.042
+  - left_outer_knuckle:
+    - "center": [0.0, 0.042, 0.025]
+      "radius": 0.012
+    - "center": [0.0, 0.03, 0.015]
+      "radius": 0.012
+    - "center": [0.0, 0.015, 0.005]
+      "radius": 0.012
+  - left_finger:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.012
+    - "center": [0.0, -0.01, 0.01]
+      "radius": 0.012
+    - "center": [0.0, -0.02, 0.02]
+      "radius": 0.012
+    - "center": [0.0, -0.02, 0.035]
+      "radius": 0.012
+    - "center": [0.0, -0.02, 0.05]
+      "radius": 0.012
+  - left_inner_knuckle:
+    - "center": [0.0, 0.025, 0.03]
+      "radius": 0.012
+  - right_outer_knuckle:
+    - "center": [0.0, -0.042, 0.025]
+      "radius": 0.012
+    - "center": [0.0, -0.03, 0.015]
+      "radius": 0.012
+    - "center": [0.0, -0.015, 0.005]
+      "radius": 0.012
+  - right_finger:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.012
+    - "center": [0.0, 0.01, 0.01]
+      "radius": 0.012
+    - "center": [0.0, 0.02, 0.02]
+      "radius": 0.012
+    - "center": [0.0, 0.02, 0.035]
+      "radius": 0.012
+    - "center": [0.0, 0.02, 0.05]
+      "radius": 0.012
+  - right_inner_knuckle:
+    - "center": [0.0, -0.025, 0.03]
+      "radius": 0.012
