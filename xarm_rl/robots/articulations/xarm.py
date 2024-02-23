@@ -25,7 +25,7 @@ class xArm(Robot):
         self._name = name
 
         if self._usd_path is None:
-            self._usd_path = (get_usd_path() / 'xarm7' / 'xarm7.usd').as_posix()
+            self._usd_path = (get_usd_path() / 'xarm7' / 'xarm_instanceable' / 'xarm7.usd').as_posix()
 
         add_reference_to_stage(self._usd_path, prim_path)
 
