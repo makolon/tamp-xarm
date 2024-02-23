@@ -1,5 +1,7 @@
+import hydra
 import numpy as np
 from collections import namedtuple
+from omegaconf import DictConfig
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
@@ -95,8 +97,19 @@ def opt_motion_fn(q1, q2):
 #######################################################
 
 class TAMPPlanner(object):
+    def __init__(self, algorithm, unit, deterministic, problem, cfree, teleport):
+        self._algorithm = algorithm
+        self._unit = unit
+        self._deterministic = deterministic
+        self._problem = problem
+        self._cfree = cfree
+        self._teleport = teleport
 
-    def pddlstream_from_problem(self, problem, observations, collisions=True, teleport=False):
+        np.set_printoptions(precision=2)
+        if deterministic:
+            self.set_deterministic()
+
+    def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
 
         domain_pddl = read(get_file_path(__file__, 'task/assemble/domain.pddl'))
@@ -162,43 +175,6 @@ class TAMPPlanner(object):
 
         return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
 
-    def initialize(self, objservations):
-        parser = create_parser()
-        parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
-        parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
-        parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
-        parser.add_argument('-e', '--enable', action='store_true', help='Enables rendering during planning')
-        parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
-        parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
-        parser.add_argument('-n', '--number', default=4, type=int, help='The number of blocks')
-        parser.add_argument('-p', '--problem', default='real_gearbox_problem', help='The name of the problem to solve')
-        parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
-        parser.add_argument("--gpu_id", help="select using gpu id", type=str, default="-1")
-        parser.add_argument("--save", help="select save models", type=str, default=True)
-        parser.add_argument("--cfree", help="select collision activate", type=bool, default=True)
-        parser.add_argument("--debug", help="save visualization", type=bool, default=False)
-        parser.add_argument("--teleport", action='store_true', help='Teleports between configurations')
-        parser.add_argument("--simulate", action='store_true', help='Simulates the system')
-        args = parser.parse_args()
-        print('Arguments:', args)
-
-        connect(use_gui=True, shadows=False)
-
-        np.set_printoptions(precision=2)
-        if args.deterministic:
-            self.set_deterministic()
-
-        problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
-        if args.problem not in problem_from_name:
-            raise ValueError(args.problem)
-        print('Problem:', args.problem)
-        problem_fn = problem_from_name[args.problem]
-        tamp_problem = problem_fn(objservations)
-
-        self.pddlstream_problem = self.pddlstream_from_problem(tamp_problem, objservations, collisions=not args.cfree, teleport=args.teleport)
-        self.tamp_problem = tamp_problem
-        self.args = args
-    
     def post_process(self, problem, plan, teleport=False):
         if plan is None:
             return None
@@ -233,8 +209,18 @@ class TAMPPlanner(object):
             commands += new_commands
         return commands
 
-    def execute(self):
+    def execute(self, sim_cfg):
         simulation_app = connect()
+
+        # Instanciate problem 
+        problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
+        if self._problem not in problem_from_name:
+            raise ValueError(self._problem)
+        print('Problem:', self._problem)
+        problem_fn = problem_from_name[self._problem]
+        tamp_problem = problem_fn(sim_cfg)
+
+        pddlstream_problem = self.pddlstream_from_problem(tamp_problem, collisions=not self._cfree, teleport=self._teleport)
 
         stream_info = {
             'MoveCost': FunctionInfo(opt_move_cost_fn),
@@ -244,13 +230,13 @@ class TAMPPlanner(object):
             'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
         }
 
-        _, _, _, stream_map, init, goal = self.pddlstream_problem
+        _, _, _, stream_map, init, goal = pddlstream_problem
         print('Init:', init)
         print('Goal:', goal)
         print('Streams:', str_from_object(set(stream_map)))
 
         with Profiler():
-            solution = solve(self.pddlstream_problem, algorithm=self.args.algorithm, unit_costs=self.args.unit,
+            solution = solve(pddlstream_problem, algorithm=self._algorithm, unit_costs=self._unit,
                             stream_info=stream_info, success_cost=INF, verbose=True, debug=False)
 
         print_solution(solution)
@@ -263,14 +249,45 @@ class TAMPPlanner(object):
         if (plan is None) or simulation_app.is_running():
             return
 
-        commands = self.post_process(self.tamp_problem, plan)
-        self.tamp_problem.remove_gripper()
+        commands = self.post_process(tamp_problem, plan)
+        tamp_problem.remove_gripper()
 
         apply_commands(State(), commands, time_step=0.03)
         disconnect()
 
         return
 
+
+@hydra.main(version_base=None, config_name="config", config_path="../cfg")
+def main(cfg: DictConfig):
+    parser = create_parser()
+    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
+    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
+    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
+    parser.add_argument('-e', '--enable', action='store_true', help='Enables rendering during planning')
+    parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
+    parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
+    parser.add_argument('-n', '--number', default=4, type=int, help='The number of blocks')
+    parser.add_argument('-p', '--problem', default='real_gearbox_problem', help='The name of the problem to solve')
+    parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
+    parser.add_argument("--gpu_id", help="select using gpu id", type=str, default="-1")
+    parser.add_argument("--save", help="select save models", type=str, default=True)
+    parser.add_argument("--cfree", help="select collision activate", type=bool, default=True)
+    parser.add_argument("--debug", help="save visualization", type=bool, default=False)
+    parser.add_argument("--teleport", action='store_true', help='Teleports between configurations')
+    parser.add_argument("--simulate", action='store_true', help='Simulates the system')
+    args = parser.parse_args()
+
+    tamp_planer = TAMPPlanner(
+        algorithm=args.algorithm.
+        unit=args.unit,
+        deterministic=args.deterministic,
+        problem=args.problem,
+        cfree=args.cfree,
+        teleport=args.teleport,
+    )
+    tamp_planer.execute(cfg)
+
+
 if __name__ == '__main__':
-    tamp_planner = TAMPPlanner()
-    tamp_planner.execute()
+    main()
