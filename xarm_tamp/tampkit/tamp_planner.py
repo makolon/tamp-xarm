@@ -279,7 +279,7 @@ def main(cfg: DictConfig):
     args = parser.parse_args()
 
     tamp_planer = TAMPPlanner(
-        algorithm=args.algorithm.
+        algorithm=args.algorithm,
         unit=args.unit,
         deterministic=args.deterministic,
         problem=args.problem,
