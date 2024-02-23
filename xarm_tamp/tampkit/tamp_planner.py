@@ -1,30 +1,32 @@
 import numpy as np
 from collections import namedtuple
 
-from utils.pybullet_tools.xarm_problems import PROBLEMS
-from utils.pybullet_tools.xarm_utils import get_arm_joints, get_gripper_joints, get_group_joints, get_group_conf
-from tampkit.sim_tools.utils import (
+from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
-    connect, disconnect, has_gui, wait_if_gui, \
+    connect, disconnect, \
     # Getter
-    get_pose, get_distance, get_joint_positions, get_max_limit, \
-    is_placement, point_from_pose, \
-    LockRenderer, WorldSaver, SEPARATOR)
-from utils.pybullet_tools.xarm_primitives import (
-    # Geometry
-    Pose, Conf, State, Cook, Clean, \
+    get_pose, get_max_limit, get_arm_joints, get_gripper_joints, get_group_joints, get_group_conf, \
+    get_joint_positions, \
+    # Utility
+    point_from_pose)
+from tampkit.sim_tools.isaacsim.geometry import (
+    Pose, Conf, State, Trajectory, JointState)
+from tampkit.sim_tools.isaacsim.control import (
     # Command
     GripperCommand, Attach, Detach, \
     # Utility
     apply_commands, control_commands, \
-    # Getter
+    # Generator (Stream)
     get_ik_ir_gen, get_motion_gen, get_stable_gen, get_grasp_gen, get_insert_gen, \
-    # Tester
+    # Tester (Stream)
     get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     get_supported, get_inserted, \
     # Cost function
     move_cost_fn)
+from tampkit.problems import PROBLEMS
+from tampkit.streams import move_stream, grasp_stream, place_stream, insert_stream
 
+# PDDLStream functions
 from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
 from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
@@ -33,7 +35,6 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.stream import StreamInfo
 from pddlstream.language.object import SharedOptValue
 from pddlstream.utils import get_file_path, read, str_from_object, Profiler, INF
-
 
 BASE_CONSTANT = 1
 BASE_VELOCITY = 0.5
@@ -95,23 +96,14 @@ def opt_motion_fn(q1, q2):
 
 class TAMPPlanner(object):
 
-    def parse_observation(self, object_names, object_poses, body):
-        pass
-
     def pddlstream_from_problem(self, problem, observations, collisions=True, teleport=False):
-        # TODO: add chagable problem
         robot = problem.robot
 
         domain_pddl = read(get_file_path(__file__, 'task/assemble/domain.pddl'))
         stream_pddl = read(get_file_path(__file__, 'task/assemble/stream.pddl'))
         constant_map = {}
 
-        robot_pose, object_pose = observations
-
-        base_conf = robot_pose[:3] # base_footprint configuration
-        assert len(base_conf) == 3, "Does not match the size of the base_conf"
-
-        initial_bq = Conf(robot, get_group_joints(robot, 'base'), base_conf)
+        initial_bq = Conf(robot, get_group_joints(robot, 'base'), get_group_conf(robot, 'base'))
         init = [
             ('CanMove',),
             ('BConf', initial_bq),
@@ -119,22 +111,15 @@ class TAMPPlanner(object):
             Equal(('PickCost',), 1),
             Equal(('PlaceCost',), 1),
             Equal(('InsertCost',), 1),
-        ] + [('Sink', s) for s in problem.sinks] + \
-            [('Stove', s) for s in problem.stoves] + \
-            [('Connected', b, d) for b, d in problem.buttons] + \
-            [('Button', b) for b, _ in problem.buttons]
+        ]
 
         joints = get_arm_joints(robot, 'arm')
-        arm_conf = robot_pose[3:] # arm configuration
-        assert len(arm_conf) == 5, "Does not match the size of arm_conf"
-
-        conf = Conf(robot, joints, arm_conf)
+        conf = Conf(robot, joints, get_joint_positions(robot, joints))
         init += [('Arm', 'arm'), ('AConf', 'arm', conf), ('HandEmpty', 'arm'), ('AtAConf', 'arm', conf)]
         init += [('Controllable', 'arm')]
 
         for body in problem.movable:
-            body_pose = self.parse_observation(problem.body_names, object_pose, body)
-            pose = Pose(body, body_pose)
+            pose = Pose(body, get_pose(body))
             init += [('Graspable', body), ('Pose', body, pose),
                     ('AtPose', body, pose)]
 
@@ -242,65 +227,14 @@ class TAMPPlanner(object):
                 open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
                 detach = Detach(problem.robot, a, b1)
                 new_commands = [traj_insert, detach, open_gripper, traj_depart, traj_return.reverse()]
-            elif name == 'clean':
-                body, sink = args
-                new_commands = [Clean(body)]
-            elif name == 'cook':
-                body, stove = args
-                new_commands = [Cook(body)]
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
             commands += new_commands
         return commands
 
-    def plan(self):
-        saver = WorldSaver()
-
-        stream_info = {
-            'MoveCost': FunctionInfo(opt_move_cost_fn),
-            'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
-            'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'inverse-kinematics': StreamInfo(opt_gen_fn=from_fn(opt_ik_fn)),
-            'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
-        }
-
-        _, _, _, stream_map, init, goal = self.pddlstream_problem
-        print('Init:', init)
-        print('Goal:', goal)
-        print('Streams:', str_from_object(set(stream_map)))
-        print(SEPARATOR)
-
-        with Profiler():
-            with LockRenderer(lock=not self.args.enable):
-                solution = solve(self.pddlstream_problem, algorithm=self.args.algorithm, unit_costs=self.args.unit,
-                                stream_info=stream_info, success_cost=INF, verbose=True, debug=False)
-                saver.restore()
-
-        print_solution(solution)
-        plan, cost, evaluations = solution
-
-        print('#############################')
-        print('plan: ', plan)
-        print('#############################')
-
-        if (plan is None) or not has_gui():
-            return
-
-        commands = self.post_process(self.tamp_problem, plan)
-        self.tamp_problem.remove_gripper()
-        saver.restore()
-
-        saver.restore()
-        wait_if_gui('Execute?')
-        apply_commands(State(), commands, time_step=0.03)
-        wait_if_gui('Finish?')
-        disconnect()
-
-        return plan, cost, evaluations
-
     def execute(self):
-        saver = WorldSaver()
+        simulation_app = connect()
 
         stream_info = {
             'MoveCost': FunctionInfo(opt_move_cost_fn),
@@ -314,13 +248,10 @@ class TAMPPlanner(object):
         print('Init:', init)
         print('Goal:', goal)
         print('Streams:', str_from_object(set(stream_map)))
-        print(SEPARATOR)
 
         with Profiler():
-            with LockRenderer(lock=not self.args.enable):
-                solution = solve(self.pddlstream_problem, algorithm=self.args.algorithm, unit_costs=self.args.unit,
-                                stream_info=stream_info, success_cost=INF, verbose=True, debug=False)
-                saver.restore()
+            solution = solve(self.pddlstream_problem, algorithm=self.args.algorithm, unit_costs=self.args.unit,
+                            stream_info=stream_info, success_cost=INF, verbose=True, debug=False)
 
         print_solution(solution)
         plan, cost, evaluations = solution
@@ -329,19 +260,16 @@ class TAMPPlanner(object):
         print('plan: ', plan)
         print('#############################')
 
-        if (plan is None) or not has_gui():
+        if (plan is None) or simulation_app.is_running():
             return
 
         commands = self.post_process(self.tamp_problem, plan)
         self.tamp_problem.remove_gripper()
-        saver.restore()
 
-        saver.restore()
-        wait_if_gui('Execute?')
-        apply_commands(State(), commands, time_step=0.03) # TODO: temporally save
-        wait_if_gui('Finish?')
+        apply_commands(State(), commands, time_step=0.03)
         disconnect()
 
+        return
 
 if __name__ == '__main__':
     tamp_planner = TAMPPlanner()

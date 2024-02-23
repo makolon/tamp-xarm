@@ -3,7 +3,7 @@ import numpy as np
 from geometry import (
     Pose, 
 )
-from isaacsim import (
+from isaacsim.sim_utils import (
     # Getter
     get_distance, get_group_conf, get_target_path, get_gripper_joints,
     get_joint_positions, get_extend_fn, get_body_name, get_link_pose,
