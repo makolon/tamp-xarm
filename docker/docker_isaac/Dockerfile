@@ -1,49 +1,203 @@
-FROM nvcr.io/nvidia/isaac-sim:2023.1.1
+FROM nvcr.io/nvidia/isaac-sim:2023.1.1 AS isaac-sim
+FROM nvcr.io/nvidia/cudagl:11.4.2-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set default shell to /bin/bash
-SHELL ["/bin/bash", "-c"]
+ARG VULKAN_SDK_VERSION=1.3.224.1
+ARG CACHE_DATE=2023-12-15
+
+# Deal with getting tons of debconf messages
+# See: https://github.com/phusion/baseimage-docker/issues/58
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
 RUN apt-get update && apt-get install -y \
     bash-completion \
     build-essential \
+    checkinstall \
     cmake \
     curl \
     dbus-x11 \
     gdb \
     gedit \
     git \
+    git-lfs \
     gnupg2 \
     htop \
+    iputils-ping \
+    libeigen3-dev \
     libssl-dev \
     locales \
     lsb-release \
+    make \
     net-tools \
+    openssh-server \
+    openssh-client \
     python3-pip \
     software-properties-common \
     subversion \
     sudo \
     terminator \
+    tcl \
     unzip \
     valgrind \
     vim \
     wget \
-    xterm && \
+    xterm \
+    zlib1g-dev && \
     apt-get clean && rm -rf /var/lib/apt/list*
 
-# Setup Isaac Sim
-ENV ISAACSIM_PATH="${HOME}/isaac-sim"
-ENV ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libatomic1 \
+    libegl1 \
+    libglu1-mesa \
+    libgomp1 \
+    libsm6 \
+    libxi6 \
+    libxrandr2 \
+    libxt6 \
+    libfreetype-dev \
+    libfontconfig1 \
+    openssl \
+    libssl1.1 \
+    vulkan-utils \
+    && apt-get -y autoremove \
+    && apt-get clean autoclean \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN echo "alias PYTHON_PATH=/isaac-sim/python.sh" >> ${HOME}/.bashrc
+# Download the Vulkan SDK and extract the headers, loaders, layers and binary utilities
+RUN wget -q --show-progress \
+    --progress=bar:force:noscroll \
+    https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkansdk-linux-x86_64-${VULKAN_SDK_VERSION}.tar.gz \
+        -O /tmp/vulkansdk-linux-x86_64-${VULKAN_SDK_VERSION}.tar.gz && \
+    echo "Installing Vulkan SDK ${VULKAN_SDK_VERSION}" && \
+    mkdir -p /opt/vulkan && \
+    tar -xf /tmp/vulkansdk-linux-x86_64-${VULKAN_SDK_VERSION}.tar.gz -C /opt/vulkan && \
+    mkdir -p /usr/local/include/ && cp -ra /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/include/* /usr/local/include/ && \
+    mkdir -p /usr/local/lib && cp -ra /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/lib/* /usr/local/lib/ && \
+    cp -a /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/lib/libVkLayer_*.so /usr/local/lib && \
+    mkdir -p /usr/local/share/vulkan/explicit_layer.d && \
+    cp /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/etc/vulkan/explicit_layer.d/VkLayer_*.json /usr/local/share/vulkan/explicit_layer.d && \
+    mkdir -p /usr/local/share/vulkan/registry && \
+    cp -a /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/share/vulkan/registry/* /usr/local/share/vulkan/registry && \
+    cp -a /opt/vulkan/${VULKAN_SDK_VERSION}/x86_64/bin/* /usr/local/bin && \
+    ldconfig && \
+    rm /tmp/vulkansdk-linux-x86_64-${VULKAN_SDK_VERSION}.tar.gz && rm -rf /opt/vulkan
+
+# Setup the required capabilities for the container runtime
+ENV NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=all
+ENV OMNI_SERVER http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1
+ENV MIN_DRIVER_VERSION 525.60.11
+ENV TORCH_CUDA_ARCH_LIST="7.0+PTX"
+ENV USE_CX11_ABI=0
+ENV PRE_CX11_ABI=ON
+ENV omni_python='/isaac-sim/python.sh'
+
+# Open ports for live streaming
+EXPOSE 47995-48012/udp \
+       47995-48012/tcp \
+       49000-49007/udp \
+       49000-49007/tcp \
+       49100/tcp \
+       8011/tcp \
+       8012/tcp \
+       8211/tcp \
+       8899/tcp \
+       8891/tcp
+
+# Copy Isaac Sim files
+RUN mkdir -p /root/.nvidia-omniverse/config
+COPY --from=isaac-sim /isaac-sim /isaac-sim
+COPY --from=isaac-sim /root/.nvidia-omniverse/config /root/.nvidia-omniverse/config
+COPY --from=isaac-sim /etc/vulkan/icd.d/nvidia_icd.json /etc/vulkan/icd.d/nvidia_icd.json
+COPY --from=isaac-sim /etc/vulkan/icd.d/nvidia_icd.json /etc/vulkan/implicit_layer.d/nvidia_layers.json
+
+# Create an alias for omniverse python
+RUN echo "alias omni_python='/isaac-sim/python.sh'" >> ${HOME}/.bashrc
 RUN echo "export DISPLAY=:1" >> ${HOME}/.bashrc
-RUN echo "export PYTHONPATH=$PYTHONPATH:/root/tamp-xarm" >> ${HOME}/.bashrc
+
+# Add cache date to avoid using cached layers older than this
+RUN $omni_python -m pip install "robometrics[evaluator] @ git+https://github.com/fishbotics/robometrics.git"
+
+# Install curobo from source https://github.com/NVlabs/curobo.git or https://github.com/makolon/curobo.git
+RUN mkdir /pkgs
+RUN cd /pkgs && \
+    git clone https://github.com/makolon/curobo.git
+RUN $omni_python -m pip install ninja wheel tomli
+RUN cd /pkgs/curobo && $omni_python -m pip install .[dev] --no-build-isolation
+
+# Install gflags and glog statically, instructions from: https://github.com/nvidia-isaac/nvblox/blob/public/docs/redistributable.md
+RUN cd /pkgs && wget https://cmake.org/files/v3.27/cmake-3.27.1.tar.gz && \
+    tar -xvzf cmake-3.27.1.tar.gz && \
+    cd cmake-3.27.1 && \
+    ./bootstrap && \
+    make -j8 && \
+    make install && \
+    cd /pkgs && \
+    rm cmake-3.27.1.tar.gz
+
+# Install SQLite
+RUN cd /pkgs && git clone https://github.com/sqlite/sqlite.git -b version-3.39.4 && \
+    cd /pkgs/sqlite && \
+    CFLAGS=-fPIC ./configure --prefix=/pkgs/sqlite/install/ && \
+    make && \
+    make install
+
+# Install glog
+RUN cd /pkgs && git clone https://github.com/google/glog.git -b v0.6.0 && \
+    cd glog && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_INSTALL_PREFIX=/pkgs/glog/install/ \
+        -DWITH_GFLAGS=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_CXX_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=${USE_CX11_ABI} && \
+    make -j8 && \
+    make install
+
+# Install gflags
+RUN cd /pkgs && git clone https://github.com/gflags/gflags.git -b v2.2.2 && \
+    cd gflags &&  \
+    mkdir build && cd build && \
+    cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_INSTALL_PREFIX=/pkgs/gflags/install/ \
+        -DGFLAGS_BUILD_STATIC_LIBS=ON -DCMAKE_CXX_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=${USE_CX11_ABI} && \
+    make -j8 && \
+    make install
+
+# Install NVblox
+RUN cd /pkgs && git clone https://github.com/valtsblukis/nvblox.git && \
+    cd /pkgs/nvblox/nvblox && \
+    mkdir build && cd build && \
+    cmake ..  -DBUILD_REDISTRIBUTABLE=ON \
+        -DCMAKE_CXX_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=${USE_CX11_ABI} -DPRE_CXX11_ABI_LINKABLE=${PRE_CX11_ABI} \
+        -DSQLITE3_BASE_PATH="/pkgs/sqlite/install/" -DGLOG_BASE_PATH="/pkgs/glog/install/" \
+        -DGFLAGS_BASE_PATH="/pkgs/gflags/install/" -DCMAKE_CUDA_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=${USE_CX11_ABI} \
+        -DBUILD_TESTING=OFF && \
+    make -j32 && \
+    make install
+
+# We also need libglog for pytorch
+RUN cd /pkgs/glog && \
+    mkdir build_isaac && cd build_isaac && \
+    cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DWITH_GFLAGS=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_CXX_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=${USE_CX11_ABI} && \
+    make -j8 && \
+    make install
+
+# Install nvblox_torch package
+RUN cd /pkgs && \
+    git clone https://github.com/nvlabs/nvblox_torch.git && \
+    cd /pkgs/nvblox_torch && \
+    sh install_isaac_sim.sh $($omni_python -c 'import torch.utils; print(torch.utils.cmake_prefix_path)') && \
+    $omni_python -m pip install -e .
+
+# Install realsense for nvblox demos
+RUN $omni_python -m pip install pyrealsense2 opencv-python transforms3d
+RUN $omni_python -m pip install "robometrics[evaluator] @ git+https://github.com/fishbotics/robometrics.git"
 
 # Setup Python Package
 RUN apt-get update
-RUN ${ISAACSIM_PYTHON_EXE} -m pip install -U pip
-RUN ${ISAACSIM_PYTHON_EXE} -m pip install \
+RUN $omni_python -m pip install -U pip
+RUN $omni_python -m pip install \
     absl-py==1.2.0 \
     aiosignal==1.2.0 \
     antlr4-python3-runtime==4.9.3 \
@@ -127,7 +281,7 @@ RUN ${ISAACSIM_PYTHON_EXE} -m pip install \
 # Setup Workdir
 WORKDIR /root
 
+# Set default shell to /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 ENTRYPOINT ["/bin/bash"]
-
