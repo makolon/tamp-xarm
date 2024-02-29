@@ -114,6 +114,7 @@ COPY --from=isaac-sim /etc/vulkan/icd.d/nvidia_icd.json /etc/vulkan/implicit_lay
 # Create an alias for omniverse python
 RUN echo "alias omni_python='/isaac-sim/python.sh'" >> ${HOME}/.bashrc
 RUN echo "export DISPLAY=:1" >> ${HOME}/.bashrc
+RUN echo "export PYTHONPATH=$PYTHONPATH:/root/tamp-xarm/" >> ${HOME}/.bashrc
 
 # Add cache date to avoid using cached layers older than this
 RUN $omni_python -m pip install "robometrics[evaluator] @ git+https://github.com/fishbotics/robometrics.git"
