@@ -1,5 +1,5 @@
 import dataclasses
-from sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.isaacsim.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
     create_table, create_fmb, create_surface,
@@ -22,11 +22,19 @@ from curobo.util_file import (
     join_path,
     load_yaml,
 )
+from curobo.wrap.reacher.ik_solver import (
+    IKSolver,
+    IKSolverConfig,
+)
 from curobo.wrap.reacher.motion_gen import (
     MotionGen,
     MotionGenConfig,
     MotionGenPlanConfig,
     PoseCostMetric,
+)
+from curobo.wrap.reacher.mpc import (
+    MpcSolver,
+    MpcSolverConfig,
 )
 
 
@@ -89,38 +97,42 @@ def fmb_momo_problem(sim_cfg):
     
     # define surfaces
     # TODO: add function to calculate surface position
-    surf1 = create_surface(sim_cfg.surface1)
-    surf1_pose = calc_surf_pose(block1, "surface1")
+    block1_pose = get_pose(block1)
+    surf1 = create_surface(sim_cfg.surface1.name, *block1_pose)
+    surf1_pose = calc_surf_pose(block1_pose,"surface1")
     set_pose(surf1, surf1_pose)
     
-    surf2 = create_surface(sim_cfg.surface2)
-    surf2_pose = calc_surf_pose(block2, "surface2")
+    block2_pose = get_pose(block2)
+    surf2 = create_surface(sim_cfg.surface2.name, *block2_pose)
+    surf2_pose = calc_surf_pose(block2_pose, "surface2")
     set_pose(surf2, surf2_pose)
     
-    surf3 = create_surface(sim_cfg.surface3)
-    surf3_pose = calc_surf_pose(block3, "surface3")
+    block3_pose = get_pose(block3)
+    surf3 = create_surface(sim_cfg.surface3.name, *block3_pose)
+    surf3_pose = calc_surf_pose(block3_pose, "surface3")
     set_pose(surf3, surf3_pose)
     
-    surf4 = create_surface(sim_cfg.surface4)
-    surf4_pose = calc_surf_pose(block4, "surface4")
+    block4_pose = get_pose(block4)
+    surf4 = create_surface(sim_cfg.surface4.name, *block4_pose)
+    surf4_pose = calc_surf_pose(block4_pose, "surface4")
     set_pose(surf4, surf4_pose)
  
     # define holes
     # TODO: add function to calculate hole position
-    hole1 = create_hole(sim_cfg.hole1)
-    hole1_pose = calc_hole_pose(block1, "hole1")
+    hole1 = create_hole(sim_cfg.hole1.name, *block1_pose)
+    hole1_pose = calc_hole_pose(block1_pose, "hole1")
     set_pose(hole1, hole1_pose)
 
-    hole2 = create_hole(sim_cfg.hole2)
-    hole2_pose = calc_hole_pose(block2, "hole2")
+    hole2 = create_hole(sim_cfg.hole2.name, *block2_pose)
+    hole2_pose = calc_hole_pose(block2_pose, "hole2")
     set_pose(hole2, hole2_pose)
 
-    hole3 = create_hole(sim_cfg.hole3)
-    hole3_pose = calc_hole_pose(block3, "hole3")
+    hole3 = create_hole(sim_cfg.hole3.name, *block3_pose)
+    hole3_pose = calc_hole_pose(block3_pose, "hole3")
     set_pose(hole3, hole3_pose)
 
-    hole4 = create_hole(sim_cfg.hole4)
-    hole4_pose = calc_hole_pose(block4, "hole4")
+    hole4 = create_hole(sim_cfg.hole4.name, *block4_pose)
+    hole4_pose = calc_hole_pose(block4_pose, "hole4")
     set_pose(hole4, hole4_pose)
 
     # define world_config
@@ -135,8 +147,37 @@ def fmb_momo_problem(sim_cfg):
         ],
     )
 
+    # define plan config
+    plan_cfg = MotionGenPlanConfig(
+        enable_graph=sim_cfg.motion_generation_plan.enable_graph,
+        enable_graph_attempt=sim_cfg.motion_generation_plan.enable_graph_attempt,
+        max_attempts=sim_cfg.motion_generation_plan.max_attempts,
+        enable_finetune_trajopt=sim_cfg.motion_generation_plan.enable_finetune_trajopt,
+        parallel_finetune=sim_cfg.motion_generation_plan.parallel_finetune,
+    )
+
     # define tensor_args
     tensor_args = TensorDeviceType()
+
+    # define inverse kinematics config
+    ik_config = IKSolverConfig.load_from_robot_config(
+        robot_cfg,
+        world_cfg,
+        tensor_args,
+        position_threshold=sim_cfg.inverse_kinematics.position_threshold,
+        rotation_threshold=sim_cfg.inverse_kinematics.rotation_threshold,
+        num_seeds=sim_cfg.inverse_kinematics.num_seeds,
+        self_collision_check=sim_cfg.inverse_kinematics.self_collision_check,
+        self_collision_opt=sim_cfg.inverse_kinematics.self_collision_opt,
+        use_cuda_graph=sim_cfg.inverse_kinematics.use_cuda_graph,
+        collision_checker_type=CollisionCheckerType.MESH,
+        collision_cache={
+            "obb": sim_cfg.inverse_kinematics.n_obstacle_cuboids,
+            "mesh": sim_cfg.inverse_kinematics.n_obstacle_mesh},
+    )
+    
+    # defailt inverse kinematics
+    ik_solver = IKSolver(ik_config)
 
     # define motion plan config
     motion_gen_cfg = MotionGenConfig.load_from_robot_config(
@@ -164,14 +205,27 @@ def fmb_momo_problem(sim_cfg):
                       parallel_finetune=sim_cfg.motion_generation.parallel_finetune)
     print('cuRobo is Ready!')
 
-    # define plan config
-    plan_cfg = MotionGenPlanConfig(
-        enable_graph=sim_cfg.motion_generation_plan.enable_graph,
-        enable_graph_attempt=sim_cfg.motion_generation_plan.enable_graph_attempt,
-        max_attempts=sim_cfg.motion_generation_plan.max_attempts,
-        enable_finetune_trajopt=sim_cfg.motion_generation_plan.enable_finetune_trajopt,
-        parallel_finetune=sim_cfg.motion_generation_plan.parallel_finetune,
+    # define model predictive controller config
+    mpc_config = MpcSolverConfig.load_from_robot_config(
+        robot_cfg,
+        world_cfg,
+        use_cuda_graph=sim_cfg.mpc.use_cuda_graph,
+        use_cuda_graph_metrics=sim_cfg.mpc.use_cuda_graph_metrics,
+        use_cuda_graph_full_step=sim_cfg.mpc.use_cuda_graph_full_step,
+        self_collision_check=sim_cfg.mpc.self_collision_check,
+        collision_checker_type=CollisionCheckerType.MESH,
+        collision_cache={
+            "obb": sim_cfg.mpc.n_obstackle_cuboids,
+            "mesh": sim_cfg.mpc.n_obstackle_mesh,
+        },
+        use_mppi=sim_cfg.mpc.use_mppi,
+        use_lbfgs=sim_cfg.mpc.use_lbfgs,
+        store_rollouts=sim_cfg.mpc.store_rollouts,
+        step_dt=sim_cfg.mpc.step_dt
     )
+    
+    # define model predictive controller
+    mpc = MpcSolver(mpc_config)
 
     return Problem(
         # Instance
@@ -196,7 +250,9 @@ def fmb_momo_problem(sim_cfg):
         world_cfg=world_cfg,
         plan_cfg=plan_cfg,
         # Planner
+        ik_solver=ik_solver,
         motion_planner=motion_gen,
+        mpc=mpc
     )
 
 def fmb_simo_problem(sim_cfg):
@@ -241,8 +297,8 @@ def fmb_simo_problem(sim_cfg):
     )
     
     
-def calc_surf_pose(block: object, name: str):
-    block_pos, block_rot = get_pose(block)
+def calc_surf_pose(block_pose, name):
+    return block_pose
     
-def calc_hole_pose(block: object, name: str):
-    pass
+def calc_hole_pose(block_pose, name):
+    return block_pose

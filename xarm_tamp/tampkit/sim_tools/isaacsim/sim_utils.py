@@ -26,8 +26,8 @@ from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
-from sim_tools.robots import xarm
-from xarm_rl.tasks.utils.scene_utils import spawn_dynamic_object, spawn_static_object
+from tampkit.sim_tools.isaacsim.robots import xarm
+from tampkit.sim_tools.isaacsim.objects import fmb_momo
 
 
 def connect():
@@ -53,6 +53,26 @@ def create_floor(world, plane_cfg):
     )
     return plane
 
+def create_surface(surface_name, position, orientation):
+    surface = cuboid.VisualCuboid(
+        f"/World/{surface_name}",
+        position=position,
+        orientation=orientation,
+        color=np.array([0., 0., 0.]),
+        size=0.01,
+    )
+    return surface
+
+def create_hole(hole_name, position, orientation):
+    hole = cuboid.VisualCuboid(
+        f"/World/{hole_name}",
+        position=position,
+        orientation=orientation,
+        color=np.array([0., 0., 0.]),
+        size=0.01,
+    )
+    return hole
+
 def create_table(table_cfg):
     table = cuboid.VisualCuboid(
         "/World/table",
@@ -75,18 +95,10 @@ def create_robot(robot_cfg):
     return robot
 
 def create_fmb(fmb_cfg):
-    # NOTE: deprecated
-    # block = fmb_momo.Block(
-    #     f"/World/{fmb_cfg.name}",
-    #     position=np.array([fmb_cfg.position]),
-    #     orientation=np.array([fmb_cfg.orientation])
-    # )
-    block = spawn_dynamic_object(
-        name=fmb_cfg.name,
-        task_name=fmb_cfg.task_name,
-        prim_path=f"/World/{fmb_cfg.name}",
-        object_translation=fmb_cfg.translation,
-        object_orientation=fmb_cfg.orientation,
+    block = fmb_momo.Block(
+        f"/World/{fmb_cfg.name}",
+        position=np.array([fmb_cfg.position]),
+        orientation=np.array([fmb_cfg.orientation])
     )
     return block
 

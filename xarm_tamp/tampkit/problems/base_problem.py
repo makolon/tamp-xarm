@@ -34,7 +34,9 @@ class Problem:
     world_cfg: dict = field(default_factory=dict)
     plan_cfg: dict = field(default_factory=dict)
     # Planner
+    ik_solver: object = None
     motion_planner: object = None
+    mpc: object = None
 
     def get_gripper(self, gripper_name: str, visual: bool=True):
         if self.gripper is None:
