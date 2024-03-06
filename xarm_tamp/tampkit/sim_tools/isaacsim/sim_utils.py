@@ -21,13 +21,13 @@ simulation_app = SimulationApp(
 # Third party
 import carb
 import numpy as np
-from typing import Union, Optional, Tuple, List
+from typing import Union, Optional, Tuple
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from tampkit.sim_tools.isaacsim.robots import xarm
-from tampkit.sim_tools.isaacsim.objects import fmb_momo
+from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
 
 
 def connect():
@@ -95,11 +95,18 @@ def create_robot(robot_cfg):
     return robot
 
 def create_fmb(fmb_cfg):
-    block = fmb_momo.Block(
-        f"/World/{fmb_cfg.name}",
-        position=np.array([fmb_cfg.position]),
-        orientation=np.array([fmb_cfg.orientation])
-    )
+    if fmb_cfg.task == 'momo':
+        block = fmb_momo.Block(
+            f"/World/{fmb_cfg.name}",
+            position=np.array([fmb_cfg.position]),
+            orientation=np.array([fmb_cfg.orientation])
+        )
+    elif fmb_cfg.task == 'simo':
+        block = fmb_simo.Block(
+            f"/World/{fmb_cfg.name}",
+            position=np.array([fmb_cfg.position]),
+            orientation=np.array([fmb_cfg.orientation])
+        )
     return block
 
 ### Getter API

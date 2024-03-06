@@ -23,7 +23,7 @@ class Block(XFormPrim):
         self._name = name
         
         if self._usd_path is None:
-            self._usd_path = ('fmb' / 'momo' / f'{type}' / f'{name}.usd').as_posix()
+            self._usd_path = ('fmb' / 'simo' / f'{type}' / f'{name}.usd').as_posix()
 
         add_reference_to_stage(self._usd_path, prim_path)
         
