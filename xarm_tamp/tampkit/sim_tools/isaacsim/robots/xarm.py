@@ -22,6 +22,8 @@ class xArm(Robot):
 
         self._usd_path = usd_path
         self._name = name
+        self.active_joints = ["joint1", "joint2", "joint3", "joint4",
+            "joint5", "joint6", "joint7"]
 
         if self._usd_path is None:
             self._usd_path = ('xarm7' / 'xarm_instanceable' / 'xarm7.usd').as_posix() # TODO: fix this

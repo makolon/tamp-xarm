@@ -21,9 +21,12 @@ simulation_app = SimulationApp(
 # Third party
 import carb
 import numpy as np
+from typing import Union, Optional, Tuple, List
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
-from xarm_rl.robots.articulations import xarm
+from omni.isaac.core.robots import Robot
+from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
+from sim_tools.robots import xarm
 from xarm_rl.tasks.utils.scene_utils import spawn_dynamic_object, spawn_static_object
 
 
@@ -90,8 +93,11 @@ def create_fmb(fmb_cfg):
 
 ### Getter API
 
-def get_initial_conf():
-    pass
+def get_initial_conf(robot: Robot, joint_indices: Optional[Union[List, numpy.ndarray, torch.Tensor]]):
+    default_pos, default_vel = robot.get_joints_default_state(joint_indices=joint_indices)
+    if default_pos is None:
+        default_pos = robot.get_joint_positions(joint_indices=joint_indices)
+    return default_pos
 
 def get_group_conf(body_id, body_name):
     return 
@@ -102,17 +108,22 @@ def get_target_path():
 def get_gripper_joints():
     pass
 
-def get_joint_positions():
-    pass
+def get_joint_positions(robot: Robot, joint_indices: Optional[Union[List, numpy.ndarray, torch.Tensor]]):
+    joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
+    return joint_positions
 
-def get_link_pose():
-    pass
+def get_link_pose(prim: Tuple[np.ndarray, np.ndarray]):
+    if prim.is_valid():
+        pos, orn = prim.get_local_pose()
+    else:
+        raise NotImplementedError()
+    return pos, orn
 
-def get_min_limit():
-    pass
+def get_min_limit(robot: Robot) -> np.ndarray:
+    return robot.dof_properties.lower
 
-def get_max_limit():
-    pass
+def get_max_limit(robot: Robot) -> np.ndarray:
+    return robot.dof_properties.upper
 
 def get_name():
     pass
@@ -120,7 +131,7 @@ def get_name():
 def get_pose():
     pass
 
-def get_extend_fn(robot, joints):
+def get_extend_fn(robot: Robot, joints):
     def fn(start_conf: torch.Tensor, end_conf: torch.Tensor):
         pass
     return fn
@@ -130,23 +141,36 @@ def get_distance_fn():
         pass
     return fn
 
+def get_active_joints(robot: Robot):
+    joint_indices = robot.get_active_joints()
+    return joint_indices
+
 
 ### Setter API
 
-def set_joint_positions():
-    pass
+def set_joint_positions(robot: Robot,
+                        positions: Optional[Union[np.ndarray, torch.Tensor]],
+                        joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+    if joint_indices is None:
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.active_joints] # TODO: fix?
+    robot.set_joint_positions(positions, joint_indices)
 
 def set_pose():
     pass
 
-def set_point(obj, position, rotation):
-    obj.set_world_position(
-        position=position,
-        rotation=rotation,
-    ) # TODO: Not implemented set_world_position API on RigidPrim or GeomPrim
+def set_point(obj: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+              translation: Optional[Union[np.ndarray, torch.Tensor]],
+              orientation: Optional[Union[np.ndarray, torch.Tensor]]) -> None:
+    obj.set_local_pose(translation=translation, orientation=orientation,)
 
-def set_arm_conf(arm, conf):
-    arm.set_joint_positions(conf)
+def set_arm_conf(robot: Robot,
+                 conf: Optional[Union[np.ndarray, torch.Tensor]],
+                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+    if joint_indices is None:
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.active_joints] # TODO: fix?
+    robot.set_joint_positions(conf, joint_indices=joint_indices)
 
 
 ### Utility API

@@ -2,11 +2,12 @@ import dataclasses
 from sim_tools.isaacsim.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
-    create_table, create_fmb,
+    create_table, create_fmb, create_surface,
+    create_hole,
     # Getter
-    get_initial_conf,
+    get_initial_conf, get_pose,
     # Setter
-    set_point, set_arm_conf,
+    set_pose, set_arm_conf,
 )
 from base_problem import Problem
 from curobo.geom.types import WorldConfig
@@ -49,42 +50,78 @@ def fmb_momo_problem(sim_cfg):
 
     # create table
     table = create_table(sim_cfg.table)
-    set_point(table, sim_cfg.table.translation, sim_cfg.table.orientation)
+    set_pose(table, sim_cfg.table.translation, sim_cfg.table.orientation)
     world_cfg_table = WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
     )
 
     # create base plate
     base_block = create_fmb(sim_cfg.base_block)
-    set_point(base_block, sim_cfg.base_block.translation, sim_cfg.base_block.orientation)
+    set_pose(base_block, sim_cfg.base_block.translation, sim_cfg.base_block.orientation)
     world_cfg_base = WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_base.yml"))
     )
 
     # set momo parts
     block1 = create_fmb(sim_cfg.block1)
-    set_point(block1, sim_cfg.block1.translation, sim_cfg.block1.orientation)
+    set_pose(block1, sim_cfg.block1.translation, sim_cfg.block1.orientation)
     world_cfg_block1 = WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_block1.yml"))
     )
 
     block2 = create_fmb(sim_cfg.block2)
-    set_point(block2, sim_cfg.block2.translation, sim_cfg.block2.orientation)
+    set_pose(block2, sim_cfg.block2.translation, sim_cfg.block2.orientation)
     world_cfg_block2 = WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_block2.yml"))
     )
 
     block3 = create_fmb(sim_cfg.block3)
-    set_point(block3, sim_cfg.block3.translation, sim_cfg.block3.orientation)
+    set_pose(block3, sim_cfg.block3.translation, sim_cfg.block3.orientation)
     world_cfg_block3 = WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_block3.yml"))
     )
 
     block4 = create_fmb(sim_cfg.block4)
-    set_point(block4, sim_cfg.block4.translation, sim_cfg.block4.orientation)
+    set_pose(block4, sim_cfg.block4.translation, sim_cfg.block4.orientation)
     world_cfg_block4= WorldConfig.from_dict(
         load_yaml(join_path(get_world_configs_path(), "collision_block4.yml"))
     )
+    
+    # define surfaces
+    # TODO: add function to calculate surface position
+    surf1 = create_surface(sim_cfg.surface1)
+    surf1_pose = calc_surf_pose(block1, "surface1")
+    set_pose(surf1, surf1_pose)
+    
+    surf2 = create_surface(sim_cfg.surface2)
+    surf2_pose = calc_surf_pose(block2, "surface2")
+    set_pose(surf2, surf2_pose)
+    
+    surf3 = create_surface(sim_cfg.surface3)
+    surf3_pose = calc_surf_pose(block3, "surface3")
+    set_pose(surf3, surf3_pose)
+    
+    surf4 = create_surface(sim_cfg.surface4)
+    surf4_pose = calc_surf_pose(block4, "surface4")
+    set_pose(surf4, surf4_pose)
+ 
+    # define holes
+    # TODO: add function to calculate hole position
+    hole1 = create_hole(sim_cfg.hole1)
+    hole1_pose = calc_hole_pose(block1, "hole1")
+    set_pose(hole1, hole1_pose)
+
+    hole2 = create_hole(sim_cfg.hole2)
+    hole2_pose = calc_hole_pose(block2, "hole2")
+    set_pose(hole2, hole2_pose)
+
+    hole3 = create_hole(sim_cfg.hole3)
+    hole3_pose = calc_hole_pose(block3, "hole3")
+    set_pose(hole3, hole3_pose)
+
+    hole4 = create_hole(sim_cfg.hole4)
+    hole4_pose = calc_hole_pose(block4, "hole4")
+    set_pose(hole4, hole4_pose)
 
     # define world_config
     world_cfg = WorldConfig(
@@ -139,12 +176,21 @@ def fmb_momo_problem(sim_cfg):
     return Problem(
         # Instance
         robot=xarm,
+        arms=['arm'],
         movable=[block1, block2, block3, block4],
-        surfaces=[table, base_block],
-        init_insertable=[],
-        init_placeable=[],
-        goal_on=[],
-        goal_inserted=[],
+        fixed=[table, base_block],
+        surfaces=[surf1, surf2, surf3, surf4], # surfaces=[table, base_block],
+        holes=[hole1, hole2, hole3, hole4],
+        bodies=[table, base_block, block1, block2, block3, block4],
+        init_placeable=[
+            (block1, surf1), (block2, surf2),
+            (block3, surf3), (block4, surf4)],
+        init_insertable=[
+            (block1, hole1), (block2, hole2),
+            (block3, hole3), (block4, hole4)],
+        goal_inserted=[
+            (block1, hole1), (block2, hole2),
+            (block3, hole3), (block4, hole4)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
@@ -170,18 +216,18 @@ def fmb_simo_problem(sim_cfg):
 
     # create table
     table = create_table(sim_cfg.table)
-    set_point(table, sim_cfg.table.translation, sim_cfg.table.orientation)
+    set_pose(table, sim_cfg.table.translation, sim_cfg.table.orientation)
 
     # create base plate
     base_block = create_fmb(sim_cfg.base_block)
-    set_point(base_block, sim_cfg.base_block.translation, sim_cfg.base_block.orientation)
+    set_pose(base_block, sim_cfg.base_block.translation, sim_cfg.base_block.orientation)
 
     # set sim parts
     blocks = []
     for i in range(sim_cfg.num_blocks):
         block_cfg = sim_cfg[f"block{i}"]
         block = create_fmb(block_cfg)
-        set_point(block, block_cfg.translation, block_cfg.orientation)
+        set_pose(block, block_cfg.translation, block_cfg.orientation)
         blocks.append(block)
 
     return Problem(
@@ -193,3 +239,10 @@ def fmb_simo_problem(sim_cfg):
         goal_on=[],
         goal_inserted=[],
     )
+    
+    
+def calc_surf_pose(block: object, name: str):
+    block_pos, block_rot = get_pose(block)
+    
+def calc_hole_pose(block: object, name: str):
+    pass

@@ -260,31 +260,13 @@ class TAMPPlanner(object):
 
 @hydra.main(version_base=None, config_name="config", config_path="../cfg")
 def main(cfg: DictConfig):
-    parser = create_parser()
-    parser.add_argument('-g', '--gurobi', action='store_true', help='Uses gurobi')
-    parser.add_argument('-o', '--optimal', action='store_true', help='Runs in an anytime mode')
-    parser.add_argument('-s', '--skeleton', action='store_true', help='Enforces skeleton plan constraints')
-    parser.add_argument('-e', '--enable', action='store_true', help='Enables rendering during planning')
-    parser.add_argument('-d', '--deterministic', action='store_true', help='Uses a deterministic sampler')
-    parser.add_argument('-t', '--max_time', default=30, type=int, help='The max time')
-    parser.add_argument('-n', '--number', default=4, type=int, help='The number of blocks')
-    parser.add_argument('-p', '--problem', default='real_gearbox_problem', help='The name of the problem to solve')
-    parser.add_argument('-v', '--visualize', action='store_true', help='Visualizes graphs')
-    parser.add_argument("--gpu_id", help="select using gpu id", type=str, default="-1")
-    parser.add_argument("--save", help="select save models", type=str, default=True)
-    parser.add_argument("--cfree", help="select collision activate", type=bool, default=True)
-    parser.add_argument("--debug", help="save visualization", type=bool, default=False)
-    parser.add_argument("--teleport", action='store_true', help='Teleports between configurations')
-    parser.add_argument("--simulate", action='store_true', help='Simulates the system')
-    args = parser.parse_args()
-
     tamp_planer = TAMPPlanner(
-        algorithm=args.algorithm,
-        unit=args.unit,
-        deterministic=args.deterministic,
-        problem=args.problem,
-        cfree=args.cfree,
-        teleport=args.teleport,
+        algorithm=cfg.pddlstream.algorithm,
+        unit=cfg.pddlstream.unit,
+        deterministic=cfg.pddlstream.deterministic,
+        problem=cfg.pddlstream.problem,
+        cfree=cfg.pddlstream.cfree,
+        teleport=cfg.pddlstream.teleport,
     )
     tamp_planer.execute(cfg)
 
