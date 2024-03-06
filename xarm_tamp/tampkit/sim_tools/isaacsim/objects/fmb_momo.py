@@ -12,7 +12,8 @@ class Block(XFormPrim):
     def __init__(
         self,
         prim_path: str,
-        name: Optional[str] = "block",
+        name: Optional[str] = "block1",
+        type: Optional[str] = 'assembly1',
         usd_path: Optional[str] = None,
         translation: Optional[np.ndarray] = None,
         orientation: Optional[np.ndarray] = None,
@@ -22,8 +23,7 @@ class Block(XFormPrim):
         self._name = name
         
         if self._usd_path is None:
-            # TODO: fix this
-            self._usd_path = ('fmb' / 'fmb_momo' / 'block.usd').as_posix() # TODO: fix this
+            self._usd_path = ('fmb' / 'momo' / f'{type}' / f'{name}.usd').as_posix() # TODO: fix this
 
         add_reference_to_stage(self._usd_path, prim_path)
         

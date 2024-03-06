@@ -102,28 +102,51 @@ def create_fmb(fmb_cfg):
     )
     return block
 
-
 ### Getter API
 
-def get_initial_conf(robot: Robot, joint_indices: Optional[Union[List, numpy.ndarray, torch.Tensor]]):
-    default_pos, default_vel = robot.get_joints_default_state(joint_indices=joint_indices)
+def get_initial_conf(robot: Robot,
+                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
+    default_pos, _ = robot.get_joints_default_state(joint_indices=joint_indices)
     if default_pos is None:
         default_pos = robot.get_joint_positions(joint_indices=joint_indices)
     return default_pos
 
-def get_group_conf(body_id, body_name):
-    return 
+def get_group_conf(robot: Robot,
+                   group: str = 'arm'):
+    if group == 'arm':
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.active_joints]
+    elif group == 'gripper':
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.gripper_joints]
+    elif group == 'base':
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.base_joints]
+    elif group == 'whole_body':
+        joint_indices = [robot.get_joint_index(name) \
+            for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
+    return robot.get_joint_positions(joint_indices=joint_indices)
+
+def get_body_name(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    return body.name
+
+def get_distance():
+    pass
 
 def get_target_path():
     pass
 
-def get_gripper_joints():
+def get_tool_frame():
     pass
 
-def get_joint_positions(robot: Robot, joint_indices: Optional[Union[List, numpy.ndarray, torch.Tensor]]):
+def get_gripper_joints(robot: Robot):
+    return robot.gripper_joints
+
+def get_joint_positions(robot: Robot, joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
     joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
     return joint_positions
 
+# TODO: fix this function
 def get_link_pose(prim: Tuple[np.ndarray, np.ndarray]):
     if prim.is_valid():
         pos, orn = prim.get_local_pose()
@@ -137,11 +160,8 @@ def get_min_limit(robot: Robot) -> np.ndarray:
 def get_max_limit(robot: Robot) -> np.ndarray:
     return robot.dof_properties.upper
 
-def get_name():
-    pass
-
-def get_pose():
-    pass
+def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    return body.get_local_pose()
 
 def get_extend_fn(robot: Robot, joints):
     def fn(start_conf: torch.Tensor, end_conf: torch.Tensor):
@@ -153,11 +173,6 @@ def get_distance_fn():
         pass
     return fn
 
-def get_active_joints(robot: Robot):
-    joint_indices = robot.get_active_joints()
-    return joint_indices
-
-
 ### Setter API
 
 def set_joint_positions(robot: Robot,
@@ -165,25 +180,21 @@ def set_joint_positions(robot: Robot,
                         joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
         joint_indices = [robot.get_joint_index(name) \
-            for name in robot.active_joints] # TODO: fix?
+            for name in robot.active_joints]
     robot.set_joint_positions(positions, joint_indices)
 
-def set_pose():
-    pass
-
-def set_point(obj: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-              translation: Optional[Union[np.ndarray, torch.Tensor]],
-              orientation: Optional[Union[np.ndarray, torch.Tensor]]) -> None:
-    obj.set_local_pose(translation=translation, orientation=orientation,)
+def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+             translation=np.array([0., 0., 0.]),
+             orientation=np.array([1., 0., 0., ])) -> None:
+    body.set_local_pose(translation=translation, orientation=orientation)
 
 def set_arm_conf(robot: Robot,
                  conf: Optional[Union[np.ndarray, torch.Tensor]],
                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
         joint_indices = [robot.get_joint_index(name) \
-            for name in robot.active_joints] # TODO: fix?
+            for name in robot.active_joints]
     robot.set_joint_positions(conf, joint_indices=joint_indices)
-
 
 ### Utility API
 
@@ -208,8 +219,14 @@ def create_attachment():
 def add_fixed_constraint():
     pass
 
-def joint_from_names():
+def joints_from_names():
     pass
 
 def remove_fixed_constraint():
+    pass
+
+def apply_commands():
+    pass
+
+def control_commands():
     pass

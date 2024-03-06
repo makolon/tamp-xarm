@@ -83,61 +83,61 @@
 
   (:action pick
     :parameters (?a ?b ?p ?g ?q ?t)
-    :precondition (and (Kin ?a ?b ?p ?g ?q ?t)         ; kinematic constraints for pick pose ?p
-                       (HandEmpty ?a)                  ; hand-empty constraints
-                       (Graspable ?b)                  ; block ?b is graspable
-                       (AtBConf ?q)                    ; base position is at conf ?q
-                       (AtPose ?b ?p)                  ; block ?b pose is at pose ?p
-                       (not (CanMove))                 ; cannot move
-                       (not (UnsafeApproach ?b ?p ?g)) ; pose ?p with grasp ?g is not unsafe
-                       (not (UnsafeATraj ?t)))         ; trajectory ?t is not unsafe
-    :effect (and (CanMove)                             ; can move
-                 (AtGrasp ?a ?b ?g)                    ; block ?b is at grasp ?g
-                 (not (HandEmpty ?a))                  ; hand is not empty
-                 (increase (total-cost) (PickCost)))   ; increase total-cost
+    :precondition (and (Kin ?a ?b ?p ?g ?q ?t)           ; kinematic constraints for pick pose ?p
+                       (HandEmpty ?a)                    ; hand-empty constraints
+                       (Graspable ?b)                    ; block ?b is graspable
+                       (AtBConf ?q)                      ; base position is at conf ?q
+                       (AtPose ?b ?p)                    ; block ?b pose is at pose ?p
+                       (not (CanMove))                   ; cannot move
+                       (not (UnsafeApproach ?b ?p ?g))   ; pose ?p with grasp ?g is not unsafe
+                       (not (UnsafeATraj ?t)))           ; trajectory ?t is not unsafe
+    :effect (and (CanMove)                               ; can move
+                 (AtGrasp ?a ?b ?g)                      ; block ?b is at grasp ?g
+                 (not (HandEmpty ?a))                    ; hand is not empty
+                 (increase (total-cost) (PickCost)))     ; increase total-cost
   )
 
   (:action place
     :parameters (?a ?b1 ?b2 ?p ?g ?q ?t)
-    :precondition (and (Kin ?a ?b1 ?p ?g ?q ?t)         ; kinematic constraints for place pose
-                       (AtBConf ?q)                     ; base position is at conf ?q
-                       (AtGrasp ?a ?b1 ?g)              ; at-grasp constraints
-                       (Placeable ?b1 ?b2)              ; block b1 can place on block b2
-                       (RegionPose ?b2 ?p)              ; region ?b2 is region-pose ?p
-                       (not (CanMove))                  ; cannot move
-                       (not (Placed ?b1))               ; block b1 is not placed yet
-                       (not (AtPose ?b1 ?p))            ; block ?b1 is not at place pose ?p
-                       (not (UnsafePose ?b1 ?p))        ; pose ?p is not unsafe
-                       (not (UnsafeApproach ?b1 ?p ?g)) ; pose ?p with grasp ?g is not unsafe
-                       (not (UnsafeATraj ?t)))          ; trajectory ?t is not unsafe
-    :effect (and (AtPose ?b1 ?p)                        ; lock ?b1 is at place-pose ?p
-                 (AtBConf ?q)                           ; base position is at conf ?q
-                 (Placed ?b1)                           ; block ?b1 is placed
-                 (increase (total-cost) (PlaceCost)))   ; increase total-cost
+    :precondition (and (Kin ?a ?b1 ?p ?g ?q ?t)          ; kinematic constraints for place pose
+                       (AtBConf ?q)                      ; base position is at conf ?q
+                       (AtGrasp ?a ?b1 ?g)               ; at-grasp constraints
+                       (Placeable ?b1 ?b2)               ; block b1 can place on block b2
+                       (RegionPose ?b2 ?p)               ; region ?b2 is region-pose ?p
+                       (not (CanMove))                   ; cannot move
+                       (not (Placed ?b1))                ; block b1 is not placed yet
+                       (not (AtPose ?b1 ?p))             ; block ?b1 is not at place pose ?p
+                       (not (UnsafePose ?b1 ?p))         ; pose ?p is not unsafe
+                       (not (UnsafeApproach ?b1 ?p ?g))  ; pose ?p with grasp ?g is not unsafe
+                       (not (UnsafeATraj ?t)))           ; trajectory ?t is not unsafe
+    :effect (and (AtPose ?b1 ?p)                         ; lock ?b1 is at place-pose ?p
+                 (AtBConf ?q)                            ; base position is at conf ?q
+                 (Placed ?b1)                            ; block ?b1 is placed
+                 (increase (total-cost) (PlaceCost)))    ; increase total-cost
   )
 
   (:action insert
     :parameters (?a ?b1 ?b2 ?p1 ?p2 ?g ?q1 ?q2 ?t)
-    :precondition (and (Kin ?a ?b1 ?p2 ?g ?q2 ?t)       ; kinematic constraints for insert pose
-                       (AtBConf ?q1)                    ; base position is at conf ?q1
-                       (AtGrasp ?a ?b1 ?g)              ; at-grasp constraints
-                       (Placed ?b1)                     ; block ?b1 is placed already
-                       (Inserted ?b2)                   ; hole ?b2 is inserted already
-                       (Insertable ?b1 ?b2)             ; block ?b1 can insert into hole ?b2
-                       (AtPose ?b1 ?p1)                 ; block ?b1 is at-pose place pose ?p1
-                       (HolePose ?b2 ?p2)               ; hole ?b2 is hole-pose ?p2
-                       (not (CanMove))                  ; cannot move
-                       (not (AtPose ?b1 ?p2))           ; block ?b1 is not at insert-pose ?p2
-                       (not (Inserted ?b1))             ; block ?b1 is not inserted yet
-                       (not (UnsafePose ?b1 ?p2))       ; pose ?p2 is not unsafe
-                       (not (UnsafeApproach ?b1 ?p2 ?g)); pose ?p2 with grasp ?g is not unsafe
-                       (not (UnsafeATraj ?t)))          ; trajectory ?t is not unsafe
-    :effect (and (CanMove)                              ; can move
-                 (Inserted ?b1)                         ; block ?b1 is inserted
-                 (AtBConf ?q1)                          ; base position is at conf ?q2
-                 (AtPose ?b1 ?p2)                       ; block ?b1 is at insert-pose ?p2
-                 (HandEmpty ?a)                         ; hand is empty
-                 (increase (total-cost) (InsertCost)))  ; increase total-cost
+    :precondition (and (Kin ?a ?b1 ?p2 ?g ?q2 ?t)        ; kinematic constraints for insert pose
+                       (AtBConf ?q1)                     ; base position is at conf ?q1
+                       (AtGrasp ?a ?b1 ?g)               ; at-grasp constraints
+                       (Placed ?b1)                      ; block ?b1 is placed already
+                       (Inserted ?b2)                    ; hole ?b2 is inserted already
+                       (Insertable ?b1 ?b2)              ; block ?b1 can insert into hole ?b2
+                       (AtPose ?b1 ?p1)                  ; block ?b1 is at-pose place pose ?p1
+                       (HolePose ?b2 ?p2)                ; hole ?b2 is hole-pose ?p2
+                       (not (CanMove))                   ; cannot move
+                       (not (AtPose ?b1 ?p2))            ; block ?b1 is not at insert-pose ?p2
+                       (not (Inserted ?b1))              ; block ?b1 is not inserted yet
+                       (not (UnsafePose ?b1 ?p2))        ; pose ?p2 is not unsafe
+                       (not (UnsafeApproach ?b1 ?p2 ?g)) ; pose ?p2 with grasp ?g is not unsafe
+                       (not (UnsafeATraj ?t)))           ; trajectory ?t is not unsafe
+    :effect (and (CanMove)                               ; can move
+                 (Inserted ?b1)                          ; block ?b1 is inserted
+                 (AtBConf ?q1)                           ; base position is at conf ?q2
+                 (AtPose ?b1 ?p2)                        ; block ?b1 is at insert-pose ?p2
+                 (HandEmpty ?a)                          ; hand is empty
+                 (increase (total-cost) (InsertCost)))   ; increase total-cost
   )
 
   (:derived (On ?b1 ?b2)

@@ -10,26 +10,25 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     get_pose, get_max_limit, get_arm_joints, get_gripper_joints, get_group_joints, get_group_conf, \
     get_joint_positions, \
     # Utility
-    point_from_pose)
+    apply_commands, control_commands
+)
 from tampkit.sim_tools.isaacsim.geometry import (
-    Pose, Conf, State, Trajectory, JointState)
+    Pose, Conf, State, Trajectory, JointState
+)
 from tampkit.sim_tools.isaacsim.control import (
-    # Command
-    GripperCommand, Attach, Detach, \
-    # Utility
-    apply_commands, control_commands, \
-    # Generator (Stream)
-    get_ik_ir_gen, get_motion_gen, get_stable_gen, get_grasp_gen, get_insert_gen, \
-    # Tester (Stream)
-    get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
-    get_supported, get_inserted, \
-    # Cost function
-    move_cost_fn)
+    GripperCommand, Attach, Detach
+)
 from tampkit.problems import PROBLEMS
-from tampkit.streams import move_stream, grasp_stream, place_stream, insert_stream
+from tampkit.streams.move_stream import get_move_gen
+from tampkit.streams.grasp_stream import get_grasp_gen
+from tampkit.streams.place_stream import get_stable_gen
+from tampkit.streams.insert_stream import get_insert_gen
+from tampkit.streams.ik_stream import get_ik_gen
+from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
+    get_cfree_traj_pose_test, get_supported, get_inserted
 
 # PDDLStream functions
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.algorithms.meta import solve
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
 from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
 from pddlstream.language.external import defer_shared, never_defer
@@ -47,21 +46,21 @@ def extract_point2d(v):
     if isinstance(v, Conf):
         return v.values[:2]
     if isinstance(v, Pose):
-        return point_from_pose(v.value)[:2]
+        return v.value[0][:2]
     if isinstance(v, SharedOptValue):
         if v.stream == 'sample-place':
             r, = v.values
-            return point_from_pose(get_pose(r))[:2]
+            return get_pose(r)[0][:2]
         if v.stream == 'sample-insert':
             r, = v.values
-            return point_from_pose(get_pose(r))[:2]
+            return get_pose(r)[0][:2]
         if v.stream == 'inverse-kinematics':
             p, = v.values
             return extract_point2d(p)
     if isinstance(v, CustomValue):
         if v.stream == 'p-sp':
             r, = v.values
-            return point_from_pose(get_pose(r))[:2]
+            return get_pose(r)[0][:2]
         if v.stream == 'q-ik':
             p, = v.values
             return extract_point2d(p)
@@ -163,8 +162,8 @@ class TAMPPlanner(object):
             'sample-place': from_gen_fn(get_stable_gen(problem, collisions=collisions)),
             'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
             'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=False)),
-            'plan-base-motion': from_fn(get_motion_gen(problem, collisions=True, teleport=teleport)),
-            'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, collisions=collisions, teleport=teleport)),
+            'plan-base-motion': from_fn(get_move_gen(problem, collisions=True, teleport=teleport)),
+            'inverse-kinematics': from_gen_fn(get_ik_gen(problem, collisions=collisions, teleport=teleport)),
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
             'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem, collisions=collisions)),

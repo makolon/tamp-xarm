@@ -36,3 +36,9 @@ from curobo.wrap.reacher.motion_gen import (
     MotionGenPlanConfig,
     PoseCostMetric,
 )
+
+
+def get_grasp_gen():
+    def fn():
+        pass
+    return fn

@@ -1,3 +1,4 @@
+import copy
 import time
 import numpy as np
 from geometry import (
@@ -7,15 +8,16 @@ from isaacsim.sim_utils import (
     # Getter
     get_distance, get_group_conf, get_target_path, get_gripper_joints,
     get_joint_positions, get_extend_fn, get_body_name, get_link_pose,
-    get_min_limit, get_name, get_pose,
+    get_min_limit, get_pose, get_tool_frame,
     # Setter
     set_joint_positions, set_pose, 
     # Utils
-    add_segments, step_simulation, remove_debug, joint_controller_hold,
+    step_simulation, joint_controller_hold,
     waypoints_from_path, link_from_name, create_attachment, add_fixed_constraint,
     joints_from_names, remove_fixed_constraint
 )
 
+#####################################
 
 class Command(object):
     def control(self, dt=0):
@@ -27,6 +29,27 @@ class Command(object):
     def iterate(self):
         raise NotImplementedError()
 
+
+class Commands(object):
+    def __init__(self, state, savers=[], commands=[]):
+        self.state = state
+        self.savers = tuple(savers)
+        self.commands = tuple(commands)
+
+    def assign(self):
+        for saver in self.savers:
+            saver.restore()
+        return copy.copy(self.state)
+
+    def apply(self, state, **kwargs):
+        for command in self.commands:
+            for result in command.apply(state, **kwargs):
+                yield result
+
+    def __repr__(self):
+        return 'c{}'.format(id(self) % 1000)
+
+#####################################
 
 class Trajectory(Command):
     _draw = False
@@ -111,10 +134,65 @@ class GripperCommand(Command):
     def control(self, **kwargs):
         joints = get_gripper_joints(self.robot, self.arm)
         positions = [self.position]*len(joints)
-        control_mode = p.TORQUE_CONTROL
-        for _ in joint_controller_hold(self.robot, joints, control_mode, positions):
+        for _ in joint_controller_hold(self.robot, joints, positions):
             yield
 
     def __repr__(self):
         return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
                                      self.arm, self.position)
+
+
+class Attach(Command):
+    vacuum = True
+    def __init__(self, robot, arm, grasp, body):
+        self.robot = robot
+        self.arm = arm
+        self.grasp = grasp
+        self.body = body
+        self.link = link_from_name(self.robot, get_tool_frame(self.robot))
+
+    def assign(self):
+        gripper_pose = get_link_pose(self.robot, self.link)
+        body_pose = multiply(gripper_pose, self.grasp.value)
+        set_pose(self.body, body_pose)
+
+    def apply(self, state, **kwargs):
+        state.attachments[self.body] = create_attachment(self.robot, self.link, self.body)
+        state.grasps[self.body] = self.grasp
+        del state.poses[self.body]
+        yield
+
+    def control(self, dt=0, **kwargs):
+        if self.vacuum:
+            add_fixed_constraint(self.body, self.robot, self.link)
+        else:
+            gripper_name = '{}_gripper'.format(self.arm)
+            joints = joints_from_names(self.robot, PR2_GROUPS[gripper_name])
+            values = [get_min_limit(self.robot, joint) for joint in joints] # Closed
+            for _ in joint_controller_hold(self.robot, joints, values):
+                step_simulation()
+                time.sleep(dt)
+
+    def __repr__(self):
+        return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
+                                     self.arm, get_body_name(self.body))
+
+class Detach(Command):
+    def __init__(self, robot, arm, body):
+        self.robot = robot
+        self.arm = arm
+        self.body = body
+        self.link = link_from_name(self.robot,  get_tool_frame(self.robot))
+
+    def apply(self, state, **kwargs):
+        del state.attachments[self.body]
+        state.poses[self.body] = Pose(self.body, get_pose(self.body))
+        del state.grasps[self.body]
+        yield
+
+    def control(self, **kwargs):
+        remove_fixed_constraint(self.body, self.robot, self.link)
+
+    def __repr__(self):
+        return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
+                                     self.arm, get_body_name(self.body))

@@ -22,8 +22,6 @@ class xArm(Robot):
 
         self._usd_path = usd_path
         self._name = name
-        self.active_joints = ["joint1", "joint2", "joint3", "joint4",
-            "joint5", "joint6", "joint7"]
 
         if self._usd_path is None:
             self._usd_path = ('xarm7' / 'xarm_instanceable' / 'xarm7.usd').as_posix() # TODO: fix this
@@ -77,3 +75,18 @@ class xArm(Robot):
             if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI): 
                 rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
                 rb.GetDisableGravityAttr().Set(True)
+
+    @property
+    def arm_joints(self):
+        return [
+            "joint1", "joint2", "joint3",
+            "joint4", "joint5", "joint6", "joint7"
+        ]
+
+    @property
+    def base_joints(self):
+        return []
+
+    @property
+    def gripper_joints(self):
+        return ["left_drive_joint", "right_drive_joint"]
