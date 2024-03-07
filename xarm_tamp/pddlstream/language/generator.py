@@ -1,5 +1,6 @@
 import time
-from collections import Iterator, namedtuple, deque
+from collections.abc import Iterator
+from collections import namedtuple, deque
 from itertools import count
 
 from pddlstream.utils import INF, elapsed_time
@@ -17,12 +18,15 @@ class BoundedGenerator(Iterator):
         self.max_calls = max_calls
         self.stopped = False
         self.history = []
+
     @property
     def calls(self):
         return len(self.history)
+
     @property
     def enumerated(self):
         return self.stopped or (self.max_calls <= self.calls)
+
     def next(self):
         if self.enumerated:
             raise StopIteration()
@@ -33,7 +37,6 @@ class BoundedGenerator(Iterator):
             raise StopIteration()
         return self.history[-1]
     __next__ = next
-
 
 def get_next(generator, default=[]):
     new_values = default
@@ -54,11 +57,9 @@ def from_list_gen_fn(list_gen_fn):
     # Purposefully redundant for now
     return list_gen_fn
 
-
 def from_gen_fn(gen_fn):
     return from_list_gen_fn(lambda *args, **kwargs: ([] if ov is None else [ov]
                                                      for ov in gen_fn(*args, **kwargs)))
-
 
 def from_sampler(sampler, max_attempts=INF):
     def gen_fn(*input_values):
@@ -72,9 +73,7 @@ def from_sampler(sampler, max_attempts=INF):
 # Methods that convert some procedure -> function to a BoundedGenerator
 
 def from_list_fn(list_fn):
-    #return lambda *args, **kwargs: iter([list_fn(*args, **kwargs)])
     return lambda *args, **kwargs: BoundedGenerator(iter([list_fn(*args, **kwargs)]), max_calls=1)
-
 
 def from_fn(fn):
     def list_fn(*args, **kwargs):
@@ -82,26 +81,20 @@ def from_fn(fn):
         return [] if outputs is None else [outputs]
     return from_list_fn(list_fn)
 
-
 def outputs_from_boolean(boolean):
     return tuple() if boolean else None
-
 
 def from_test(test):
     return from_fn(lambda *args, **kwargs: outputs_from_boolean(test(*args, **kwargs)))
 
-
 def from_constant(constant):
     return from_fn(fn_from_constant(constant))
-
 
 def negate_test(test):
     return lambda *args, **kwargs: not test(*args, **kwargs)
 
-
 def from_gen(gen):
     return from_gen_fn(lambda *args, **kwargs: iter(gen))
-
 
 def empty_gen():
     return from_gen([])
@@ -140,7 +133,6 @@ def accelerate_list_gen_fn(list_gen_fn, num_elements=1, max_attempts=1, max_time
 
 Composed = namedtuple('Composed', ['outputs', 'step', 'generator'])
 
-
 def compose_gen_fns(*gen_fns):
     assert gen_fns
     # Assumes consistent ordering of inputs/outputs
@@ -166,14 +158,12 @@ def compose_gen_fns(*gen_fns):
                 queue.append(composed)
     return gen_fn
 
-
 def wild_gen_fn_from_gen_fn(gen_fn):
     def wild_gen_fn(*args, **kwargs):
         for output_list in gen_fn(*args, **kwargs):
             fact_list = []
             yield output_list, fact_list
     return wild_gen_fn
-
 
 def gen_fn_from_wild_gen_fn(wild_gen_fn):
     def gen_fn(*args, **kwargs):

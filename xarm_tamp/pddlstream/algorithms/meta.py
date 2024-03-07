@@ -33,8 +33,6 @@ def create_parser(default_algorithm=DEFAULT_ALGORITHM):
     parser.add_argument('-a', '--algorithm', type=str, default=default_algorithm, choices=ALGORITHMS, required=False,
                         help='Specifies the PDDLStream algorithm to use')
     parser.add_argument('-u', '--unit', action='store_true', help='Uses unit costs') # --unit_costs
-    # args = parser.parse_args()
-    # print('Arguments:', args)
     # TODO: search planner, debug
     # TODO: method that calls solve with args
     return parser

@@ -42,14 +42,13 @@ def find_build(fd_path):
     raise RuntimeError('Please compile FastDownward first [.../pddlstream$ ./downward/build.py]')
 
 # TODO: check at runtime so users can use utils without FD
-FD_PATH = get_file_path(__file__, '../../downward/')
-#FD_PATH = get_file_path(__file__, '../../FastDownward/')
+FD_PATH = get_file_path(__file__, '../downward/')
 TRANSLATE_PATH = os.path.join(find_build(FD_PATH), 'bin/translate')
 FD_BIN = os.path.join(find_build(CERBERUS_PATH if USE_CERBERUS else FD_PATH), 'bin')
 
 DOMAIN_INPUT = 'domain.pddl'
 PROBLEM_INPUT = 'problem.pddl'
-TRANSLATE_FLAGS = [] #if USE_CERBERUS else ['--negative-axioms']
+TRANSLATE_FLAGS = [] # if USE_CERBERUS else ['--negative-axioms']
 original_argv = sys.argv[:]
 sys.argv = sys.argv[:1] + TRANSLATE_FLAGS + [DOMAIN_INPUT, PROBLEM_INPUT]
 sys.path.append(TRANSLATE_PATH)

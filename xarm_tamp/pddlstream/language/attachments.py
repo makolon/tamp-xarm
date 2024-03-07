@@ -57,13 +57,12 @@ def compile_fluents_as_attachments(domain, externals):
         action.attachments = {}
         preconditions = set()
         for literal in get_conjunctive_parts(action.precondition):
-            #if not isinstance(literal, pddl.Literal):
-            #    raise NotImplementedError('Only literals are supported: {}'.format(literal))
             if not get_predicates(literal) & set(predicate_map):
                 preconditions.add(literal)
                 continue
             if not isinstance(literal, pddl.Literal):
                 raise NotImplementedError(literal)
+
             # Drops the original precondition
             stream = predicate_map[literal.predicate]
             mapping = remap_certified(literal, stream)
@@ -74,9 +73,6 @@ def compile_fluents_as_attachments(domain, externals):
             preconditions.update(fd_from_fact(substitute_fact(fact, mapping))
                                  for fact in stream.domain)
         action.precondition = pddl.Conjunction(preconditions).simplified()
-        #fn = lambda l: pddl.Truth() if l.predicate in predicate_map else l
-        #action.precondition = replace_literals(fn, action.precondition).simplified()
-        #action.dump()
     return [external for external in externals if external not in state_streams]
 
 ##################################################
@@ -91,7 +87,6 @@ def get_attachment_test(action_instance):
     def test(state):
         if state in fd_action_from_state:
             return True
-        #new_instance = action_instance
         new_instance = copy.deepcopy(action_instance)
         if not hasattr(action_instance.action, 'attachments'):
             fd_action_from_state[state] = new_instance
@@ -102,21 +97,15 @@ def get_attachment_test(action_instance):
                 new_instance.var_mapping[param_from_inp[inp]]) for inp in stream.inputs)
             stream_instance = get_fluent_instance(stream, input_objects, state)  # Output automatically cached
             results = stream_instance.first_results(num=1)
-            #results = stream_instance.all_results()
             failure = not results
             if literal.negated != failure:
                 return False
-            #args = action_instance.name.strip('()').split(' ')
-            #idx_from_param = {p.name: i for i, p in enumerate(action_instance.action.parameters)}
             param_from_out = remap_certified(literal, stream)
             result = results[0] # Arbitrary
             out_from_obj = invert_dict(result.mapping)
             for obj in result.output_objects:
                 param = param_from_out[out_from_obj[obj]]
                 new_instance.var_mapping[param] = obj.pddl
-                # idx = idx_from_param[param]
-                # args[1+idx] = obj.pddl
-            #action_instance.name = '({})'.format(' '.join(args))
         fd_action_from_state[state] = new_instance
         return True
     return test, fd_action_from_state
@@ -148,7 +137,6 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     fd_action_from_py_action = {}
     py_actions = []
     for action in instantiated.actions:
-        #action.dump()
         py_action = Action({'fd_action': action})
         py_action.conditions = set(action.precondition)
         py_action.effects = set()
@@ -164,7 +152,6 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
 
     py_axioms = []
     for axiom in instantiated.axioms:
-        #axiom.dump()
         py_axiom = Axiom({'fd_axiom_id': id(axiom)}) # Not hashable for some reason
         py_axiom.conditions = set(axiom.condition)
         py_axiom.effects = {axiom.effect}
@@ -183,11 +170,9 @@ def solve_pyplanners(instantiated, planner=None, max_planner_time=DEFAULT_MAX_TI
     if plan is None:
         return None, INF
 
-    #fd_plan = [action.fd_action for action in plan.operators]
     states = plan.get_states() # get_states | get_derived_states
     fd_plan = [fd_action_from_py_action[action][state] for state, action in safe_zip(states[:-1], plan.operators)]
     actions = [pddl_from_instance(action) for action in fd_plan]
-    #print(actions)
     cost = plan.cost / get_cost_scale()
 
     return actions, cost

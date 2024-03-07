@@ -27,13 +27,15 @@ class OptimizerOutput(object):
         self.assignments = list(assignments)
         self.facts = list(facts)
         self.infeasible = list(map(frozenset, infeasible))
+
     def to_wild(self):
         return WildOutput(self.assignments, self.facts)
+
     def __bool__(self):
         return bool(self.assignments)
+
     __nonzero__ = __bool__
     def __repr__(self):
-        #return '{}{}'.format(self.__class__.__name__, str_from_object(self.__dict__))
         return str_from_object(self.__dict__)
 
 class Optimizer(object):
@@ -45,10 +47,12 @@ class Optimizer(object):
         self.constraints = []
         self.objectives = []
         self.streams = []
+
     def get_streams(self):
         return self.variables + self.constraints
+
     def __repr__(self):
-        return '{}'.format(self.name) #, self.streams)
+        return '{}'.format(self.name)
 
 class ComponentStream(Stream):
     def __init__(self, optimizer, *args):
@@ -69,11 +73,6 @@ def get_effort_fn(optimizer_name):
     # TODO: higher effort is the variable cannot be free for the testing process
     # This might happen if the variable is certified to have a property after construction
     def effort_fn(*input_values):
-        # parameter_indices = [i for i, value in enumerate(input_values) if is_parameter(value)]
-        # optimizer_indices = [i for i, value in enumerate(input_values) if isinstance(value, SharedOptValue)
-        #                      if input_values[i].stream.startswith(optimizer_name)]
-        #if not parameter_indices and not optimizer_indices:
-        #    return INF
         return 1
     return effort_fn
 
@@ -97,9 +96,6 @@ class VariableStream(ComponentStream):
         name = '{}-{}'.format(optimizer.name, '-'.join(map(get_parameter_name, variables)))
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, variables, certified)
         # TODO: need to convert OptimizerOutput
-        #gen_fn = empty_gen()
-        #info = StreamInfo(effort=get_effort_fn(optimizer_name, inputs, outputs))
-        #info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE, num=DEFAULT_NUM))
         info = infos.get(name, None)
         if info is None:
             info = StreamInfo(opt_gen_fn=PartialInputs(unique=DEFAULT_UNIQUE),
@@ -115,7 +111,6 @@ class ConstraintStream(ComponentStream):
         certified = [constraint]
         name = '{}-{}'.format(optimizer.name, get_prefix(constraint))
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, certified)
-        #gen_fn = empty_gen()
         info = infos.get(name, None)
         if info is None:
             info = StreamInfo(effort=get_effort_fn(optimizer.name),
@@ -185,6 +180,7 @@ class OptimizerInstance(StreamInstance):
         # TODO: cluster connected components in the infeasible set
         # TODO: compute things dependent on a stream and treat like an optimizer
         # Also make an option to just treat everything like an optimizer
+
     def _next_wild(self):
         output, self.enumerated = get_next(self._generator, default=[])
         if not isinstance(output, OptimizerOutput):
@@ -192,6 +188,7 @@ class OptimizerInstance(StreamInstance):
         self.infeasible.update(output.infeasible)
         # TODO: instead replace each time
         return output.to_wild()
+
     def get_unsatisfiable(self):
         constraints = substitute_expression(self.external.certified, self.external.mapping)
         index_from_constraint = {c: i for i, c in enumerate(constraints)}
@@ -202,7 +199,6 @@ class OptimizerInstance(StreamInstance):
                 if fact in index_from_constraint:
                     result_from_index[index_from_constraint[fact]].add(result)
         # TODO: add implied results
-        #orders = get_partial_orders(self.external.stream_plan)
         return [{result for index in cluster for result in result_from_index[index]}
                 for cluster in prune_dominated(self.infeasible)]
 
@@ -218,9 +214,9 @@ class OptimizerStream(Stream):
         hint = self.create_hint()
         self.objectives = certified + functions
         gen_fn = get_list_gen_fn(optimizer.procedure, inputs, outputs, self.objectives, hint=hint)
-        #assert len(self.get_cluster_plans()) == 1
         super(OptimizerStream, self).__init__(optimizer.name, gen_fn, inputs, domain, outputs,
                                               certified, optimizer.info)
+
     def create_hint(self):
         hint = {}
         for result, mapping in safe_zip(self.stream_plan, self.macro_from_micro):
@@ -229,13 +225,16 @@ class OptimizerStream(Stream):
                     if isinstance(obj, Object):
                         hint[mapping[param]] = obj.value
         return hint
+
     @property
     def mapping(self):
         return get_mapping(self.inputs + self.outputs,
                            self.input_objects + self.output_objects)
+
     def get_cluster_plans(self):
         # TODO: split the optimizer into clusters when provably independent
         return get_stream_plan_components(self.stream_plan + self.function_plan)
+
     @property
     def instance(self):
         return self.get_instance(self.input_objects, fluent_facts=self.fluent_facts)
@@ -272,7 +271,6 @@ def get_cluster_values(stream_plan):
         add_result_inputs(result, param_from_obj, local_mapping, inputs, input_objects)
         domain.update(set(substitute_expression(stream.domain, local_mapping)) - certified)
         if isinstance(result, PredicateResult):
-            # functions.append(Equal(stream.head, result.value))
             # TODO: do I need the new mapping here?
             mapping = {inp: param_from_obj[inp] for inp in result.instance.input_objects}
             functions.update(substitute_expression(result.get_certified(), mapping))
@@ -283,6 +281,5 @@ def get_cluster_values(stream_plan):
             add_result_outputs(result, param_from_obj, local_mapping, outputs, output_objects)
             certified.update(substitute_expression(stream.certified, local_mapping))
             macro_from_micro.append(local_mapping) # TODO: append for functions as well?
-    #assert not fluent_facts
     return inputs, sorted(domain), outputs, sorted(certified), sorted(functions), \
            macro_from_micro, input_objects, output_objects, fluent_facts

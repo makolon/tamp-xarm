@@ -55,7 +55,6 @@ def create_static_stream(stream, evaluations, fluent_predicates, future_fn):
             return None
         return tuple(FutureValue(stream.name, input_values, o) for o in stream.outputs)
 
-    #opt_evaluations = None
     def static_opt_gen_fn(*input_values):
         instance = stream.get_instance(objects_from_values(input_values))
         if all(evaluation_from_fact(f) in evaluations for f in instance.get_domain()):
@@ -76,15 +75,6 @@ def create_static_stream(stream, evaluations, fluent_predicates, future_fn):
         static_stream.gen_fn = from_fn(static_fn)
         static_stream.opt_gen_fn = static_opt_gen_fn
     return static_stream
-
-# def replace_gen_fn(stream):
-#     future_gen_fn = from_fn(lambda *args: tuple(FutureValue(stream.name, args, o) for o in stream.outputs))
-#     gen_fn = stream.gen_fn
-#     def new_gen_fn(*input_values):
-#         if any(isinstance(value, FutureValue) for value in input_values):
-#             return future_gen_fn(*input_values)
-#         return gen_fn(*input_values)
-#     stream.gen_fn = new_gen_fn
 
 ##################################################
 
@@ -121,9 +111,7 @@ def compile_to_exogenous_actions(evaluations, domain, streams):
         add_predicate(domain, make_predicate(get_prefix(stream_atom), get_args(stream_atom)))
         preconditions = [stream_atom] + list(stream.domain)
         effort = 1 # TODO: use stream info
-        #effort = 1 if unit_cost else result.instance.get_effort()
-        #if effort == INF:
-        #    continue
+
         domain.actions.append(make_action(
             name='call-{}'.format(stream.name),
             parameters=get_args(stream_atom),
@@ -185,7 +173,6 @@ def compile_to_exogenous_axioms(evaluations, domain, streams):
     for axiom in domain.axioms:
         axiom.condition = replace_predicates(derived_map, axiom.condition)
 
-    #fluent_predicates.update(certified_predicates)
     new_streams = []
     for stream in list(streams):
         if not isinstance(stream, Stream):

@@ -14,7 +14,7 @@ def replace_expression(parent, fn):
     if prefix == EQ:
         assert(len(parent) == 3)
         value = parent[2]
-        if isinstance(parent[2], collections.Sequence):
+        if isinstance(parent[2], collections.abc.Sequence):
             value = replace_expression(value, fn)
         return prefix, replace_expression(parent[1], fn), value
     elif prefix in (CONNECTIVES + OBJECTIVES):
@@ -140,16 +140,6 @@ def fact_from_evaluation(evaluation):
         return Not(fact)
     return Equal(fact, evaluation.value)
 
-# def state_from_evaluations(evaluations):
-#     # TODO: default value?
-#     # TODO: could also implement within predicates
-#     state = {}
-#     for evaluation in evaluations:
-#         if evaluation.head in state:
-#             assert(evaluation.value == state[evaluation.head])
-#         state[evaluation.head] = evaluation.value
-#     return state
-
 ##################################################
 
 def obj_from_pddl(pddl):
@@ -161,7 +151,6 @@ def obj_from_pddl(pddl):
 
 def values_from_objects(objects):
     return tuple(obj.value for obj in objects)
-    #return tuple(map(value_from_object, objects))
 
 def temporal_from_sequential(action):
     # TODO: clean this up
@@ -220,9 +209,6 @@ def objects_from_values(values):
 
 ##################################################
 
-#def expression_holds(expression, evaluations):
-#    pass
-
 def revert_solution(plan, cost, evaluations):
     all_facts = list(map(value_from_evaluation, evaluations))
     if isinstance(plan, OptPlan):
@@ -233,13 +219,6 @@ def revert_solution(plan, cost, evaluations):
         preimage_facts = None
     certificate = Certificate(all_facts, preimage_facts)
     return Solution(action_plan, cost, certificate)
-
-#def opt_obj_from_value(value):
-#    if Object.has_value(value):
-#        return Object.from_value(value)
-#    return OptimisticObject.from_opt(value)
-#    # TODO: better way of doing this?
-#    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
 
 def str_from_head(head):
     return '{}{}'.format(get_prefix(head), str_from_object(get_args(head)))

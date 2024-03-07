@@ -59,7 +59,6 @@ class ExternalInfo(PerformanceInfo):
         self.eager_skeleton = eager_skeleton # TODO: apply in binding and adaptive
         # TODO: automatically set tests and costs to be eager
         self.defer_fn = defer_fn # Old syntax was defer=True
-        #self.complexity_fn = complexity_fn
 
 ##################################################
 
@@ -69,44 +68,60 @@ class Result(object):
         self.opt_index = opt_index
         self.call_index = call_index
         self.optimistic = optimistic
+
     @property
     def external(self):
         return self.instance.external
+
     @property
     def info(self):
         return self.external.info
+
     @property
     def name(self):
         return self.external.name
+
     @property
     def input_objects(self):
         return self.instance.input_objects
+
     @property
     def domain(self):
         return self.instance.domain
+
     def is_refined(self):
         # TODO: result.opt_index is None
         return self.opt_index == 0 # TODO: base on output objects instead
+
     def is_deferrable(self, *args, **kwargs):
         return self.info.defer_fn(self, *args, **kwargs)
+
     def get_domain(self):
         return self.instance.get_domain()
+
     def get_certified(self):
         raise NotImplementedError()
+
     def get_components(self):
         return [self]
+
     def get_unsatisfiable(self):
         return [self.get_components()]
+
     def get_action(self):
         raise NotImplementedError()
+
     def remap_inputs(self, bindings):
         raise NotImplementedError()
+
     def is_successful(self):
         raise NotImplementedError()
+
     def compute_complexity(self, evaluations, **kwargs):
         # Should be constant
         return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.call_index)
+
     def get_effort(self, **kwargs):
         if not self.optimistic:
             return 0  # Unit efforts?
@@ -114,16 +129,18 @@ class Result(object):
             return 0
         # TODO: this should be the min of all instances
         return self.instance.get_effort(**kwargs)
+
     def success_heuristic(self): # High is likely to succeed
         # self.external.is_function
         num_free = sum(isinstance(obj, OptimisticObject) for obj in self.input_objects)
         return Score(num_free, -len(self.external.inputs)) # TODO: treat objects in the same domain as a unit
+
     def overhead_heuristic(self): # Low is cheap
         return self.external.overhead_heuristic()
+
     def stats_heuristic(self): # Low is cheap and unlikely to succeed
-        #return self.overhead_heuristic() + self.success_heuristic()
         return Score(self.overhead_heuristic(), self.success_heuristic())
-        #return Stats(self.overhead_heuristic(), self.success_heuristic())
+
     def effort_heuristic(self): # Low is cheap and likely to succeed
         return Score(self.overhead_heuristic(), -self.success_heuristic())
 
@@ -140,44 +157,46 @@ class Instance(object):
         self._mapping = None
         self._domain = None
         self.reset()
+
     @property
     def info(self):
         return self.external.info
+
     @property
     def mapping(self):
         if self._mapping is None:
             self._mapping = get_mapping(self.external.inputs, self.input_objects)
-            #for constant in self.external.constants: # TODO: no longer needed
-            #    self._mapping[constant] = Object.from_name(constant)
         return self._mapping
+
     @property
     def domain(self):
         if self._domain is None:
-            #self._domain = substitute_expression(self.external.domain, self.mapping)
             self._domain = tuple(substitute_fact(atom, self.mapping)
                                  for atom in self.external.domain)
         return self._domain
+
     def get_iteration(self):
         return INF if self.enumerated else self.num_calls
+
     def get_domain(self):
         return self.domain
+
     def get_all_input_objects(self):
         return set(self.input_objects)
+
     def get_input_values(self):
         return values_from_objects(self.input_objects)
-    #def is_first_call(self): # TODO: use in streams
-    #    return self.online_calls == 0
-    #def has_previous_success(self):
-    #    return self.online_success != 0
+
     def reset(self):
-        #self.enable(evaluations={}, domain=None)
         self.disabled = False
         self.opt_index = self.external.num_opt_fns
         self.num_calls = 0
         self.enumerated = False
         self.successful = False
+
     def is_refined(self):
         return self.opt_index == 0
+
     def refine(self):
         # TODO: could instead create a new Instance per opt_index
         if not self.is_refined():
@@ -210,7 +229,6 @@ class Instance(object):
 
     def compute_complexity(self, evaluations, **kwargs):
         # Will change as self.num_calls increases
-        #num_calls = INF if self.enumerated else self.num_calls
         return compute_complexity(evaluations, self.get_domain(), **kwargs) + \
                self.external.get_complexity(self.num_calls)
 
@@ -227,7 +245,6 @@ class Instance(object):
         successes = sum(r.is_successful() for r in results)
         self.external.update_statistics(overhead, bool(successes))
         self.results_history.append(results)
-        #self.successes += successes
 
     def disable(self, evaluations, domain):
         self.disabled = True
@@ -256,49 +273,56 @@ class External(Performance):
             print('Warning! Input [{}] for stream [{}] is not covered by a domain condition'.format(p, name))
         self.constants = {a for i in self.domain for a in get_args(i) if not is_parameter(a)}
         self.instances = {}
+
     def reset(self, *args, **kwargs):
         for instance in self.instances.values():
             instance.reset(*args, **kwargs)
+
     # TODO: naming convention for statics and fluents
     @property
     def has_outputs(self):
         raise NotImplementedError()
+
     @property
     def is_fluent(self):
         raise NotImplementedError()
+
     @property
     def is_negated(self):
         raise NotImplementedError()
+
     @property
     def is_special(self):
         return self.is_fluent or self.is_negated
+
     @property
     def is_function(self):
         raise NotImplementedError()
+
     @property
     def is_cost(self):
         return False
+
     @property
     def zero_complexity(self):
         return self.is_special or not self.has_outputs
+
     def get_complexity(self, num_calls=0):
         if self.zero_complexity:
             return 0
         return num_calls + 1
+
     def get_instance(self, input_objects):
         input_objects = tuple(input_objects)
         assert len(input_objects) == len(self.inputs)
         if input_objects not in self.instances:
             self.instances[input_objects] = self._Instance(self, input_objects)
         return self.instances[input_objects]
+
     def overhead_heuristic(self): # Low is little overhead
         # TODO: infer other properties from use in the context of a stream plan
         # TODO: use num_certified (only those that are in another stream) instead of num_outputs?
-        #num_inputs = len(self.inputs)
-        #num_domain = len(self.domain)
         return Score(self.is_fluent, not self.is_function, self.has_outputs, len(self.inputs)) # structural/relational overhead
-        #overhead = 1e0*num_inputs + 1e1*num_outputs + 1e2*bool(num_fluents)
-        #return overhead
 
 ##################################################
 

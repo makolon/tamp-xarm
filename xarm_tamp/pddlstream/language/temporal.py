@@ -445,11 +445,6 @@ def delete_imports(prefixes=['pddl']):
             deleted[name] = sys.modules.pop(name)
     return deleted
 
-#def simple_action_stuff(name, parameters, condition, effects):
-#    import pddl
-#    parameters = [pddl.TypedObject(param.name, param.type) for param in parameters]
-#    return pddl.Action(name, parameters, len(parameters), condition, effects, None)
-
 def convert_args(args):
     return [var.name for var in args]
 
@@ -521,32 +516,24 @@ def convert_durative(durative_actions, fluents):
         preconditions=[
             ('time', '?t1'), ('time', '?t2'),
             ('attime', '?t1'),
-            #('CanMove',),
         ],
         effects=[
             ('attime', '?t2'),
             Not(('attime', '?t2')),
-            #Not(('CanMove',)),
         ],
-        #cost=None,
     )
 
-    #asdf = Fact('sum', ['?t1', '?t2'])
     # TODO: need to connect the function
 
     actions = [wait_action]
     for action in durative_actions:
-        #print(type(action.duration))
         static_condition = pddl.Conjunction(list({
             part for condition in action.condition for part in get_conjunctive_parts(convert_condition(condition).simplified())
             if not isinstance(part, pddl.Truth) and not (get_predicates(part) & fluents)}))
 
         parameters = convert_parameters(action.parameters)
-        #start_cond, over_cond, end_cond = list(map(expand_condition, action.condition))
         start_cond, over_cond, end_cond = list(map(convert_condition, action.condition))
-        #assert not over_cond
         start_effects, end_effects = list(map(convert_effects, action.effects))
-        #start_effects, end_effects = action.effects
 
         durative_predicate = 'durative-{}'.format(action.name)
         fact = Fact(durative_predicate, ['?t2'] + [p.name for p in parameters])
@@ -590,7 +577,6 @@ def simple_from_durative_action(durative_actions, fluents):
             # TODO: extract the durations by pretending they are action costs
             actions.append(pddl.Action(SIMPLE_TEMPLATE.format(action.name, i), parameters, len(parameters),
                                        pddl.Conjunction([static_condition, condition]).simplified(), effect, None))
-            #actions[-1].dump()
         simple_actions[action] = actions
     return simple_actions
 
@@ -604,7 +590,6 @@ def sequential_from_temporal_plan(plan):
         start, end = durative_action.start, get_end(durative_action)
         start_action, over_action, end_action = [SIMPLE_TEMPLATE.format(durative_action.name, i) for i in range(3)]
         state_changes.append(DurativeAction(start_action, args, start, end - start))
-        #state_changes.append(DurativeAction(start_action, args, start, 0))
         over_actions.append(DurativeAction(over_action, args, start, end - start))
         state_changes.append(DurativeAction(end_action, args, end, 0))
     state_changes = sorted(state_changes, key=lambda a: a.start)
@@ -642,7 +627,6 @@ def solve_tfd(domain_pddl, problem_pddl, planner=TFD_OPTIONS, max_planner_time=6
     start_time = time.time()
     domain_path, problem_path = write_pddl(domain_pddl, problem_pddl)
     plan_path = os.path.join(TEMP_DIR, PLAN_FILE)
-    #assert not actions, "There shouldn't be any actions - just temporal actions"
 
     paths = [os.path.join(os.getcwd(), p) for p in (domain_path, problem_path, plan_path)]
     command = os.path.join(root, template.format(*paths))
@@ -661,8 +645,6 @@ def solve_tfd(domain_pddl, problem_pddl, planner=TFD_OPTIONS, max_planner_time=6
     plan_files = sorted(f for f in os.listdir(temp_path) if f.startswith(PLAN_FILE))
     print('Plans:', plan_files)
     best_plan, best_makespan = parse_plans(temp_path, plan_files)
-    #if not debug:
-    #    safe_rm_dir(TEMP_DIR)
     print('Makespan: ', best_makespan)
     print('Time:', elapsed_time(start_time))
 
