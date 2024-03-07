@@ -8,8 +8,6 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Utils
     base_values_from_pose, body_from_end_effector, flatten_links, link_from_name
 )
-from curobo.types.math import Pose
-from curobo.types.state import State, JointState
 
 
 class Pose(object):
@@ -90,7 +88,7 @@ class State(object):
     def assign(self):
         for attachment in self.attachments.values():
             attachment.assign()
-            
+
 class Attachment(object):
     def __init__(self, parent, parent_link, grasp_pose, child):
         self.parent = parent # TODO: support no parent

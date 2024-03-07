@@ -1,4 +1,3 @@
-import dataclasses
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
@@ -9,26 +8,16 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_pose, set_arm_conf,
 )
-from base_problem import Problem
-from curobo.geom.types import WorldConfig
-from curobo.types.base import TensorDeviceType
-from curobo.geom.sdf.world import CollisionCheckerType
-from curobo.util_file import (
-    get_assets_path,
-    get_filename,
-    get_path_of_dir,
-    get_robot_configs_path,
-    get_world_configs_path,
-    join_path,
-    load_yaml,
+from tampkit.sim_tools.isaacsim.curobo_utils import (
+    get_robot_cfg,
+    get_world_cfg,
+    get_tensor_device_type,
+    get_motion_gen,
+    get_robot_world,
+    get_ik_solver,
+    get_mpc_solver,
 )
-# Model wrapper
-from curobo.wrap.model.robot_world import RobotWorld, RobotWorldConfig
-# Reacher wrapper
-from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
-from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, \
-    MotionGenPlanConfig, PoseCostMetric
-from curobo.wrap.reacher.mpc import MpcSolver, MpcSolverConfig
+from base_problem import Problem
 
 
 def fmb_momo_problem(sim_cfg):
@@ -48,47 +37,26 @@ def fmb_momo_problem(sim_cfg):
     initial_conf = get_initial_conf(xarm)
     set_arm_conf(xarm, initial_conf)
 
-    # define robot_cfg
-    robot_cfg = load_yaml(join_path(sim_cfg.robot_cfg_path, sim_cfg.robot)["robot_cfg"])
-
     # create table
     table = create_table(sim_cfg.table)
     set_pose(table, sim_cfg.table.translation, sim_cfg.table.orientation)
-    world_cfg_table = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
-    )
 
     # create base plate
     base_block = create_fmb(sim_cfg.base_block)
     set_pose(base_block, sim_cfg.base_block.translation, sim_cfg.base_block.orientation)
-    world_cfg_base = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_base.yml"))
-    )
 
     # set momo parts
     block1 = create_fmb(sim_cfg.block1)
     set_pose(block1, sim_cfg.block1.translation, sim_cfg.block1.orientation)
-    world_cfg_block1 = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_block1.yml"))
-    )
 
     block2 = create_fmb(sim_cfg.block2)
     set_pose(block2, sim_cfg.block2.translation, sim_cfg.block2.orientation)
-    world_cfg_block2 = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_block2.yml"))
-    )
 
     block3 = create_fmb(sim_cfg.block3)
     set_pose(block3, sim_cfg.block3.translation, sim_cfg.block3.orientation)
-    world_cfg_block3 = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_block3.yml"))
-    )
 
     block4 = create_fmb(sim_cfg.block4)
     set_pose(block4, sim_cfg.block4.translation, sim_cfg.block4.orientation)
-    world_cfg_block4= WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_block4.yml"))
-    )
     
     # define surfaces
     # TODO: add function to calculate surface position
@@ -132,112 +100,35 @@ def fmb_momo_problem(sim_cfg):
 
     ########################
 
+    # define robot_cfg
+    robot_cfg = get_robot_cfg(sim_cfg)
+
     # define world_config
-    world_cfg = WorldConfig(
-        cuboid=world_cfg_table.cuboid,
-        mesh=[
-            world_cfg_base.mesh,
-            world_cfg_block1.mesh,
-            world_cfg_block2.mesh,
-            world_cfg_block3.mesh,
-            world_cfg_block4.mesh,
-        ],
-    )
-    
-    # define robot config
-    robot_file = robot_cfg.robot_path
-    robot_world_cfg = RobotWorldConfig.load_from_config(
-        robot_file,
-        world_cfg,
-        collision_activation_distance=sim_cfg.robot_world_cfg.activation_distance,
-        collision_checker_type=CollisionCheckerType.BLOX \
-            if sim_cfg.robot_world_cfg.nvblox else CollisionCheckerType.MESH
-    )
-    
-    # define world model
-    world_model = RobotWorld(robot_world_cfg)
+    world_cfg = get_world_cfg(world_cfg)
 
     ########################
-
-    # define plan config
-    plan_cfg = MotionGenPlanConfig(
-        enable_graph=sim_cfg.motion_generation_plan.enable_graph,
-        enable_graph_attempt=sim_cfg.motion_generation_plan.enable_graph_attempt,
-        max_attempts=sim_cfg.motion_generation_plan.max_attempts,
-        enable_finetune_trajopt=sim_cfg.motion_generation_plan.enable_finetune_trajopt,
-        parallel_finetune=sim_cfg.motion_generation_plan.parallel_finetune,
-    )
-
-    # define tensor_args
-    tensor_args = TensorDeviceType()
-
-    # define inverse kinematics config
-    ik_config = IKSolverConfig.load_from_robot_config(
-        robot_cfg,
-        world_cfg,
-        tensor_args,
-        position_threshold=sim_cfg.inverse_kinematics.position_threshold,
-        rotation_threshold=sim_cfg.inverse_kinematics.rotation_threshold,
-        num_seeds=sim_cfg.inverse_kinematics.num_seeds,
-        self_collision_check=sim_cfg.inverse_kinematics.self_collision_check,
-        self_collision_opt=sim_cfg.inverse_kinematics.self_collision_opt,
-        use_cuda_graph=sim_cfg.inverse_kinematics.use_cuda_graph,
-        collision_checker_type=CollisionCheckerType.MESH,
-        collision_cache={
-            "obb": sim_cfg.inverse_kinematics.n_obstacle_cuboids,
-            "mesh": sim_cfg.inverse_kinematics.n_obstacle_mesh},
-    )
     
-    # defailt inverse kinematics
-    ik_solver = IKSolver(ik_config)
+    # define tensor_args
+    tensor_args = get_tensor_device_type()
+    
+    ########################
 
-    # define motion plan config
-    motion_gen_cfg = MotionGenConfig.load_from_robot_config(
-        robot_cfg,
-        world_cfg,
-        tensor_args,
-        collision_checker_type=CollisionCheckerType.MESH,
-        num_trajopt_seeds=sim_cfg.motion_generation.num_trajopt_seeds,
-        num_graph_seeds=sim_cfg.motion_generation.num_graph_seeds,
-        interpolation_dt=sim_cfg.motion_generation.interpolation_dt,
-        collision_cache={
-            "obb": sim_cfg.motion_generation.n_obstacle_cuboids,
-            "mesh": sim_cfg.motion_generation.n_obstacle_mesh},
-        optimize_dt=sim_cfg.motion_generation.optimize_dt,
-        trajopt_dt=sim_cfg.motion_generation.trajopt_dt,
-        trajopt_tsteps=sim_cfg.motion_generation.trajopt_tsteps,
-        trim_steps=sim_cfg.motion_generation.trim_steps,
-    )
+    # define world model
+    robot_world = get_robot_world()
+    
+    # define inverse kinematics
+    ik_solver = get_ik_solver()
+
+    # define model predictive controller
+    mpc = get_mpc_solver()
 
     # define motion planner
-    motion_gen = MotionGen(motion_gen_cfg)
+    motion_gen = get_motion_gen()
     print('warming up...')
     motion_gen.warmup(enable_graph=sim_cfg.motion_generation.enable_graph,
                       warmup_js_trajopt=sim_cfg.motion_generation.warmup_js_trajopt,
                       parallel_finetune=sim_cfg.motion_generation.parallel_finetune)
     print('cuRobo is Ready!')
-
-    # define model predictive controller config
-    mpc_config = MpcSolverConfig.load_from_robot_config(
-        robot_cfg,
-        world_cfg,
-        use_cuda_graph=sim_cfg.mpc.use_cuda_graph,
-        use_cuda_graph_metrics=sim_cfg.mpc.use_cuda_graph_metrics,
-        use_cuda_graph_full_step=sim_cfg.mpc.use_cuda_graph_full_step,
-        self_collision_check=sim_cfg.mpc.self_collision_check,
-        collision_checker_type=CollisionCheckerType.MESH,
-        collision_cache={
-            "obb": sim_cfg.mpc.n_obstackle_cuboids,
-            "mesh": sim_cfg.mpc.n_obstackle_mesh,
-        },
-        use_mppi=sim_cfg.mpc.use_mppi,
-        use_lbfgs=sim_cfg.mpc.use_lbfgs,
-        store_rollouts=sim_cfg.mpc.store_rollouts,
-        step_dt=sim_cfg.mpc.step_dt
-    )
-    
-    # define model predictive controller
-    mpc = MpcSolver(mpc_config)
 
     ########################
 
@@ -262,9 +153,10 @@ def fmb_momo_problem(sim_cfg):
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
-        plan_cfg=plan_cfg,
+        # Tensor args
+        tensor_args=tensor_args,
         # World
-        world_model=world_model,
+        robot_world=robot_world,
         # Planner
         ik_solver=ik_solver,
         motion_planner=motion_gen,

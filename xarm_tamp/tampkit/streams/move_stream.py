@@ -28,7 +28,7 @@ def uniform_pose_generator(robot, gripper_pose, **kwargs):
         yield base_values
 
 
-def get_move_base_gen(problem, collisions=True, learned=False):
+def get_move_gen(problem, collisions=True, learned=False):
     # Sample move_base pose
     robot = problem.robot
     obstacles = problem.fixed if collisions else []

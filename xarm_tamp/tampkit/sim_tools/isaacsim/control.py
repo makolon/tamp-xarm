@@ -10,7 +10,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_joint_positions, set_pose, 
     # Utils
-    step_simulation, joint_controller_hold,
+    step_simulation, joint_controller,
     waypoints_from_path, link_from_name, create_attachment, add_fixed_constraint,
     joints_from_names, remove_fixed_constraint
 )
@@ -66,11 +66,12 @@ class Trajectory(Command):
             state.poses[end_conf.body] = end_conf
 
     def control(self, dt=0, **kwargs):
+        controller = joint_controller()
         for conf in self.path:
             if isinstance(conf, Pose):
                 conf = conf.to_base_conf()
 
-            for _ in joint_controller_hold(conf.body, conf.joints, conf.values):
+            for _ in controller.execute(conf.body, conf.joints, conf.values):
                 step_simulation()
                 time.sleep(dt)
 
@@ -132,9 +133,8 @@ class GripperCommand(Command):
             yield positions
 
     def control(self, **kwargs):
-        joints = get_gripper_joints(self.robot, self.arm)
-        positions = [self.position]*len(joints)
-        for _ in joint_controller_hold(self.robot, joints, positions):
+        controller = joint_controller()
+        for _ in controller.execute(self.robot, joints, positions):
             yield
 
     def __repr__(self):
@@ -163,19 +163,13 @@ class Attach(Command):
         yield
 
     def control(self, dt=0, **kwargs):
-        if self.vacuum:
-            add_fixed_constraint(self.body, self.robot, self.link)
-        else:
-            gripper_name = '{}_gripper'.format(self.arm)
-            joints = joints_from_names(self.robot, self.robot.gripper_joints)
-            values = [get_min_limit(self.robot, joint) for joint in joints] # Closed
-            for _ in joint_controller_hold(self.robot, joints, values):
-                step_simulation()
-                time.sleep(dt)
+        controller = joint_controller()
+        controller.attach_objects_to_robot()
 
     def __repr__(self):
         return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
                                      self.arm, get_body_name(self.body))
+
 
 class Detach(Command):
     def __init__(self, robot, arm, body):
@@ -190,8 +184,9 @@ class Detach(Command):
         del state.grasps[self.body]
         yield
 
-    def control(self, **kwargs):
-        remove_fixed_constraint(self.body, self.robot, self.link)
+    def control(self, motion_gen):
+        controller = joint_controller(self.robots)
+        controller.detach_object_from_robot()
 
     def __repr__(self):
         return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),

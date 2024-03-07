@@ -1,11 +1,22 @@
 import random
+import numpy as np
 from tampkit.sim_tools.isaacsim.geometry import Pose
 from tampkit.sim_tools.isaacsim.sim_utils import pairwise_collision
 
 
-def sample_insertion(body, hole, **kwargs):
-    pass
-
+def sample_insertion(body, hole, max_attempts=25, percent=1.0, epsilon=1e-3, **kwargs):
+    for _ in range(max_attempts):
+        theta = np.random.uniform(*CIRCULAR_LIMITS)
+        rotation = Euler(yaw=theta)
+        set_pose(body, multiply(Pose(euler=rotation), unit_pose()))
+        center, extent = get_center_extent(body)
+        hole_pose = get_point(hole)
+        x, y, z = hole_pose
+        point = np.array([x, y, z]) + (get_point(body) - center)
+        pose = multiply(Pose(point, rotation), unit_pose())
+        set_pose(body, pose)
+        return pose
+    return None
 
 def get_insert_gen(problem, collisions=True, **kwargs):
     # Sample insert pose

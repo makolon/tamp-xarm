@@ -8,7 +8,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
     connect, disconnect, \
     # Getter
-    get_pose, get_max_limit, get_arm_joints, get_gripper_joints, get_group_joints, get_group_conf, \
+    get_pose, get_max_limit, get_arm_joints, get_gripper_joints, \
     get_joint_positions, \
     # Utility
     apply_commands, control_commands
@@ -117,7 +117,10 @@ class TAMPPlanner(object):
         stream_pddl = read(get_file_path(__file__, 'task/assemble/stream.pddl'))
         constant_map = {}
 
-        init = [
+        # Initlaize init & goal
+        init, goal = [AND], [AND]
+
+        init += [
             ('CanMove',),
             Equal(('PickCost',), 1),
             Equal(('PlaceCost',), 1),
@@ -134,9 +137,6 @@ class TAMPPlanner(object):
             init += [('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
-
-        # Initlaize goal
-        goal = [AND]
         
         # Goal configuration
         if problem.goal_conf is not None:
