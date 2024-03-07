@@ -8,7 +8,6 @@ from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
 from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
-#from pddlstream.algorithms.downward import has_costs
 from pddlstream.algorithms.incremental import process_stream_queue
 from pddlstream.algorithms.instantiation import Instantiator
 from pddlstream.algorithms.refinement import iterative_plan_streams, get_optimistic_solve_fn
@@ -130,8 +129,6 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     enforce_simultaneous(domain, externals)
     compile_fluent_streams(domain, externals)
     # TODO: make effort_weight be a function of the current cost
-    # if (effort_weight is None) and not has_costs(domain):
-    #     effort_weight = 1
 
     load_stream_statistics(externals)
     if visualize and not has_pygraphviz():
@@ -183,11 +180,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         ################
 
-        #stream_plan = replan_with_optimizers(evaluations, stream_plan, domain, externals) or stream_plan
         stream_plan = combine_optimizers(evaluations, stream_plan)
-        #stream_plan = get_synthetic_stream_plan(stream_plan, # evaluations
-        #                                       [s for s in synthesizers if not s.post_only])
-        #stream_plan = recover_optimistic_outputs(stream_plan)
         if reorder:
             # TODO: this blows up memory wise for long stream plans
             stream_plan = reorder_stream_plan(store, stream_plan)
@@ -211,14 +204,12 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             if not eager_disabled:
                 reenable_disabled(evaluations, domain, disabled)
 
-        #print(stream_plan_complexity(evaluations, stream_plan))
         if not use_skeletons:
             process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
             continue
 
         ################
 
-        #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
         optimizer_plan = None
         if optimizer_plan is not None:
             # TODO: post process a bound plan

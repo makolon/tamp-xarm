@@ -27,20 +27,13 @@ def solve_from_task(sas_task, temp_dir=TEMP_DIR, clean=False, debug=False, hiera
         if clean:
             safe_rm_dir(temp_dir)
         print('Total runtime: {:.3f}'.format(elapsed_time(start_time)))
-    #for axiom in sas_task.axioms:
-    #    # TODO: return the set of axioms here as well
-    #    var, value = axiom.effect
-    #    print(sas_task.variables.value_names[var])
-    #    axiom.dump()
     return solution
 
 def solve_from_pddl(domain_pddl, problem_pddl, temp_dir=TEMP_DIR, clean=False, debug=False, **search_kwargs):
     # TODO: combine with solve_from_task
-    #return solve_tfd(domain_pddl, problem_pddl)
     start_time = time()
     with Verbose(debug):
         write_pddl(domain_pddl, problem_pddl, temp_dir)
-        #run_translate(temp_dir, verbose)
         translate_and_write_pddl(domain_pddl, problem_pddl, temp_dir, debug)
         solution = run_search(temp_dir, debug=debug, **search_kwargs)
         if clean:
@@ -161,10 +154,6 @@ def add_subgoals(sas_task, subgoal_plan):
         op.pre_post.append(pre_post)
         # TODO: maybe this should be the resultant state instead?
         # TODO: prevail should just be the last prevail
-        # name = '(subgoal{}_{})'.format(subgoal, i)
-        # subgoal_cost = 1  # Can strengthen for stronger heuristics
-        # local_sas_task.operators.append(sas_tasks.SASOperator(
-        #    name, op.prevail, [pre_post], subgoal_cost))
     return subgoal_var
 
 

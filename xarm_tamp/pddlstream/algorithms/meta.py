@@ -46,8 +46,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
           initial_complexity=0, complexity_step=1, max_complexity=INF,
           max_skeletons=INF, search_sample_ratio=1, max_failures=0,
           unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
-          #temp_dir=TEMP_DIR, clean=False, debug=False, hierarchy=[],
-          #planner=DEFAULT_PLANNER, max_planner_time=DEFAULT_MAX_TIME, max_cost=INF, debug=False
           visualize=False, verbose=True, **search_kwargs):
     """
     Solves a PDDLStream problem generically using one of the available algorithms
@@ -96,18 +94,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             verbose=verbose, **search_kwargs)
 
-    # if algorithm == 'abstract_focused': # meta_focused | meta_focused
-    #     return solve_focused(
-    #         problem, constraints=constraints,
-    #         stream_info=stream_info, replan_actions=replan_actions,
-    #         unit_costs=unit_costs, success_cost=success_cost,
-    #         max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
-    #         initial_complexity=initial_complexity, complexity_step=complexity_step, #max_complexity=max_complexity,
-    #         max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-    #         bind=bind, max_failures=max_failures,
-    #         unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
-    #         visualize=visualize, verbose=verbose, **search_kwargs)
-
     fail_fast = (max_failures < INF)
     if algorithm == 'focused':
         return solve_focused_original(
@@ -116,7 +102,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
-            # max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
             fail_fast=fail_fast, # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
@@ -128,7 +113,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             unit_costs=unit_costs, success_cost=success_cost,
             max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
-            # max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
             fail_fast=fail_fast, # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
@@ -141,7 +125,6 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
             initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
             max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
-            # bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
     raise NotImplementedError(algorithm)
@@ -162,14 +145,16 @@ def solve_restart(problem, max_time=INF, max_restarts=0, iteration_time=INF, abo
         iteration_start_time = time.time()
         if elapsed_time(start_time) > max_time:
             break
+
         if attempt >= 1:
             print(SEPARATOR)
-        # solution = planner_fn(problem) # Or include the problem in the lambda
+
         remaining_time = min(iteration_time, max_time-elapsed_time(start_time))
         solution = solve(problem, max_time=remaining_time, **kwargs)
         plan, cost, certificate = solution
         if is_plan(plan): # TODO: INFEASIBLE
             return solution
+
         if abort and (elapsed_time(iteration_start_time) < remaining_time):
             break # TODO: return the cause of failure
 
@@ -194,13 +179,6 @@ def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False
     negative = get_negative_externals(externals)
     externals = list(filter(lambda s: s not in negative, externals))
 
-    # store = SolutionStore(evaluations, max_time, success_cost=INF, verbose=verbose)
-    # instantiator = Instantiator(externals, evaluations)
-    # process_stream_queue(instantiator, store, complexity_limit=INF, verbose=verbose)
-    # results = [] # TODO: extract from process_stream_queue
-
-    # set_unique(externals)
-    # domain.actions[:] = [] # TODO: only instantiate axioms
     # TODO: drop all fluents and instantiate
     # TODO: relaxed planning version of this
     results, exhausted = optimistic_process_streams(evaluations, externals, complexity_limit=INF, max_effort=None)
@@ -212,12 +190,12 @@ def examine_instantiated(problem, unique=False, normalize=True, unit_costs=False
         instantiated = instantiate_task(task, check_infeasible=False)
         if instantiated is None:
             return results, None
+
         # TODO: reinstantiate actions?
         instantiated.axioms[:] = [reinstantiate_axiom(axiom) for axiom in instantiated.axioms]
         if normalize:
             instantiated = convert_instantiated(instantiated)
     return results, instantiated
-    # sas_task = sas_from_pddl(task, debug=debug)
 
 ##################################################
 
@@ -227,7 +205,6 @@ def iterate_subgoals(goals, axiom_from_effect):
     for goal in goals:
         if goal in axiom_from_effect:
             necessary.update(set.intersection(*[set(axiom.condition) for axiom in axiom_from_effect[goal]]))
-            # print(len(axiom_from_effect[goal]) == 1)  # Universal
             for axiom in axiom_from_effect[goal]:
                 possible.update(axiom.condition)  # Add goal as well?
         else:
@@ -259,11 +236,9 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
     evaluations = evaluations_from_init(init)
     init = set(fd_from_evaluations(evaluations))
 
-    # from pddlstream.algorithms.scheduling.recover_axioms import recover_axioms_plans
     results, instantiated = examine_instantiated(problem, **kwargs) # TODO: only do if the goals are derived
     if instantiated is None:
         return None
-    # optimistic_init = set(instantiated.task.init)
 
     # This is like backchaining in a relaxed space
     condition_from_effect = defaultdict(set)
@@ -281,12 +256,10 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
                         condition_from_effect[effect.negate()].add(condition)
     if use_axioms:
         # TODO: axiom_rules.handle_axioms(...)
-        # print('Axioms:', instantiated.axioms)
         for axiom in instantiated.axioms:
-            # axiom = reinstantiate_axiom(axiom)
-            # axiom.dump()
             for condition in axiom.condition:
                 condition_from_effect[axiom.effect].add(condition)
+
     if use_streams:
         for result in results:
             for effect in result.certified:
@@ -296,7 +269,6 @@ def analyze_goal(problem, use_actions=False, use_axioms=True, use_streams=True, 
                     condition_from_effect[fd_from_fact(effect)].add(fd_from_fact(condition))
 
     print('Goals:', list(map(fact_from_fd, instantiated.goal_list)))
-    # all_subgoals = iterate_subgoals(instantiated.goal_list, axiom_from_effect)
     all_subgoals = recurse_subgoals(instantiated.goal_list, condition_from_effect)
     filtered_subgoals = [subgoal for subgoal in all_subgoals if subgoal in init] # TODO: return the goals as well?
     external_subgoals = [value_from_obj_expression(fact_from_fd(subgoal))

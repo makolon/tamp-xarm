@@ -78,25 +78,27 @@ def parse_problem(problem, stream_info={}, constraints=None, unit_costs=False, u
     domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
 
     domain = parse_domain(domain_pddl) # TODO: normalize here
-    #domain = domain_pddl
     if len(domain.types) != 1:
         raise NotImplementedError('Types are not currently supported')
+
     if unit_costs:
         set_unit_costs(domain)
+
     if not has_costs(domain):
         # TODO: set effort_weight to 1 if no costs
         print('Warning! All actions have no cost. Recommend setting unit_costs=True')
+
     obj_from_constant = parse_constants(domain, constant_map) # Keep before parse_stream_pddl
 
     streams = parse_stream_pddl(stream_pddl, stream_map, stream_info=stream_info,
                                 unit_costs=unit_costs, unit_efforts=unit_efforts)
+
     check_problem(domain, streams, obj_from_constant)
 
     evaluations = evaluations_from_init(init)
     goal_exp = obj_from_value_expression(goal)
 
     if isinstance(domain, SimplifiedDomain):
-        #assert isinstance(domain, str) # raw PDDL is returned
         _ = {name: Object(value, name=name) for name, value in constant_map.items()}
         return evaluations, goal_exp, domain, streams
 

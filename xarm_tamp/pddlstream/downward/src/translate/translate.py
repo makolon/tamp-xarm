@@ -1,6 +1,4 @@
 #! /usr/bin/env python3
-
-
 import os
 import sys
 import traceback
@@ -13,7 +11,6 @@ def python_version_supported():
 
 if not python_version_supported():
     sys.exit("Error: Translator only supports Python >= 3.6.")
-
 
 from collections import defaultdict
 from copy import deepcopy

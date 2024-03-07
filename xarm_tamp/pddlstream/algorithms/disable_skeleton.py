@@ -28,23 +28,18 @@ def create_disable_axiom(external_plan, use_parameters=True):
     # TODO: need to block functions & predicates
     stream_plan, _  = partition_external_plan(external_plan)
     assert stream_plan
-    #component_plan = stream_plan
     [unsatisfiable] = stream_plan[-1].get_unsatisfiable()
     component_plan = list(flatten(r.get_components() for r in stream_plan[:-1])) + list(unsatisfiable)
     increase_free_variables(component_plan)
-    #output_objects = get_free_objects(component_plan) if use_parameters else set()
     constraints = [result.stream_fact for result in component_plan]
     optimistic_objects = {o for f in constraints for o in get_args(f)
                           if isinstance(o, OptimisticObject)} # TODO: consider case when variables are free
-    #assert optimistic_objects <= output_objects
-    #free_objects = list(optimistic_objects & output_objects) # TODO: need to return all variables
     free_objects = optimistic_objects
     parameters = ['?p{}'.format(i) for i in range(len(free_objects))]
     param_from_obj = get_mapping(free_objects, parameters)
     preconditions = substitute_expression(constraints, param_from_obj)
     effect = (UNSATISFIABLE,)
     axiom = make_axiom(parameters, preconditions, effect)
-    #axiom.dump()
     return axiom
 
 
@@ -54,7 +49,6 @@ def compute_failed_indices(skeleton):
         result = binding.result
         if (result is not None) and result.instance.num_calls and (not result.instance.successful):
             failed_indices.add(binding.index)
-            #assert not binding.children
     return sorted(failed_indices)
 
 
@@ -66,7 +60,6 @@ def current_failed_cluster(binding):
     stream_plan = successful_results + [failed_result]
     partial_orders = get_partial_orders(stream_plan)
     # All connected components
-    #return get_connected_components(stream_plan, partial_orders)
     # Only the failed connected component
     return [grow_component([failed_result], adjacent_from_edges(partial_orders))]
 
@@ -108,7 +101,6 @@ def extract_disabled_clusters(queue, full_cluster=False):
     ordered_clusters = []
     for skeleton in queue.skeletons:
         # TODO: consider all up to the most progress
-        #cluster_plans = [skeleton.stream_plan]
         cluster_plans = get_stream_plan_components(skeleton.stream_plan)
         binding = skeleton.best_binding
         if not binding.is_fully_bound:
@@ -116,7 +108,6 @@ def extract_disabled_clusters(queue, full_cluster=False):
             cluster_plans = current_failed_cluster(binding) if full_cluster else current_failure_contributors(binding)
         for cluster_plan in cluster_plans:
             ordered_clusters.append(cluster_plan)
-            #clusters.add(frozenset(cluster_plan))
     # TODO: could instead prune at this stage
     return ordered_clusters
 

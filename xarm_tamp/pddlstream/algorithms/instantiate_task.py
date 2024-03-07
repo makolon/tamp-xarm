@@ -19,15 +19,14 @@ import normalize
 
 FD_INSTANTIATE = True
 
-InstantiatedTask = namedtuple('InstantiatedTask', ['task', 'atoms', 'actions', 'axioms',
-                                                   'reachable_action_params', 'goal_list'])
-
+InstantiatedTask = namedtuple('InstantiatedTask',
+    ['task', 'atoms', 'actions', 'axioms',
+        'reachable_action_params', 'goal_list'])
 
 def instantiate_goal(goal):
     goal_list = get_conjunctive_parts(goal)
     assert all(isinstance(item, pddl.Literal) for item in goal_list)
     return goal_list
-
 
 def get_goal_instance(goal):
     return pddl.PropositionalAction(GOAL_NAME, instantiate_goal(goal), [], None)
@@ -39,9 +38,6 @@ def get_constants(atom):
 
 def instantiate_condition(action, is_static, args_from_predicate):
     parameters = {p.name for p in action.parameters}
-    #if not parameters:
-    #    yield {}
-    #    return
     static_conditions = list(filter(is_static, get_literals(get_precondition(action))))
     static_parameters = set(filter(is_parameter, flatten(atom.args for atom in static_conditions)))
     if not (parameters <= static_parameters):
@@ -70,7 +66,6 @@ def get_reachable_action_params(instantiated_actions):
 
 def filter_negated(conditions, negated_from_name):
     return list(filter(lambda a: a.predicate not in negated_from_name, conditions))
-
 
 def get_achieving_axioms(state, operators, negated_from_name={}):
     # TODO: order by stream effort
@@ -175,19 +170,12 @@ def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwarg
     start_time = time()
     print()
     normalize.normalize(task)
-    #with Profiler(field='tottime', num=25):
     if use_fd:
         # TODO: recover relaxed reachability (from model)
         relaxed_reachable, atoms, actions, axioms, reachable_action_params = instantiate.explore(task)
     else:
         relaxed_reachable, atoms, actions, axioms = instantiate_domain(task, **kwargs)
         reachable_action_params = get_reachable_action_params(actions)
-    #for atom in sorted(filter(lambda a: isinstance(a, pddl.Literal), set(task.init) | set(atoms)),
-    #                   key=lambda a: a.predicate):
-    #    print(fact_from_fd(atom))
-    #print(axioms)
-    #for i, action in enumerate(sorted(actions, key=lambda a: a.name)):
-    #    print(i, transform_action_args(pddl_from_instance(action), obj_from_pddl))
     print('Infeasible:', not relaxed_reachable)
     print('Instantiation time: {:.3f}s'.format(elapsed_time(start_time)))
     if check_infeasible and not relaxed_reachable:
@@ -276,11 +264,8 @@ def write_sas_task(sas_task, temp_dir):
 
 
 def sas_from_pddl(task, debug=False):
-    #normalize.normalize(task)
-    #sas_task = translate.pddl_to_sas(task)
     with Verbose(debug):
         instantiated = instantiate_task(task)
-        #instantiated = convert_instantiated(instantiated)
         sas_task = sas_from_instantiated(instantiated)
         sas_task.metric = task.use_min_cost_metric # TODO: are these sometimes not equal?
     return sas_task
@@ -299,14 +284,8 @@ def convert_instantiated(instantiated_task, verbose=False):
     task, atoms, actions, axioms, reachable_action_params, goal_list = instantiated_task
     normalize.normalize(task)
     import axiom_rules
-    #axioms, axiom_init, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goal_list)
-    #init = task.init + axiom_init
     import options
     with Verbose(verbose):
         axioms, axiom_layers = axiom_rules.handle_axioms(actions, axioms, goal_list, options.layer_strategy)
     init = task.init
-    # axioms.sort(key=lambda axiom: axiom.name)
-    # for axiom in axioms:
-    #  axiom.dump()
-    #return InstantiatedTask(task, atoms, actions, axioms, reachable_action_params, goal_list)
     return InstantiatedTask(task, init, actions, axioms, reachable_action_params, goal_list) # init instead of atoms
