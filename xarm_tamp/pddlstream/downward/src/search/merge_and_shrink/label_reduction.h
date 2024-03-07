@@ -10,13 +10,13 @@ namespace equivalence_relation {
 class EquivalenceRelation;
 }
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
 namespace utils {
-class LogProxy;
 class RandomNumberGenerator;
+enum class Verbosity;
 }
 
 namespace merge_and_shrink {
@@ -66,22 +66,22 @@ class LabelReduction {
     /* Apply the given label equivalence relation to the set of labels and
        compute the resulting label mapping. */
     void compute_label_mapping(
-        const equivalence_relation::EquivalenceRelation &relation,
+        const equivalence_relation::EquivalenceRelation *relation,
         const FactoredTransitionSystem &fts,
         std::vector<std::pair<int, std::vector<int>>> &label_mapping,
-        utils::LogProxy &log) const;
+        utils::Verbosity verbosity) const;
     equivalence_relation::EquivalenceRelation
-    compute_combinable_equivalence_relation(
+    *compute_combinable_equivalence_relation(
         int ts_index,
         const FactoredTransitionSystem &fts) const;
 public:
-    explicit LabelReduction(const plugins::Options &options);
+    explicit LabelReduction(const options::Options &options);
     void initialize(const TaskProxy &task_proxy);
     bool reduce(
         const std::pair<int, int> &next_merge,
         FactoredTransitionSystem &fts,
-        utils::LogProxy &log) const;
-    void dump_options(utils::LogProxy &log) const;
+        utils::Verbosity verbosity) const;
+    void dump_options() const;
     bool reduce_before_shrinking() const {
         return lr_before_shrinking;
     }

@@ -111,8 +111,7 @@ struct ValueNode {
     ValueTransitionLabel *reached_by;
 
     ValueNode(DomainTransitionGraph *parent, int val)
-        : parent_graph(parent), value(val), reached_from(nullptr),
-          reached_by(nullptr) {}
+        : parent_graph(parent), value(val), reached_from(0), reached_by(0) {}
 };
 
 class DomainTransitionGraph {

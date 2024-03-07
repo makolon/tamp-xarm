@@ -6,6 +6,7 @@ import timers
 from collections import defaultdict
 from itertools import chain
 
+NEGATIVE_SUFFIX = '-negative'
 
 DEBUG = False
 
@@ -55,6 +56,11 @@ class AxiomCluster(object):
 def handle_axioms(operators, axioms, goals, layer_strategy):
     clusters = compute_clusters(axioms, goals, operators)
     axiom_layers = compute_axiom_layers(clusters, layer_strategy)
+
+    #if options.negative_axioms:
+    #    # Caelan: pretends all literals are positive
+    #    #axiom_literals = {l.positive() for l in axiom_literals}
+    #    axiom_literals = {l.positive() if l.predicate.endswith(NEGATIVE_SUFFIX) else l for l in axiom_literals}
 
     # TODO: It would be cleaner if these negated rules were an implementation
     # detail of the heuristics in the search component that make use of them
@@ -265,8 +271,9 @@ def compute_negative_axioms(clusters):
                 # (non-overapproximating) way is possible but more expensive.
                 # Again, see issue453 for details.
                 for variable in cluster.variables:
-                    name = cluster.axioms[variable][0].name
-                    negated_axiom = pddl.PropositionalAxiom(name, [], variable.negate())
+                    axioms = cluster.axioms[variable]
+                    negated_axiom = pddl.PropositionalAxiom(axioms[0].name, [], variable.negate(),
+                                                            axioms[0].axiom, axioms[0].var_mapping)
                     cluster.axioms[variable].append(negated_axiom)
             else:
                 variable = next(iter(cluster.variables))
@@ -276,7 +283,7 @@ def compute_negative_axioms(clusters):
 
 def negate(axioms):
     assert axioms
-    result = [pddl.PropositionalAxiom(axioms[0].name, [], axioms[0].effect.negate())]
+    result = [pddl.PropositionalAxiom(axioms[0].name, [], axioms[0].effect.negate(), axioms[0].axiom, axioms[0].var_mapping)]
     for axiom in axioms:
         condition = axiom.condition
         if len(condition) == 0:

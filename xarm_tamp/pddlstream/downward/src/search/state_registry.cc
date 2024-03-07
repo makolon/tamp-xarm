@@ -41,12 +41,6 @@ State StateRegistry::lookup_state(StateID id) const {
     return task_proxy.create_state(*this, id, buffer);
 }
 
-State StateRegistry::lookup_state(
-    StateID id, vector<int> &&state_values) const {
-    const PackedStateBin *buffer = state_data_pool[id.value];
-    return task_proxy.create_state(*this, id, buffer, move(state_values));
-}
-
 const State &StateRegistry::get_initial_state() {
     if (!cached_initial_state) {
         int num_bins = get_bins_per_state();
@@ -70,12 +64,6 @@ const State &StateRegistry::get_initial_state() {
 //     operating on state buffers (PackedStateBin *).
 State StateRegistry::get_successor_state(const State &predecessor, const OperatorProxy &op) {
     assert(!op.is_axiom());
-    /*
-      TODO: ideally, we would not modify state_data_pool here and in
-      insert_id_or_pop_state, but only at one place, to avoid errors like
-      buffer becoming a dangling pointer. This used to be a bug before being
-      fixed in https://issues.fast-downward.org/issue1115.
-    */
     state_data_pool.push_back(predecessor.get_buffer());
     PackedStateBin *buffer = state_data_pool[state_data_pool.size() - 1];
     /* Experiments for issue348 showed that for tasks with axioms it's faster
@@ -93,12 +81,8 @@ State StateRegistry::get_successor_state(const State &predecessor, const Operato
         for (size_t i = 0; i < new_values.size(); ++i) {
             state_packer.set(buffer, i, new_values[i]);
         }
-        /*
-          NOTE: insert_id_or_pop_state possibly invalidates buffer, hence
-          we use lookup_state to retrieve the state using the correct buffer.
-        */
         StateID id = insert_id_or_pop_state();
-        return lookup_state(id, move(new_values));
+        return task_proxy.create_state(*this, id, buffer, move(new_values));
     } else {
         for (EffectProxy effect : op.get_effects()) {
             if (does_fire(effect, predecessor)) {
@@ -106,12 +90,8 @@ State StateRegistry::get_successor_state(const State &predecessor, const Operato
                 state_packer.set(buffer, effect_pair.var, effect_pair.value);
             }
         }
-        /*
-          NOTE: insert_id_or_pop_state possibly invalidates buffer, hence
-          we use lookup_state to retrieve the state using the correct buffer.
-        */
         StateID id = insert_id_or_pop_state();
-        return lookup_state(id);
+        return task_proxy.create_state(*this, id, buffer);
     }
 }
 
@@ -123,7 +103,7 @@ int StateRegistry::get_state_size_in_bytes() const {
     return get_bins_per_state() * sizeof(PackedStateBin);
 }
 
-void StateRegistry::print_statistics(utils::LogProxy &log) const {
-    log << "Number of registered states: " << size() << endl;
-    registered_states.print_statistics(log);
+void StateRegistry::print_statistics() const {
+    utils::g_log << "Number of registered states: " << size() << endl;
+    registered_states.print_statistics();
 }

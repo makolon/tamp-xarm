@@ -1,6 +1,9 @@
 #include "stubborn_sets_ec.h"
 
-#include "../plugins/plugin.h"
+#include "../option_parser.h"
+#include "../plugin.h"
+
+#include "../utils/collections.h"
 #include "../utils/logging.h"
 #include "../utils/markup.h"
 
@@ -21,7 +24,7 @@ static inline bool is_v_applicable(int var,
     return precondition_on_var == -1 || precondition_on_var == state[var].get_value();
 }
 
-static vector<StubbornDTG> build_dtgs(TaskProxy task_proxy) {
+vector<StubbornDTG> build_dtgs(TaskProxy task_proxy) {
     /*
       NOTE: Code lifted and adapted from M&S atomic abstraction code.
       We need a more general mechanism for creating data structures of
@@ -68,10 +71,10 @@ static vector<StubbornDTG> build_dtgs(TaskProxy task_proxy) {
     return dtgs;
 }
 
-static void recurse_forwards(const StubbornDTG &dtg,
-                             int start_value,
-                             int current_value,
-                             vector<bool> &reachable) {
+void recurse_forwards(const StubbornDTG &dtg,
+                      int start_value,
+                      int current_value,
+                      vector<bool> &reachable) {
     if (!reachable[current_value]) {
         reachable[current_value] = true;
         for (int successor_value : dtg[current_value])
@@ -80,9 +83,9 @@ static void recurse_forwards(const StubbornDTG &dtg,
 }
 
 // Relies on both fact sets being sorted by variable.
-static void get_conflicting_vars(const vector<FactPair> &facts1,
-                                 const vector<FactPair> &facts2,
-                                 vector<int> &conflicting_vars) {
+void get_conflicting_vars(const vector<FactPair> &facts1,
+                          const vector<FactPair> &facts2,
+                          vector<int> &conflicting_vars) {
     conflicting_vars.clear();
     auto facts1_it = facts1.begin();
     auto facts2_it = facts2.begin();
@@ -102,8 +105,8 @@ static void get_conflicting_vars(const vector<FactPair> &facts1,
     }
 }
 
-StubbornSetsEC::StubbornSetsEC(const plugins::Options &opts)
-    : StubbornSetsActionCentric(opts) {
+StubbornSetsEC::StubbornSetsEC(const options::Options &opts)
+    : StubbornSets(opts) {
 }
 
 void StubbornSetsEC::initialize(const shared_ptr<AbstractTask> &task) {
@@ -124,7 +127,7 @@ void StubbornSetsEC::initialize(const shared_ptr<AbstractTask> &task) {
     disabled.resize(num_operators);
     disabled_computed.resize(num_operators, false);
 
-    log << "pruning method: stubborn sets ec" << endl;
+    utils::g_log << "pruning method: stubborn sets ec" << endl;
 }
 
 void StubbornSetsEC::compute_operator_preconditions(const TaskProxy &task_proxy) {
@@ -216,9 +219,9 @@ bool StubbornSetsEC::is_applicable(int op_no, const State &state) const {
 }
 
 // TODO: find a better name.
-void StubbornSetsEC::enqueue_stubborn_operator_and_remember_written_vars(
+void StubbornSetsEC::mark_as_stubborn_and_remember_written_vars(
     int op_no, const State &state) {
-    if (enqueue_stubborn_operator(op_no)) {
+    if (mark_as_stubborn(op_no)) {
         if (is_applicable(op_no, state)) {
             for (const FactPair &effect : sorted_op_effects[op_no])
                 written_vars[effect.var] = true;
@@ -231,7 +234,7 @@ void StubbornSetsEC::enqueue_stubborn_operator_and_remember_written_vars(
 void StubbornSetsEC::add_nes_for_fact(const FactPair &fact, const State &state) {
     for (int achiever : achievers[fact.var][fact.value]) {
         if (active_ops[achiever]) {
-            enqueue_stubborn_operator_and_remember_written_vars(achiever, state);
+            mark_as_stubborn_and_remember_written_vars(achiever, state);
         }
     }
 
@@ -242,7 +245,7 @@ void StubbornSetsEC::add_conflicting_and_disabling(int op_no,
                                                    const State &state) {
     for (int conflict : get_conflicting_and_disabling(op_no)) {
         if (active_ops[conflict]) {
-            enqueue_stubborn_operator_and_remember_written_vars(conflict, state);
+            mark_as_stubborn_and_remember_written_vars(conflict, state);
         }
     }
 }
@@ -304,7 +307,7 @@ void StubbornSetsEC::handle_stubborn_operator(const State &state, int op_no) {
                                             disabled_op_no,
                                             state,
                                             op_preconditions_on_var)) {
-                            enqueue_stubborn_operator_and_remember_written_vars(
+                            mark_as_stubborn_and_remember_written_vars(
                                 disabled_op_no, state);
                             v_applicable_op_found = true;
                             break;
@@ -324,29 +327,34 @@ void StubbornSetsEC::handle_stubborn_operator(const State &state, int op_no) {
     }
 }
 
-class StubbornSetsECFeature : public plugins::TypedFeature<PruningMethod, StubbornSetsEC> {
-public:
-    StubbornSetsECFeature() : TypedFeature("stubborn_sets_ec") {
-        document_title("StubbornSetsEC");
-        document_synopsis(
-            "Stubborn sets represent a state pruning method which computes a subset "
-            "of applicable operators in each state such that completeness and "
-            "optimality of the overall search is preserved. As stubborn sets rely "
-            "on several design choices, there are different variants thereof. "
-            "The variant 'StubbornSetsEC' resolves the design choices such that "
-            "the resulting pruning method is guaranteed to strictly dominate the "
-            "Expansion Core pruning method. For details, see" + utils::format_conference_reference(
-                {"Martin Wehrle", "Malte Helmert", "Yusra Alkhazraji", "Robert Mattmueller"},
-                "The Relative Pruning Power of Strong Stubborn Sets and Expansion Core",
-                "http://www.aaai.org/ocs/index.php/ICAPS/ICAPS13/paper/view/6053/6185",
-                "Proceedings of the 23rd International Conference on Automated Planning "
-                "and Scheduling (ICAPS 2013)",
-                "251-259",
-                "AAAI Press",
-                "2013"));
-        add_pruning_options_to_feature(*this);
-    }
-};
+static shared_ptr<PruningMethod> _parse(OptionParser &parser) {
+    parser.document_synopsis(
+        "StubbornSetsEC",
+        "Stubborn sets represent a state pruning method which computes a subset "
+        "of applicable operators in each state such that completeness and "
+        "optimality of the overall search is preserved. As stubborn sets rely "
+        "on several design choices, there are different variants thereof. "
+        "The variant 'StubbornSetsEC' resolves the design choices such that "
+        "the resulting pruning method is guaranteed to strictly dominate the "
+        "Expansion Core pruning method. For details, see" + utils::format_conference_reference(
+            {"Martin Wehrle", "Malte Helmert", "Yusra Alkhazraji", "Robert Mattmueller"},
+            "The Relative Pruning Power of Strong Stubborn Sets and Expansion Core",
+            "http://www.aaai.org/ocs/index.php/ICAPS/ICAPS13/paper/view/6053/6185",
+            "Proceedings of the 23rd International Conference on Automated Planning "
+            "and Scheduling (ICAPS 2013)",
+            "251-259",
+            "AAAI Press",
+            "2013"));
 
-static plugins::FeaturePlugin<StubbornSetsECFeature> _plugin;
+    stubborn_sets::add_pruning_options(parser);
+
+    Options opts = parser.parse();
+
+    if (parser.dry_run()) {
+        return nullptr;
+    }
+    return make_shared<StubbornSetsEC>(opts);
+}
+
+static Plugin<PruningMethod> _plugin("stubborn_sets_ec", _parse);
 }

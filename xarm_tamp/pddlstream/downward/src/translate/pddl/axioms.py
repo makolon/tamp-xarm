@@ -1,13 +1,10 @@
-from typing import List
+from __future__ import print_function
 
 from . import conditions
-from .conditions import Atom, Condition, Literal
-from .pddl_types import TypedObject
 
 
 class Axiom:
-    def __init__(self, name: str, parameters: List[TypedObject],
-                 num_external_parameters: int, condition: Condition):
+    def __init__(self, name, parameters, num_external_parameters, condition):
         # For an explanation of num_external_parameters, see the
         # related Action class. Note that num_external_parameters
         # always equals the arity of the derived predicate.
@@ -43,17 +40,19 @@ class Axiom:
         effect_args = [var_mapping.get(arg.name, arg.name)
                        for arg in self.parameters[:self.num_external_parameters]]
         effect = conditions.Atom(self.name, effect_args)
-        return PropositionalAxiom(name, condition, effect)
+        return PropositionalAxiom(name, condition, effect, self, var_mapping)
 
 
 class PropositionalAxiom:
-    def __init__(self, name: str, condition: List[Literal], effect: Atom):
+    def __init__(self, name, condition, effect, axiom=None, var_mapping=None):
         self.name = name
         self.condition = condition
         self.effect = effect
+        self.axiom = axiom
+        self.var_mapping = var_mapping
 
     def clone(self):
-        return PropositionalAxiom(self.name, list(self.condition), self.effect)
+        return PropositionalAxiom(self.name, list(self.condition), self.effect, self.axiom, self.var_mapping)
 
     def dump(self):
         if self.effect.negated:

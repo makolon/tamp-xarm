@@ -42,7 +42,7 @@
 using namespace std;
 
 namespace utils {
-static void write_reentrant(int filedescr, const char *message, int len) {
+void write_reentrant(int filedescr, const char *message, int len) {
     while (len > 0) {
         int written;
         do {
@@ -60,15 +60,15 @@ static void write_reentrant(int filedescr, const char *message, int len) {
     }
 }
 
-static void write_reentrant_str(int filedescr, const char *message) {
+void write_reentrant_str(int filedescr, const char *message) {
     write_reentrant(filedescr, message, strlen(message));
 }
 
-static void write_reentrant_char(int filedescr, char c) {
+void write_reentrant_char(int filedescr, char c) {
     write_reentrant(filedescr, &c, 1);
 }
 
-static void write_reentrant_int(int filedescr, int value) {
+void write_reentrant_int(int filedescr, int value) {
     char buffer[32];
     int len = snprintf(buffer, sizeof(buffer), "%d", value);
     if (len < 0)
@@ -76,7 +76,7 @@ static void write_reentrant_int(int filedescr, int value) {
     write_reentrant(filedescr, buffer, len);
 }
 
-static bool read_char_reentrant(int filedescr, char *c) {
+bool read_char_reentrant(int filedescr, char *c) {
     int result;
     do {
         result = read(filedescr, c, 1);
@@ -91,13 +91,12 @@ static bool read_char_reentrant(int filedescr, char *c) {
     return result == 1;
 }
 
-static void print_peak_memory_reentrant() {
+void print_peak_memory_reentrant() {
 #if OPERATING_SYSTEM == OSX
     // TODO: Write print_peak_memory_reentrant() for OS X.
     write_reentrant_str(STDOUT_FILENO, "Peak memory: ");
     write_reentrant_int(STDOUT_FILENO, get_peak_memory_in_kb());
     write_reentrant_str(STDOUT_FILENO, " KB\n");
-    utils::unused_variable(read_char_reentrant);
 #else
 
     int proc_file_descr = TEMP_FAILURE_RETRY(open("/proc/self/status", O_RDONLY));
@@ -149,14 +148,14 @@ static void print_peak_memory_reentrant() {
 }
 
 #if OPERATING_SYSTEM == LINUX
-static void exit_handler(int, void *) {
+void exit_handler(int, void *) {
 #elif OPERATING_SYSTEM == OSX
 void exit_handler() {
 #endif
     print_peak_memory_reentrant();
 }
 
-static void out_of_memory_handler() {
+void out_of_memory_handler() {
     /*
       We do not use any memory padding currently. The methods below should
       only use stack memory. If we ever run into situations where the stack
@@ -167,7 +166,7 @@ static void out_of_memory_handler() {
     exit_with(ExitCode::SEARCH_OUT_OF_MEMORY);
 }
 
-static void signal_handler(int signal_number) {
+void signal_handler(int signal_number) {
     print_peak_memory_reentrant();
     write_reentrant_str(STDOUT_FILENO, "caught signal ");
     write_reentrant_int(STDOUT_FILENO, signal_number);
@@ -227,7 +226,7 @@ void register_event_handlers() {
     // On exit or when receiving certain signals such as SIGINT (Ctrl-C),
     // print the peak memory usage.
 #if OPERATING_SYSTEM == LINUX
-    on_exit(exit_handler, nullptr);
+    on_exit(exit_handler, 0);
 #elif OPERATING_SYSTEM == OSX
     atexit(exit_handler);
 #endif
@@ -243,11 +242,11 @@ void register_event_handlers() {
     // Reset handler to default action after completion.
     default_signal_action.sa_flags = SA_RESETHAND;
 
-    sigaction(SIGABRT, &default_signal_action, nullptr);
-    sigaction(SIGTERM, &default_signal_action, nullptr);
-    sigaction(SIGSEGV, &default_signal_action, nullptr);
-    sigaction(SIGINT, &default_signal_action, nullptr);
-    sigaction(SIGXCPU, &default_signal_action, nullptr);
+    sigaction(SIGABRT, &default_signal_action, 0);
+    sigaction(SIGTERM, &default_signal_action, 0);
+    sigaction(SIGSEGV, &default_signal_action, 0);
+    sigaction(SIGINT, &default_signal_action, 0);
+    sigaction(SIGXCPU, &default_signal_action, 0);
 }
 
 void report_exit_code_reentrant(ExitCode exitcode) {

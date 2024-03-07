@@ -13,8 +13,8 @@
 
 class TaskProxy;
 
-namespace plugins {
-class Feature;
+namespace options {
+class OptionParser;
 class Options;
 }
 
@@ -73,14 +73,14 @@ protected:
     State convert_ancestor_state(const State &ancestor_state) const;
 
 public:
-    explicit Heuristic(const plugins::Options &opts);
+    explicit Heuristic(const options::Options &opts);
     virtual ~Heuristic() override;
 
     virtual void get_path_dependent_evaluators(
         std::set<Evaluator *> & /*evals*/) override {
     }
 
-    static void add_options_to_feature(plugins::Feature &feature);
+    static void add_options_to_parser(options::OptionParser &parser);
 
     virtual EvaluationResult compute_result(
         EvaluationContext &eval_context) override;

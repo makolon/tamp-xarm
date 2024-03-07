@@ -1,11 +1,14 @@
 #! /usr/bin/env python3
 
+from __future__ import print_function
 
 import itertools
 
 import normalize
 import pddl
 import timers
+
+REDUCE_CONDITIONS = True # caelan: speeds up instantiation
 
 class PrologProgram:
     def __init__(self):
@@ -158,10 +161,24 @@ def translate_facts(prog, task):
 
 def translate(task):
     # Note: The function requires that the task has been normalized.
+    from invariant_finder import get_fluents
     with timers.timing("Generating Datalog program"):
         prog = PrologProgram()
         translate_facts(prog, task)
+        fluents = get_fluents(task)  # TODO: identify implied conditions and filter automatically
         for conditions, effect in normalize.build_exploration_rules(task):
+            if REDUCE_CONDITIONS:
+                # TODO: could possibly remove rules with effects that don't achieve conditions
+                #conditions = [condition for condition in conditions if condition.predicate not in fluents]
+                conditions = sorted(conditions, key=lambda c: (len(c.args), c.predicate not in fluents), reverse=True)
+                covered_args = set()
+                reduced_conditions = []
+                for condition in conditions:
+                    # isinstance(condition.predicate, pddl.Action) or isinstance(condition.predicate, pddl.Axiom)
+                    if not reduced_conditions or not (set(condition.args) <= covered_args):
+                        covered_args.update(condition.args)
+                        reduced_conditions.append(condition)
+                conditions = reduced_conditions
             prog.add_rule(Rule(conditions, effect))
     with timers.timing("Normalizing Datalog program", block=True):
         # Using block=True because normalization can output some messages

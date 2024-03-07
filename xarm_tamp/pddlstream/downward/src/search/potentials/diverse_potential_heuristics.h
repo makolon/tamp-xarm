@@ -3,15 +3,9 @@
 
 #include "potential_optimizer.h"
 
-#include "../utils/logging.h"
-
 #include <memory>
 #include <unordered_map>
 #include <vector>
-
-namespace plugins {
-class Options;
-}
 
 namespace utils {
 class RandomNumberGenerator;
@@ -31,7 +25,6 @@ class DiversePotentialHeuristics {
     const int max_num_heuristics;
     const int num_samples;
     std::shared_ptr<utils::RandomNumberGenerator> rng;
-    utils::LogProxy log;
     std::vector<std::unique_ptr<PotentialFunction>> diverse_functions;
 
     /* Filter dead end samples and duplicates. Store potential heuristics
@@ -54,7 +47,7 @@ class DiversePotentialHeuristics {
     void cover_samples(SamplesToFunctionsMap &samples_to_functions);
 
 public:
-    explicit DiversePotentialHeuristics(const plugins::Options &opts);
+    explicit DiversePotentialHeuristics(const options::Options &opts);
     ~DiversePotentialHeuristics() = default;
 
     // Sample states, then cover them.

@@ -9,7 +9,7 @@
 namespace pref_evaluator {
 class PrefEvaluator : public Evaluator {
 public:
-    explicit PrefEvaluator(const plugins::Options &opts);
+    PrefEvaluator();
     virtual ~PrefEvaluator() override;
 
     virtual EvaluationResult compute_result(

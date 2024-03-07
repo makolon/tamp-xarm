@@ -1,40 +1,42 @@
 #include "landmark_factory_reasonable_orders_hps.h"
 
-#include "landmark.h"
 #include "landmark_graph.h"
 
 #include "util.h"
 
-#include "../plugins/plugin.h"
+#include "../option_parser.h"
+#include "../plugin.h"
+
 #include "../utils/logging.h"
 #include "../utils/markup.h"
 
 using namespace std;
 namespace landmarks {
-LandmarkFactoryReasonableOrdersHPS::LandmarkFactoryReasonableOrdersHPS(const plugins::Options &opts)
-    : LandmarkFactory(opts),
-      lm_factory(opts.get<shared_ptr<LandmarkFactory>>("lm_factory")) {
+LandmarkFactoryReasonableOrdersHPS::LandmarkFactoryReasonableOrdersHPS(const Options &opts)
+    : lm_factory(opts.get<shared_ptr<LandmarkFactory>>("lm_factory")) {
 }
 
 void LandmarkFactoryReasonableOrdersHPS::generate_landmarks(const shared_ptr<AbstractTask> &task) {
-    if (log.is_at_least_normal()) {
-        log << "Building a landmark graph with reasonable orders." << endl;
-    }
+    utils::g_log << "Building a landmark graph with reasonable orders." << endl;
 
     lm_graph = lm_factory->compute_lm_graph(task);
-    achievers_calculated = lm_factory->achievers_are_calculated();
 
     TaskProxy task_proxy(*task);
-    if (log.is_at_least_normal()) {
-        log << "approx. reasonable orders" << endl;
-    }
-    approximate_reasonable_orders(task_proxy);
+    utils::g_log << "approx. reasonable orders" << endl;
+    approximate_reasonable_orders(task_proxy, false);
+    utils::g_log << "approx. obedient reasonable orders" << endl;
+    approximate_reasonable_orders(task_proxy, true);
+
+    mk_acyclic_graph();
 }
 
 void LandmarkFactoryReasonableOrdersHPS::approximate_reasonable_orders(
-    const TaskProxy &task_proxy) {
+    const TaskProxy &task_proxy, bool obedient_orders) {
     /*
-      Approximate reasonable orders according to Hoffmann et al.
+      Approximate reasonable and obedient reasonable orders according
+      to Hoffmann et al. If flag "obedient_orders" is true, we
+      calculate obedient reasonable orders, otherwise reasonable
+      orders.
 
       If node_p is in goal, then any node2_p which interferes with
       node_p can be reasonably ordered before node_p. Otherwise, if
@@ -46,16 +48,17 @@ void LandmarkFactoryReasonableOrdersHPS::approximate_reasonable_orders(
     State initial_state = task_proxy.get_initial_state();
     int variables_size = task_proxy.get_variables().size();
     for (auto &node_p : lm_graph->get_nodes()) {
-        const Landmark &landmark = node_p->get_landmark();
-        if (landmark.disjunctive)
+        if (node_p->disjunctive)
             continue;
 
-        if (landmark.is_true_in_goal) {
+        if (node_p->is_true_in_state(initial_state))
+            return;
+
+        if (!obedient_orders && node_p->is_true_in_goal) {
             for (auto &node2_p : lm_graph->get_nodes()) {
-                const Landmark &landmark2 = node2_p->get_landmark();
-                if (landmark == landmark2 || landmark2.disjunctive)
+                if (node2_p == node_p || node2_p->disjunctive)
                     continue;
-                if (interferes(task_proxy, landmark2, landmark)) {
+                if (interferes(task_proxy, node2_p.get(), node_p.get())) {
                     edge_add(*node2_p, *node_p, EdgeType::REASONABLE);
                 }
             }
@@ -64,30 +67,34 @@ void LandmarkFactoryReasonableOrdersHPS::approximate_reasonable_orders(
             // Use hash set to filter duplicates.
             unordered_set<LandmarkNode *> interesting_nodes(variables_size);
             for (const auto &child : node_p->children) {
-                const LandmarkNode &node2_p = *child.first;
+                const LandmarkNode &node2 = *child.first;
                 const EdgeType &edge2 = child.second;
-                if (edge2 >= EdgeType::GREEDY_NECESSARY) { // found node2_p: node_p ->_gn node2_p
-                    for (const auto &p : node2_p.parents) {   // find parent
-                        LandmarkNode &parent_node = *(p.first);
+                if (edge2 >= EdgeType::GREEDY_NECESSARY) { // found node2: node_p ->_gn node2
+                    for (const auto &p : node2.parents) {   // find parent
+                        LandmarkNode &parent = *(p.first);
                         const EdgeType &edge = p.second;
-                        if (parent_node.get_landmark().disjunctive)
+                        if (parent.disjunctive)
                             continue;
-                        if (edge >= EdgeType::NATURAL && &parent_node != node_p.get()) {
-                            // find predecessors or parent and collect in "interesting nodes"
-                            interesting_nodes.insert(&parent_node);
-                            collect_ancestors(interesting_nodes, parent_node);
+                        if ((edge >= EdgeType::NATURAL || (obedient_orders && edge == EdgeType::REASONABLE)) &&
+                            &parent != node_p.get()) {  // find predecessors or parent and collect in
+                            // "interesting nodes"
+                            interesting_nodes.insert(&parent);
+                            collect_ancestors(interesting_nodes, parent,
+                                              obedient_orders);
                         }
                     }
                 }
             }
             // Insert reasonable orders between those members of "interesting nodes" that interfere
             // with node_p.
-            for (LandmarkNode *node2_p : interesting_nodes) {
-                const Landmark &landmark2 = node2_p->get_landmark();
-                if (landmark == landmark2 || landmark2.disjunctive)
+            for (LandmarkNode *node : interesting_nodes) {
+                if (node == node_p.get() || node->disjunctive)
                     continue;
-                if (interferes(task_proxy, landmark2, landmark)) {
-                    edge_add(*node2_p, *node_p, EdgeType::REASONABLE);
+                if (interferes(task_proxy, node, node_p.get())) {
+                    if (!obedient_orders)
+                        edge_add(*node, *node_p, EdgeType::REASONABLE);
+                    else
+                        edge_add(*node, *node_p, EdgeType::OBEDIENT_REASONABLE);
                 }
             }
         }
@@ -95,8 +102,8 @@ void LandmarkFactoryReasonableOrdersHPS::approximate_reasonable_orders(
 }
 
 bool LandmarkFactoryReasonableOrdersHPS::interferes(
-    const TaskProxy &task_proxy, const Landmark &landmark_a,
-    const Landmark &landmark_b) const {
+    const TaskProxy &task_proxy, const LandmarkNode *node_a,
+    const LandmarkNode *node_b) const {
     /* Facts a and b interfere (i.e., achieving b before a would mean having to delete b
      and re-achieve it in order to achieve a) if one of the following condition holds:
      1. a and b are mutex
@@ -106,16 +113,16 @@ bool LandmarkFactoryReasonableOrdersHPS::interferes(
      "all actions that add a delete b". However, in our case (SAS+ formalism), this condition
      is the same as 2.
      */
-    assert(landmark_a != landmark_b);
-    assert(!landmark_a.disjunctive && !landmark_b.disjunctive);
+    assert(node_a != node_b);
+    assert(!node_a->disjunctive && !node_b->disjunctive);
 
     VariablesProxy variables = task_proxy.get_variables();
-    for (const FactPair &lm_fact_b : landmark_b.facts) {
+    for (const FactPair &lm_fact_b : node_b->facts) {
         FactProxy fact_b = variables[lm_fact_b.var].get_fact(lm_fact_b.value);
-        for (const FactPair &lm_fact_a : landmark_a.facts) {
+        for (const FactPair &lm_fact_a : node_a->facts) {
             FactProxy fact_a = variables[lm_fact_a.var].get_fact(lm_fact_a.value);
             if (lm_fact_a == lm_fact_b) {
-                if (!landmark_a.conjunctive || !landmark_b.conjunctive)
+                if (!node_a->conjunctive || !node_b->conjunctive)
                     return false;
                 else
                     continue;
@@ -128,7 +135,7 @@ bool LandmarkFactoryReasonableOrdersHPS::interferes(
             // 2. Shared effect e in all operators reaching a, and e, b are mutex
             // Skip this for conjunctive nodes a, as they are typically achieved through a
             // sequence of operators successively adding the parts of a
-            if (landmark_a.conjunctive)
+            if (node_a->conjunctive)
                 continue;
 
             unordered_map<int, int> shared_eff;
@@ -205,7 +212,8 @@ bool LandmarkFactoryReasonableOrdersHPS::interferes(
 }
 
 void LandmarkFactoryReasonableOrdersHPS::collect_ancestors(
-    unordered_set<LandmarkNode *> &result, LandmarkNode &node) {
+    unordered_set<LandmarkNode *> &result,
+    LandmarkNode &node, bool use_reasonable) {
     /* Returns all ancestors in the landmark graph of landmark node "start" */
 
     // There could be cycles if use_reasonable == true
@@ -214,21 +222,24 @@ void LandmarkFactoryReasonableOrdersHPS::collect_ancestors(
     for (const auto &p : node.parents) {
         LandmarkNode &parent = *(p.first);
         const EdgeType &edge = p.second;
-        if (edge >= EdgeType::NATURAL && closed_nodes.count(&parent) == 0) {
-            open_nodes.push_back(&parent);
-            closed_nodes.insert(&parent);
-            result.insert(&parent);
-        }
+        if (edge >= EdgeType::NATURAL || (use_reasonable && edge == EdgeType::REASONABLE))
+            if (closed_nodes.count(&parent) == 0) {
+                open_nodes.push_back(&parent);
+                closed_nodes.insert(&parent);
+                result.insert(&parent);
+            }
     }
     while (!open_nodes.empty()) {
         LandmarkNode &node2 = *(open_nodes.front());
         for (const auto &p : node2.parents) {
             LandmarkNode &parent = *(p.first);
             const EdgeType &edge = p.second;
-            if (edge >= EdgeType::NATURAL && closed_nodes.count(&parent) == 0) {
-                open_nodes.push_back(&parent);
-                closed_nodes.insert(&parent);
-                result.insert(&parent);
+            if (edge >= EdgeType::NATURAL || (use_reasonable && edge == EdgeType::REASONABLE)) {
+                if (closed_nodes.count(&parent) == 0) {
+                    open_nodes.push_back(&parent);
+                    closed_nodes.insert(&parent);
+                    result.insert(&parent);
+                }
             }
         }
         open_nodes.pop_front();
@@ -357,42 +368,32 @@ bool LandmarkFactoryReasonableOrdersHPS::supports_conditional_effects() const {
     return lm_factory->supports_conditional_effects();
 }
 
-class LandmarkFactoryReasonableOrdersHPSFeature : public plugins::TypedFeature<LandmarkFactory, LandmarkFactoryReasonableOrdersHPS> {
-public:
-    LandmarkFactoryReasonableOrdersHPSFeature() : TypedFeature("lm_reasonable_orders_hps") {
-        document_title("HPS Orders");
-        document_synopsis(
-            "Adds reasonable orders described in the following paper" +
-            utils::format_journal_reference(
-                {"Jörg Hoffmann", "Julie Porteous", "Laura Sebastia"},
-                "Ordered Landmarks in Planning",
-                "https://jair.org/index.php/jair/article/view/10390/24882",
-                "Journal of Artificial Intelligence Research",
-                "22",
-                "215-278",
-                "2004"));
 
-        document_note(
-            "Obedient-reasonable orders",
-            "Hoffmann et al. (2004) suggest obedient-reasonable orders in "
-            "addition to reasonable orders. Obedient-reasonable orders were "
-            "later also used by the LAMA planner (Richter and Westphal, 2010). "
-            "They are \"reasonable orders\" under the assumption that all "
-            "(non-obedient) reasonable orders are actually \"natural\", i.e., "
-            "every plan obeys the reasonable orders. We observed "
-            "experimentally that obedient-reasonable orders have minimal "
-            "effect on the performance of LAMA (Büchner et al., 2023) and "
-            "decided to remove them in issue1089.");
+static shared_ptr<LandmarkFactory> _parse(OptionParser &parser) {
+    parser.document_synopsis(
+        "HPS Orders",
+        "Adds reasonable orders and obedient reasonable orders "
+        "described in the following paper" +
+        utils::format_journal_reference(
+            {"Jörg Hoffman", "JuliePorteous", "LauraSebastia"},
+            "Ordered Landmarks in Planning",
+            "https://jair.org/index.php/jair/article/view/10390/24882",
+            "Journal of Artificial Intelligence Research",
+            "22",
+            "215-278",
+            "2004"));
+    parser.add_option<shared_ptr<LandmarkFactory>>("lm_factory");
+    Options opts = parser.parse();
 
-        add_option<shared_ptr<LandmarkFactory>>("lm_factory");
-        add_landmark_factory_options_to_feature(*this);
+    // TODO: correct?
+    parser.document_language_support("conditional_effects",
+                                     "supported if subcomponent supports them");
 
-        // TODO: correct?
-        document_language_support(
-            "conditional_effects",
-            "supported if subcomponent supports them");
-    }
-};
+    if (parser.dry_run())
+        return nullptr;
+    else
+        return make_shared<LandmarkFactoryReasonableOrdersHPS>(opts);
+}
 
-static plugins::FeaturePlugin<LandmarkFactoryReasonableOrdersHPSFeature> _plugin;
+static Plugin<LandmarkFactory> _plugin("lm_reasonable_orders_hps", _parse);
 }

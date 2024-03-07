@@ -19,7 +19,8 @@ class CombiningEvaluator : public Evaluator {
 protected:
     virtual int combine_values(const std::vector<int> &values) = 0;
 public:
-    explicit CombiningEvaluator(const plugins::Options &opts);
+    explicit CombiningEvaluator(
+        const std::vector<std::shared_ptr<Evaluator>> &subevaluators_);
     virtual ~CombiningEvaluator() override;
 
     /*
@@ -42,9 +43,6 @@ public:
     virtual void get_path_dependent_evaluators(
         std::set<Evaluator *> &evals) override;
 };
-
-extern void add_combining_evaluator_options_to_feature(
-    plugins::Feature &feature);
 }
 
 #endif

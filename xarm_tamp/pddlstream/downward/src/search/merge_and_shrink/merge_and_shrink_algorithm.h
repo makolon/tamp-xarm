@@ -1,20 +1,18 @@
 #ifndef MERGE_AND_SHRINK_MERGE_AND_SHRINK_ALGORITHM_H
 #define MERGE_AND_SHRINK_MERGE_AND_SHRINK_ALGORITHM_H
 
-#include "../utils/logging.h"
-
 #include <memory>
 
 class TaskProxy;
 
-namespace plugins {
-class ConstructContext;
-class Feature;
+namespace options {
+class OptionParser;
 class Options;
 }
 
 namespace utils {
 class CountdownTimer;
+enum class Verbosity;
 }
 
 namespace merge_and_shrink {
@@ -43,7 +41,7 @@ class MergeAndShrinkAlgorithm {
     const bool prune_unreachable_states;
     const bool prune_irrelevant_states;
 
-    mutable utils::LogProxy log;
+    const utils::Verbosity verbosity;
     const double main_loop_max_time;
 
     long starting_peak_memory;
@@ -57,13 +55,13 @@ class MergeAndShrinkAlgorithm {
         FactoredTransitionSystem &fts,
         const TaskProxy &task_proxy);
 public:
-    explicit MergeAndShrinkAlgorithm(const plugins::Options &opts);
+    explicit MergeAndShrinkAlgorithm(const options::Options &opts);
     FactoredTransitionSystem build_factored_transition_system(const TaskProxy &task_proxy);
 };
 
-extern void add_merge_and_shrink_algorithm_options_to_feature(plugins::Feature &feature);
-extern void add_transition_system_size_limit_options_to_feature(plugins::Feature &feature);
-extern void handle_shrink_limit_options_defaults(plugins::Options &opts, const utils::Context &context);
+extern void add_merge_and_shrink_algorithm_options_to_parser(options::OptionParser &parser);
+extern void add_transition_system_size_limit_options_to_parser(options::OptionParser &parser);
+extern void handle_shrink_limit_options_defaults(options::Options &opts);
 }
 
 #endif

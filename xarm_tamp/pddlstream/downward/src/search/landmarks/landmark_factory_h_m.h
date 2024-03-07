@@ -90,8 +90,8 @@ class LandmarkFactoryHM : public LandmarkFactory {
     void initialize(const TaskProxy &task_proxy);
     void free_unneeded_memory();
 
-    void print_fluentset(const VariablesProxy &variables, const FluentSet &fs) const;
-    void print_pm_op(const VariablesProxy &variables, const PMOp &op) const;
+    void print_fluentset(const VariablesProxy &variables, const FluentSet &fs);
+    void print_pm_op(const VariablesProxy &variables, const PMOp &op);
 
     const int m_;
     const bool conjunctive_landmarks;
@@ -138,7 +138,7 @@ class LandmarkFactoryHM : public LandmarkFactory {
     void print_proposition(const VariablesProxy &variables, const FactPair &fluent) const;
 
 public:
-    explicit LandmarkFactoryHM(const plugins::Options &opts);
+    explicit LandmarkFactoryHM(const options::Options &opts);
 
     virtual bool computes_reasonable_orders() const override;
     virtual bool supports_conditional_effects() const override;

@@ -61,13 +61,13 @@ pair<int, int> compute_shrink_sizes(
   if the size limit is not violated. If so, trigger the shrinking process.
   Return true iff the factor was actually shrunk.
 */
-static bool shrink_factor(
+bool shrink_factor(
     FactoredTransitionSystem &fts,
     int index,
     int new_size,
     int shrink_threshold_before_merge,
     const ShrinkStrategy &shrink_strategy,
-    utils::LogProxy &log) {
+    utils::Verbosity verbosity) {
     /*
       TODO: think about factoring out common logic of this function and the
       function copy_and_shrink_ts in merge_scoring_function_miasm_utils.cc.
@@ -75,21 +75,21 @@ static bool shrink_factor(
     const TransitionSystem &ts = fts.get_transition_system(index);
     int num_states = ts.get_size();
     if (num_states > min(new_size, shrink_threshold_before_merge)) {
-        if (log.is_at_least_verbose()) {
-            log << ts.tag() << "current size: " << num_states;
+        if (verbosity >= utils::Verbosity::VERBOSE) {
+            utils::g_log << ts.tag() << "current size: " << num_states;
             if (new_size < num_states)
-                log << " (new size limit: " << new_size;
+                utils::g_log << " (new size limit: " << new_size;
             else
-                log << " (shrink threshold: " << shrink_threshold_before_merge;
-            log << ")" << endl;
+                utils::g_log << " (shrink threshold: " << shrink_threshold_before_merge;
+            utils::g_log << ")" << endl;
         }
 
         const Distances &distances = fts.get_distances(index);
         StateEquivalenceRelation equivalence_relation =
-            shrink_strategy.compute_equivalence_relation(ts, distances, new_size, log);
+            shrink_strategy.compute_equivalence_relation(ts, distances, new_size);
         // TODO: We currently violate this; see issue250
         //assert(equivalence_relation.size() <= target_size);
-        return fts.apply_abstraction(index, equivalence_relation, log);
+        return fts.apply_abstraction(index, equivalence_relation, verbosity);
     }
     return false;
 }
@@ -102,7 +102,7 @@ bool shrink_before_merge_step(
     int max_states_before_merge,
     int shrink_threshold_before_merge,
     const ShrinkStrategy &shrink_strategy,
-    utils::LogProxy &log) {
+    utils::Verbosity verbosity) {
     /*
       Compute the size limit for both transition systems as imposed by
       max_states and max_states_before_merge.
@@ -126,9 +126,9 @@ bool shrink_before_merge_step(
         new_sizes.first,
         shrink_threshold_before_merge,
         shrink_strategy,
-        log);
-    if (shrunk1) {
-        fts.statistics(index1, log);
+        verbosity);
+    if (verbosity >= utils::Verbosity::VERBOSE && shrunk1) {
+        fts.statistics(index1);
     }
     bool shrunk2 = shrink_factor(
         fts,
@@ -136,9 +136,9 @@ bool shrink_before_merge_step(
         new_sizes.second,
         shrink_threshold_before_merge,
         shrink_strategy,
-        log);
-    if (shrunk2) {
-        fts.statistics(index2, log);
+        verbosity);
+    if (verbosity >= utils::Verbosity::VERBOSE && shrunk2) {
+        fts.statistics(index2);
     }
     return shrunk1 || shrunk2;
 }
@@ -148,7 +148,7 @@ bool prune_step(
     int index,
     bool prune_unreachable_states,
     bool prune_irrelevant_states,
-    utils::LogProxy &log) {
+    utils::Verbosity verbosity) {
     assert(prune_unreachable_states || prune_irrelevant_states);
     const TransitionSystem &ts = fts.get_transition_system(index);
     const Distances &distances = fts.get_distances(index);
@@ -184,14 +184,14 @@ bool prune_step(
             state_equivalence_relation.push_back(state_equivalence_class);
         }
     }
-    if (log.is_at_least_verbose() &&
+    if (verbosity >= utils::Verbosity::VERBOSE &&
         (unreachable_count || irrelevant_count)) {
-        log << ts.tag()
-            << "unreachable: " << unreachable_count << " states, "
-            << "irrelevant: " << irrelevant_count << " states ("
-            << "total dead: " << dead_count << " states)" << endl;
+        utils::g_log << ts.tag()
+                     << "unreachable: " << unreachable_count << " states, "
+                     << "irrelevant: " << irrelevant_count << " states ("
+                     << "total dead: " << dead_count << " states)" << endl;
     }
-    return fts.apply_abstraction(index, state_equivalence_relation, log);
+    return fts.apply_abstraction(index, state_equivalence_relation, verbosity);
 }
 
 vector<int> compute_abstraction_mapping(

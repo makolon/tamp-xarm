@@ -6,10 +6,6 @@
 class State;
 class TaskProxy;
 
-namespace utils {
-class LogProxy;
-}
-
 namespace pdbs {
 class ZeroOnePDBs {
     PDBCollection pattern_databases;
@@ -27,7 +23,7 @@ public:
       these states.
     */
     double compute_approx_mean_finite_h() const;
-    void dump(utils::LogProxy &log) const;
+    void dump() const;
 };
 }
 

@@ -3,7 +3,7 @@
 
 #include "shrink_strategy.h"
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -36,16 +36,15 @@ class ShrinkBisimulation : public ShrinkStrategy {
         std::vector<Signature> &signatures,
         const std::vector<int> &state_to_group) const;
 protected:
-    virtual void dump_strategy_specific_options(utils::LogProxy &log) const override;
+    virtual void dump_strategy_specific_options() const override;
     virtual std::string name() const override;
 public:
-    explicit ShrinkBisimulation(const plugins::Options &opts);
+    explicit ShrinkBisimulation(const options::Options &opts);
     virtual ~ShrinkBisimulation() override = default;
     virtual StateEquivalenceRelation compute_equivalence_relation(
         const TransitionSystem &ts,
         const Distances &distances,
-        int target_size,
-        utils::LogProxy &log) const override;
+        int target_size) const override;
 
     virtual bool requires_init_distances() const override {
         return false;

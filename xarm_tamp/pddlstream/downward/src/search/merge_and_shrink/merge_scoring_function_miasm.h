@@ -3,31 +3,27 @@
 
 #include "merge_scoring_function.h"
 
-#include "../utils/logging.h"
-
 #include <memory>
-#include <optional>
+
+namespace options {
+class Options;
+}
 
 namespace merge_and_shrink {
 class ShrinkStrategy;
 class MergeScoringFunctionMIASM : public MergeScoringFunction {
-    const bool use_caching;
     std::shared_ptr<ShrinkStrategy> shrink_strategy;
     const int max_states;
     const int max_states_before_merge;
     const int shrink_threshold_before_merge;
-    utils::LogProxy silent_log;
-    std::vector<std::vector<std::optional<double>>> cached_scores_by_merge_candidate_indices;
-
+protected:
     virtual std::string name() const override;
-    virtual void dump_function_specific_options(utils::LogProxy &log) const override;
 public:
-    explicit MergeScoringFunctionMIASM(const plugins::Options &options);
+    explicit MergeScoringFunctionMIASM(const options::Options &options);
     virtual ~MergeScoringFunctionMIASM() override = default;
     virtual std::vector<double> compute_scores(
         const FactoredTransitionSystem &fts,
         const std::vector<std::pair<int, int>> &merge_candidates) override;
-    virtual void initialize(const TaskProxy &task_proxy) override;
 
     virtual bool requires_init_distances() const override {
         return true;

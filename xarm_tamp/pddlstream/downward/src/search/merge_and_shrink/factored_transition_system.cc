@@ -43,7 +43,7 @@ FactoredTransitionSystem::FactoredTransitionSystem(
     vector<unique_ptr<Distances>> &&distances,
     const bool compute_init_distances,
     const bool compute_goal_distances,
-    utils::LogProxy &log)
+    utils::Verbosity verbosity)
     : labels(move(labels)),
       transition_systems(move(transition_systems)),
       mas_representations(move(mas_representations)),
@@ -54,7 +54,7 @@ FactoredTransitionSystem::FactoredTransitionSystem(
     for (size_t index = 0; index < this->transition_systems.size(); ++index) {
         if (compute_init_distances || compute_goal_distances) {
             this->distances[index]->compute_distances(
-                compute_init_distances, compute_goal_distances, log);
+                compute_init_distances, compute_goal_distances, verbosity);
         }
         assert(is_component_valid(index));
     }
@@ -97,7 +97,8 @@ bool FactoredTransitionSystem::is_component_valid(int index) const {
     if (compute_goal_distances && !distances[index]->are_goal_distances_computed()) {
         return false;
     }
-    return transition_systems[index]->is_valid();
+    return transition_systems[index]->are_transitions_sorted_unique() &&
+           transition_systems[index]->in_sync_with_label_equivalence_relation();
 }
 
 void FactoredTransitionSystem::assert_all_components_valid() const {
@@ -112,10 +113,9 @@ void FactoredTransitionSystem::apply_label_mapping(
     const vector<pair<int, vector<int>>> &label_mapping,
     int combinable_index) {
     assert_all_components_valid();
-    for (const auto &entry : label_mapping) {
-        assert(entry.first == labels->get_num_total_labels());
-        const vector<int> &old_labels = entry.second;
-        labels->reduce_labels(old_labels);
+    for (const auto &new_label_old_labels : label_mapping) {
+        assert(new_label_old_labels.first == labels->get_size());
+        labels->reduce_labels(new_label_old_labels.second);
     }
     for (size_t i = 0; i < transition_systems.size(); ++i) {
         if (transition_systems[i]) {
@@ -129,7 +129,7 @@ void FactoredTransitionSystem::apply_label_mapping(
 bool FactoredTransitionSystem::apply_abstraction(
     int index,
     const StateEquivalenceRelation &state_equivalence_relation,
-    utils::LogProxy &log) {
+    utils::Verbosity verbosity) {
     assert(is_component_valid(index));
 
     int new_num_states = state_equivalence_relation.size();
@@ -141,13 +141,13 @@ bool FactoredTransitionSystem::apply_abstraction(
         transition_systems[index]->get_size(), state_equivalence_relation);
 
     transition_systems[index]->apply_abstraction(
-        state_equivalence_relation, abstraction_mapping, log);
+        state_equivalence_relation, abstraction_mapping, verbosity);
     if (compute_init_distances || compute_goal_distances) {
         distances[index]->apply_abstraction(
             state_equivalence_relation,
             compute_init_distances,
             compute_goal_distances,
-            log);
+            verbosity);
     }
     mas_representations[index]->apply_abstraction_to_lookup_table(
         abstraction_mapping);
@@ -161,7 +161,7 @@ bool FactoredTransitionSystem::apply_abstraction(
 int FactoredTransitionSystem::merge(
     int index1,
     int index2,
-    utils::LogProxy &log) {
+    utils::Verbosity verbosity) {
     assert(is_component_valid(index1));
     assert(is_component_valid(index2));
     transition_systems.push_back(
@@ -169,7 +169,7 @@ int FactoredTransitionSystem::merge(
             *labels,
             *transition_systems[index1],
             *transition_systems[index2],
-            log));
+            verbosity));
     distances[index1] = nullptr;
     distances[index2] = nullptr;
     transition_systems[index1] = nullptr;
@@ -186,7 +186,7 @@ int FactoredTransitionSystem::merge(
     // Restore the invariant that distances are computed.
     if (compute_init_distances || compute_goal_distances) {
         distances[new_index]->compute_distances(
-            compute_init_distances, compute_goal_distances, log);
+            compute_init_distances, compute_goal_distances, verbosity);
     }
     --num_active_entries;
     assert(is_component_valid(new_index));
@@ -200,29 +200,23 @@ FactoredTransitionSystem::extract_factor(int index) {
                      move(distances[index]));
 }
 
-void FactoredTransitionSystem::statistics(int index, utils::LogProxy &log) const {
-    if (log.is_at_least_verbose()) {
-        assert(is_component_valid(index));
-        const TransitionSystem &ts = *transition_systems[index];
-        ts.statistics(log);
-        const Distances &dist = *distances[index];
-        dist.statistics(log);
-    }
+void FactoredTransitionSystem::statistics(int index) const {
+    assert(is_component_valid(index));
+    const TransitionSystem &ts = *transition_systems[index];
+    ts.statistics();
+    const Distances &dist = *distances[index];
+    dist.statistics();
 }
 
-void FactoredTransitionSystem::dump(int index, utils::LogProxy &log) const {
-    if (log.is_at_least_debug()) {
-        assert_index_valid(index);
-        transition_systems[index]->dump_labels_and_transitions(log);
-        mas_representations[index]->dump(log);
-    }
+void FactoredTransitionSystem::dump(int index) const {
+    assert_index_valid(index);
+    transition_systems[index]->dump_labels_and_transitions();
+    mas_representations[index]->dump();
 }
 
-void FactoredTransitionSystem::dump(utils::LogProxy &log) const {
-    if (log.is_at_least_debug()) {
-        for (int index : *this) {
-            dump(index, log);
-        }
+void FactoredTransitionSystem::dump() const {
+    for (int index : *this) {
+        dump(index);
     }
 }
 

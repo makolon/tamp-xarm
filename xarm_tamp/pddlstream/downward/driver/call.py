@@ -5,20 +5,30 @@ from . import returncodes
 
 import logging
 import os
-import shlex
 import subprocess
 import sys
+
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 
 def print_call_settings(nick, cmd, stdin, time_limit, memory_limit):
     if stdin is not None:
-        stdin = shlex.quote(stdin)
+        stdin = quote(stdin)
     logging.info("{} stdin: {}".format(nick, stdin))
-    limits.print_limits(nick, time_limit, memory_limit)
+    if time_limit is not None:
+        time_limit = str(time_limit) + "s"
+    logging.info("{} time limit: {}".format(nick, time_limit))
+    if memory_limit is not None:
+        memory_limit = int(limits.convert_to_mb(memory_limit))
+        memory_limit = str(memory_limit) + " MB"
+    logging.info("{} memory limit: {}".format(nick, memory_limit))
 
-    escaped_cmd = [shlex.quote(x) for x in cmd]
+    escaped_cmd = [quote(x) for x in cmd]
     if stdin is not None:
-        escaped_cmd.extend(["<", shlex.quote(stdin)])
+        escaped_cmd.extend(["<", quote(stdin)])
     logging.info("{} command line string: {}".format(nick, " ".join(escaped_cmd)))
 
 

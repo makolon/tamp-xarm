@@ -19,7 +19,7 @@ static State sample_state_with_random_walk(
     int init_h,
     double average_operator_cost,
     utils::RandomNumberGenerator &rng,
-    const function<bool(State)> &is_dead_end) {
+    function<bool(State)> is_dead_end) {
     assert(init_h != numeric_limits<int>::max());
     int n;
     if (init_h == 0) {
@@ -42,7 +42,7 @@ static State sample_state_with_random_walk(
     // Calculate length of random walk according to a binomial distribution.
     int length = 0;
     for (int j = 0; j < n; ++j) {
-        double random = rng.random(); // [0..1)
+        double random = rng(); // [0..1)
         if (random < p)
             ++length;
     }

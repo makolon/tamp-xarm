@@ -3,7 +3,9 @@
 #include "factored_transition_system.h"
 #include "merge_scoring_function.h"
 
-#include "../plugins/plugin.h"
+#include "../options/option_parser.h"
+#include "../options/options.h"
+#include "../options/plugin.h"
 
 #include <cassert>
 
@@ -11,15 +13,15 @@ using namespace std;
 
 namespace merge_and_shrink {
 MergeSelectorScoreBasedFiltering::MergeSelectorScoreBasedFiltering(
-    const plugins::Options &options)
+    const options::Options &options)
     : merge_scoring_functions(
           options.get_list<shared_ptr<MergeScoringFunction>>(
               "scoring_functions")) {
 }
 
-static vector<pair<int, int>> get_remaining_candidates(
+vector<pair<int, int>> MergeSelectorScoreBasedFiltering::get_remaining_candidates(
     const vector<pair<int, int>> &merge_candidates,
-    const vector<double> &scores) {
+    const vector<double> &scores) const {
     assert(merge_candidates.size() == scores.size());
     double best_score = INF;
     for (double score : scores) {
@@ -74,13 +76,10 @@ string MergeSelectorScoreBasedFiltering::name() const {
     return "score based filtering";
 }
 
-void MergeSelectorScoreBasedFiltering::dump_selector_specific_options(
-    utils::LogProxy &log) const {
-    if (log.is_at_least_normal()) {
-        for (const shared_ptr<MergeScoringFunction> &scoring_function
-             : merge_scoring_functions) {
-            scoring_function->dump_options(log);
-        }
+void MergeSelectorScoreBasedFiltering::dump_specific_options() const {
+    for (const shared_ptr<MergeScoringFunction> &scoring_function
+         : merge_scoring_functions) {
+        scoring_function->dump_options();
     }
 }
 
@@ -104,20 +103,22 @@ bool MergeSelectorScoreBasedFiltering::requires_goal_distances() const {
     return false;
 }
 
-class MergeSelectorScoreBasedFilteringFeature : public plugins::TypedFeature<MergeSelector, MergeSelectorScoreBasedFiltering> {
-public:
-    MergeSelectorScoreBasedFilteringFeature() : TypedFeature("score_based_filtering") {
-        document_title("Score based filtering merge selector");
-        document_synopsis(
-            "This merge selector has a list of scoring functions, which are used "
-            "iteratively to compute scores for merge candidates, keeping the best "
-            "ones (with minimal scores) until only one is left.");
+static shared_ptr<MergeSelector>_parse(options::OptionParser &parser) {
+    parser.document_synopsis(
+        "Score based filtering merge selector",
+        "This merge selector has a list of scoring functions, which are used "
+        "iteratively to compute scores for merge candidates, keeping the best "
+        "ones (with minimal scores) until only one is left.");
+    parser.add_list_option<shared_ptr<MergeScoringFunction>>(
+        "scoring_functions",
+        "The list of scoring functions used to compute scores for candidates.");
 
-        add_list_option<shared_ptr<MergeScoringFunction>>(
-            "scoring_functions",
-            "The list of scoring functions used to compute scores for candidates.");
-    }
-};
+    options::Options opts = parser.parse();
+    if (parser.dry_run())
+        return nullptr;
+    else
+        return make_shared<MergeSelectorScoreBasedFiltering>(opts);
+}
 
-static plugins::FeaturePlugin<MergeSelectorScoreBasedFilteringFeature> _plugin;
+static options::Plugin<MergeSelector> _plugin("score_based_filtering", _parse);
 }

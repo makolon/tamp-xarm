@@ -10,7 +10,7 @@ class AbstractTask;
 class State;
 
 namespace lp {
-class LinearProgram;
+class LPConstraint;
 class LPSolver;
 }
 
@@ -35,10 +35,14 @@ public:
 
     /*
       Called upon initialization for the given task. Use this to add permanent
-      constraints and perform other initialization.
+      constraints and perform other initialization. The parameter "infinity"
+      is the value that the LP solver uses for infinity. Use it for constraint
+      and variable bounds.
     */
     virtual void initialize_constraints(
-        const std::shared_ptr<AbstractTask> &task, lp::LinearProgram &lp);
+        const std::shared_ptr<AbstractTask> &task,
+        named_vector::NamedVector<lp::LPConstraint> &constraints,
+        double infinity);
 
     /*
       Called before evaluating a state. Use this to add temporary constraints
@@ -47,8 +51,8 @@ public:
 
       Returns true if a dead end was detected and false otherwise.
     */
-    virtual bool update_constraints(
-        const State &state, lp::LPSolver &lp_solver) = 0;
+    virtual bool update_constraints(const State &state,
+                                    lp::LPSolver &lp_solver) = 0;
 };
 }
 

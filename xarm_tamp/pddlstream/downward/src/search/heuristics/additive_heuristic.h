@@ -65,7 +65,7 @@ protected:
     // Common part of h^add and h^ff computation.
     int compute_add_and_ff(const State &state);
 public:
-    explicit AdditiveHeuristic(const plugins::Options &opts);
+    explicit AdditiveHeuristic(const options::Options &opts);
 
     /*
       TODO: The two methods below are temporarily needed for the CEGAR

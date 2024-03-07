@@ -11,23 +11,21 @@ jobs:
     name: Autodoc
     if: github.repository == 'aibasel/downward'
     timeout-minutes: 60
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     env:
       DOWNWARD_AUTODOC_PASSWORD: ${{ secrets.DOWNWARD_AUTODOC_PASSWORD }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@master
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@master
         with:
-          python-version: '3.10'
+          python-version: 3.8
 
       - name: Run autodoc
         run: |
-          python3 build.py
           cd misc/autodoc
-          python3 -m pip install -r requirements.txt
           python3 autodoc.py
 
 ...

@@ -1,10 +1,10 @@
 #! /usr/bin/env python3
 
+from __future__ import print_function
 
 from collections import deque, defaultdict
 import itertools
 import time
-from typing import List
 
 import invariants
 import options
@@ -97,10 +97,10 @@ def find_invariants(task, reachable_action_params):
             candidates.append(invariant)
             seen_candidates.add(invariant)
 
-    start_time = time.process_time()
+    start_time = time.time()
     while candidates:
         candidate = candidates.popleft()
-        if time.process_time() - start_time > options.invariant_generation_max_time:
+        if time.time() - start_time > options.invariant_generation_max_time:
             print("Time limit reached, aborting invariant generation")
             return
         if candidate.check_balance(balance_checker, enqueue_func):
@@ -127,8 +127,7 @@ def useful_groups(invariants, initial_facts):
     for (invariant, parameters) in useful_groups:
         yield [part.instantiate(parameters) for part in sorted(invariant.parts)]
 
-# returns a list of mutex groups (parameters instantiated, counted variables not)
-def get_groups(task, reachable_action_params=None) -> List[List[pddl.Atom]]:
+def get_groups(task, reachable_action_params=None):
     with timers.timing("Finding invariants", block=True):
         invariants = sorted(find_invariants(task, reachable_action_params))
     with timers.timing("Checking invariant weight"):

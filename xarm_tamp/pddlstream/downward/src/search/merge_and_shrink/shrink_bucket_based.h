@@ -6,9 +6,9 @@
 #include <memory>
 #include <vector>
 
-namespace plugins {
+namespace options {
+class OptionParser;
 class Options;
-class Feature;
 }
 
 namespace utils {
@@ -43,22 +43,20 @@ protected:
 private:
     StateEquivalenceRelation compute_abstraction(
         const std::vector<Bucket> &buckets,
-        int target_size,
-        utils::LogProxy &log) const;
+        int target_size) const;
 
 protected:
     virtual std::vector<Bucket> partition_into_buckets(
         const TransitionSystem &ts,
         const Distances &Distances) const = 0;
 public:
-    explicit ShrinkBucketBased(const plugins::Options &opts);
+    explicit ShrinkBucketBased(const options::Options &opts);
     virtual ~ShrinkBucketBased() override = default;
     virtual StateEquivalenceRelation compute_equivalence_relation(
         const TransitionSystem &ts,
         const Distances &distances,
-        int target_size,
-        utils::LogProxy &log) const override;
-    static void add_options_to_feature(plugins::Feature &feature);
+        int target_size) const override;
+    static void add_options_to_parser(options::OptionParser &parser);
 };
 }
 

@@ -2,8 +2,9 @@
 
 #include "evaluation_context.h"
 #include "evaluation_result.h"
+#include "option_parser.h"
+#include "plugin.h"
 
-#include "plugins/plugin.h"
 #include "task_utils/task_properties.h"
 #include "tasks/cost_adapted_task.h"
 #include "tasks/root_task.h"
@@ -14,8 +15,8 @@
 
 using namespace std;
 
-Heuristic::Heuristic(const plugins::Options &opts)
-    : Evaluator(opts, true, true, true),
+Heuristic::Heuristic(const Options &opts)
+    : Evaluator(opts.get_unparsed_config(), true, true, true),
       heuristic_cache(HEntry(NO_VALUE, true)), //TODO: is true really a good idea here?
       cache_evaluator_values(opts.get<bool>("cache_estimates")),
       task(opts.get<shared_ptr<AbstractTask>>("transform")),
@@ -31,16 +32,25 @@ void Heuristic::set_preferred(const OperatorProxy &op) {
 
 State Heuristic::convert_ancestor_state(const State &ancestor_state) const {
     return task_proxy.convert_ancestor_state(ancestor_state);
+//State Heuristic::convert_global_state(const GlobalState &global_state) const {
+//    vector<int> values = global_state.get_values();
+//    for (const VariableProxy var : task_proxy.get_variables()) {
+//        if (var.is_derived()) {
+//            // Caelan: resets axiom variables to their default value
+//            values[var.get_id()] = var.get_default_axiom_value();
+//        }
+//    }
+//    State state(*g_root_task(), move(values));
+//    return task_proxy.convert_ancestor_state(state);
 }
 
-void Heuristic::add_options_to_feature(plugins::Feature &feature) {
-    add_evaluator_options_to_feature(feature);
-    feature.add_option<shared_ptr<AbstractTask>>(
+void Heuristic::add_options_to_parser(OptionParser &parser) {
+    parser.add_option<shared_ptr<AbstractTask>>(
         "transform",
         "Optional task transformation for the heuristic."
         " Currently, adapt_costs() and no_transform() are available.",
         "no_transform()");
-    feature.add_option<bool>("cache_estimates", "cache heuristic estimates", "true");
+    parser.add_option<bool>("cache_estimates", "cache heuristic estimates", "true");
 }
 
 EvaluationResult Heuristic::compute_result(EvaluationContext &eval_context) {
@@ -79,14 +89,27 @@ EvaluationResult Heuristic::compute_result(EvaluationContext &eval_context) {
         heuristic = EvaluationResult::INFTY;
     }
 
-#ifndef NDEBUG
-    TaskProxy global_task_proxy = state.get_task();
+    /*TaskProxy global_task_proxy = TaskProxy(*g_root_task());
+    State global_state(*g_root_task(), state.get_values());
     OperatorsProxy global_operators = global_task_proxy.get_operators();
-    if (heuristic != EvaluationResult::INFTY) {
-        for (OperatorID op_id : preferred_operators)
-            assert(task_properties::is_applicable(global_operators[op_id], state));
+    ordered_set::OrderedSet<OperatorID> applicable_preferred;
+    for (OperatorID op_id : preferred_operators) {
+        if (task_properties::is_applicable(global_operators[op_id], global_state)) {
+            // Caelan: prune preferred operators that are not applicable
+            applicable_preferred.insert(op_id);
+        }
     }
-#endif
+    result.set_preferred_operators(applicable_preferred.pop_as_vector());
+    preferred_operators.clear();*/
+
+//#ifndef NDEBUG
+//    TaskProxy global_task_proxy = state.get_task();
+//    OperatorsProxy global_operators = global_task_proxy.get_operators();
+//    if (heuristic != EvaluationResult::INFTY) {
+//        for (OperatorID op_id : preferred_operators)
+//            assert(task_properties::is_applicable(global_operators[op_id], state));
+//    }
+//#endif
 
     result.set_evaluator_value(heuristic);
     result.set_preferred_operators(preferred_operators.pop_as_vector());

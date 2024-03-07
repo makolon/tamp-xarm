@@ -1,10 +1,9 @@
-from typing import List, Tuple
+from __future__ import print_function
 
 SAS_FILE_VERSION = 3
 
 DEBUG = False
 
-VarValPair = Tuple[int, int]
 
 class SASTask:
     """Planning task in finite-domain representation.
@@ -14,14 +13,8 @@ class SASTask:
     generally be sorted and mention each variable at most once. See
     the validate methods for details."""
 
-    def __init__(self,
-                 variables: "SASTask",
-                 mutexes: List["SASMutexGroup"],
-                 init: "SASInit",
-                 goal: "SASGoal",
-                 operators: List["SASOperator"],
-                 axioms: List["SASAxiom"],
-                 metric: bool) -> None:
+    def __init__(self, variables, mutexes, init, goal,
+                 operators, axioms, metric):
         self.variables = variables
         self.mutexes = mutexes
         self.init = init
@@ -118,8 +111,7 @@ class SASTask:
 
 
 class SASVariables:
-    def __init__(self, ranges: List[int], axiom_layers: List[int],
-                 value_names: List[List[str]]) -> None:
+    def __init__(self, ranges, axiom_layers, value_names):
         self.ranges = ranges
         self.axiom_layers = axiom_layers
         self.value_names = value_names
@@ -185,7 +177,7 @@ class SASVariables:
 
 
 class SASMutexGroup:
-    def __init__(self, facts: List[VarValPair]):
+    def __init__(self, facts):
         self.facts = sorted(facts)
 
     def validate(self, variables):
@@ -237,7 +229,7 @@ class SASInit:
 
 
 class SASGoal:
-    def __init__(self, pairs: List[Tuple[int, int]]) -> None:
+    def __init__(self, pairs):
         self.pairs = sorted(pairs)
 
     def validate(self, variables):
@@ -261,12 +253,12 @@ class SASGoal:
 
 
 class SASOperator:
-    def __init__(self, name: str, prevail: List[VarValPair], pre_post:
-            List[Tuple[int, int, int, List[VarValPair]]], cost: int) -> None:
+    def __init__(self, name, prevail, pre_post, cost, propositional_action=None):
         self.name = name
         self.prevail = sorted(prevail)
         self.pre_post = self._canonical_pre_post(pre_post)
         self.cost = cost
+        self.propositional_action = propositional_action
 
     def _canonical_pre_post(self, pre_post):
         # Return a sorted and uniquified version of pre_post. We would
@@ -348,8 +340,8 @@ class SASOperator:
                 pre_values[var] = pre
         for var, pre, post, cond in self.pre_post:
             for cvar, cval in cond:
-                assert cvar not in pre_values or pre_values[cvar] == -1
-                assert cvar not in prevail_vars
+                assert(cvar not in pre_values or pre_values[cvar] == -1)
+                assert(cvar not in prevail_vars)
         assert self.pre_post
         assert self.cost >= 0 and self.cost == int(self.cost)
 
@@ -409,9 +401,10 @@ class SASOperator:
 
 
 class SASAxiom:
-    def __init__(self, condition: List[VarValPair], effect: VarValPair) -> None:
+    def __init__(self, condition, effect, propositional_axiom=None):
         self.condition = sorted(condition)
         self.effect = effect
+        self.propositional_axiom = propositional_axiom
         assert self.effect[1] in (0, 1)
 
         for _, val in condition:

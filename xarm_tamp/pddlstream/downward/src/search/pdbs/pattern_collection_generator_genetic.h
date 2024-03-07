@@ -9,6 +9,10 @@
 
 class AbstractTask;
 
+namespace options {
+class Options;
+}
+
 namespace utils {
 class RandomNumberGenerator;
 }
@@ -108,12 +112,11 @@ class PatternCollectionGeneratorGenetic : public PatternCollectionGenerator {
       of recombination.
     */
     void genetic_algorithm();
-
-    virtual std::string name() const override;
-    virtual PatternCollectionInformation compute_patterns(
-        const std::shared_ptr<AbstractTask> &task) override;
 public:
-    explicit PatternCollectionGeneratorGenetic(const plugins::Options &opts);
+    explicit PatternCollectionGeneratorGenetic(const options::Options &opts);
+
+    virtual PatternCollectionInformation generate(
+        const std::shared_ptr<AbstractTask> &task) override;
 };
 }
 

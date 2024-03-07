@@ -5,7 +5,7 @@
 
 #include <memory>
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -17,7 +17,7 @@ class LandmarkCutHeuristic : public Heuristic {
 
     virtual int compute_heuristic(const State &ancestor_state) override;
 public:
-    explicit LandmarkCutHeuristic(const plugins::Options &opts);
+    explicit LandmarkCutHeuristic(const options::Options &opts);
     virtual ~LandmarkCutHeuristic() override;
 };
 }

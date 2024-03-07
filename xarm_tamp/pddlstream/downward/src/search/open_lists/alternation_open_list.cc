@@ -1,8 +1,9 @@
 #include "alternation_open_list.h"
 
 #include "../open_list.h"
+#include "../option_parser.h"
+#include "../plugin.h"
 
-#include "../plugins/plugin.h"
 #include "../utils/memory.h"
 #include "../utils/system.h"
 
@@ -25,7 +26,7 @@ protected:
                               const Entry &entry) override;
 
 public:
-    explicit AlternationOpenList(const plugins::Options &opts);
+    explicit AlternationOpenList(const Options &opts);
     virtual ~AlternationOpenList() override = default;
 
     virtual Entry remove_min() override;
@@ -42,7 +43,7 @@ public:
 
 
 template<class Entry>
-AlternationOpenList<Entry>::AlternationOpenList(const plugins::Options &opts)
+AlternationOpenList<Entry>::AlternationOpenList(const Options &opts)
     : boost_amount(opts.get<int>("boost")) {
     vector<shared_ptr<OpenListFactory>> open_list_factories(
         opts.get_list<shared_ptr<OpenListFactory>>("sublists"));
@@ -127,7 +128,7 @@ bool AlternationOpenList<Entry>::is_reliable_dead_end(
 }
 
 
-AlternationOpenListFactory::AlternationOpenListFactory(const plugins::Options &options)
+AlternationOpenListFactory::AlternationOpenListFactory(const Options &options)
     : options(options) {
 }
 
@@ -141,28 +142,25 @@ AlternationOpenListFactory::create_edge_open_list() {
     return utils::make_unique_ptr<AlternationOpenList<EdgeOpenListEntry>>(options);
 }
 
-class AlternationOpenListFeature : public plugins::TypedFeature<OpenListFactory, AlternationOpenListFactory> {
-public:
-    AlternationOpenListFeature() : TypedFeature("alt") {
-        document_title("Alternation open list");
-        document_synopsis(
-            "alternates between several open lists.");
+static shared_ptr<OpenListFactory> _parse(OptionParser &parser) {
+    parser.document_synopsis("Alternation open list",
+                             "alternates between several open lists.");
+    parser.add_list_option<shared_ptr<OpenListFactory>>(
+        "sublists",
+        "open lists between which this one alternates");
+    parser.add_option<int>(
+        "boost",
+        "boost value for contained open lists that are restricted "
+        "to preferred successors",
+        "0");
 
-        add_list_option<shared_ptr<OpenListFactory>>(
-            "sublists",
-            "open lists between which this one alternates");
-        add_option<int>(
-            "boost",
-            "boost value for contained open lists that are restricted "
-            "to preferred successors",
-            "0");
-    }
+    Options opts = parser.parse();
+    opts.verify_list_non_empty<shared_ptr<OpenListFactory>>("sublists");
+    if (parser.dry_run())
+        return nullptr;
+    else
+        return make_shared<AlternationOpenListFactory>(opts);
+}
 
-    virtual shared_ptr<AlternationOpenListFactory> create_component(const plugins::Options &options, const utils::Context &context) const override {
-        plugins::verify_list_non_empty<shared_ptr<OpenListFactory>>(context, options, "sublists");
-        return make_shared<AlternationOpenListFactory>(options);
-    }
-};
-
-static plugins::FeaturePlugin<AlternationOpenListFeature> _plugin;
+static Plugin<OpenListFactory> _plugin("alt", _parse);
 }

@@ -11,16 +11,16 @@
 using namespace std;
 
 namespace merge_and_shrink {
-ShrinkBucketBased::ShrinkBucketBased(const plugins::Options &opts)
+ShrinkBucketBased::ShrinkBucketBased(const options::Options &opts)
     : rng(utils::parse_rng_from_options(opts)) {
 }
 
-void ShrinkBucketBased::add_options_to_feature(plugins::Feature &feature) {
-    utils::add_rng_options(feature);
+void ShrinkBucketBased::add_options_to_parser(options::OptionParser &parser) {
+    utils::add_rng_options(parser);
 }
 
 StateEquivalenceRelation ShrinkBucketBased::compute_abstraction(
-    const vector<Bucket> &buckets, int target_size, utils::LogProxy &log) const {
+    const vector<Bucket> &buckets, int target_size) const {
     bool show_combine_buckets_warning = true;
     StateEquivalenceRelation equiv_relation;
     equiv_relation.reserve(target_size);
@@ -53,8 +53,8 @@ StateEquivalenceRelation ShrinkBucketBased::compute_abstraction(
                     equiv_relation.push_back(StateEquivalenceClass());
                 if (show_combine_buckets_warning) {
                     show_combine_buckets_warning = false;
-                    log << "Very small node limit, must combine buckets."
-                        << endl;
+                    utils::g_log << "Very small node limit, must combine buckets."
+                                 << endl;
                 }
             }
             StateEquivalenceClass &group = equiv_relation.back();
@@ -94,9 +94,8 @@ StateEquivalenceRelation ShrinkBucketBased::compute_abstraction(
 StateEquivalenceRelation ShrinkBucketBased::compute_equivalence_relation(
     const TransitionSystem &ts,
     const Distances &distances,
-    int target_size,
-    utils::LogProxy &log) const {
+    int target_size) const {
     vector<Bucket> buckets = partition_into_buckets(ts, distances);
-    return compute_abstraction(buckets, target_size, log);
+    return compute_abstraction(buckets, target_size);
 }
 }

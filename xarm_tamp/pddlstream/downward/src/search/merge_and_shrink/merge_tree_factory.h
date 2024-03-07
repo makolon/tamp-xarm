@@ -1,19 +1,19 @@
 #ifndef MERGE_AND_SHRINK_MERGE_TREE_FACTORY_H
 #define MERGE_AND_SHRINK_MERGE_TREE_FACTORY_H
 
+#include <string>
 #include <memory>
 #include <string>
 #include <vector>
 
 class TaskProxy;
 
-namespace plugins {
+namespace options {
+class OptionParser;
 class Options;
-class Feature;
 }
 
 namespace utils {
-class LogProxy;
 class RandomNumberGenerator;
 }
 
@@ -27,11 +27,11 @@ protected:
     std::shared_ptr<utils::RandomNumberGenerator> rng;
     UpdateOption update_option;
     virtual std::string name() const = 0;
-    virtual void dump_tree_specific_options(utils::LogProxy &) const {}
+    virtual void dump_tree_specific_options() const {}
 public:
-    explicit MergeTreeFactory(const plugins::Options &options);
+    explicit MergeTreeFactory(const options::Options &options);
     virtual ~MergeTreeFactory() = default;
-    void dump_options(utils::LogProxy &log) const;
+    void dump_options() const;
     // Compute a merge tree for the given entire task.
     virtual std::unique_ptr<MergeTree> compute_merge_tree(
         const TaskProxy &task_proxy) = 0;
@@ -44,7 +44,7 @@ public:
     virtual bool requires_init_distances() const = 0;
     virtual bool requires_goal_distances() const = 0;
     // Derived classes must call this method in their parsing methods.
-    static void add_options_to_feature(plugins::Feature &feature);
+    static void add_options_to_parser(options::OptionParser &parser);
 };
 }
 

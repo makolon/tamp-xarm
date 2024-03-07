@@ -3,13 +3,11 @@
 
 #include "types.h"
 
-#include "../utils/logging.h"
-
 #include <memory>
 #include <vector>
 
 namespace utils {
-class LogProxy;
+enum class Verbosity;
 }
 
 namespace merge_and_shrink {
@@ -91,7 +89,7 @@ public:
         std::vector<std::unique_ptr<Distances>> &&distances,
         bool compute_init_distances,
         bool compute_goal_distances,
-        utils::LogProxy &log);
+        utils::Verbosity verbosity);
     FactoredTransitionSystem(FactoredTransitionSystem &&other);
     ~FactoredTransitionSystem();
 
@@ -125,7 +123,7 @@ public:
     bool apply_abstraction(
         int index,
         const StateEquivalenceRelation &state_equivalence_relation,
-        utils::LogProxy &log);
+        utils::Verbosity verbosity);
 
     /*
       Merge the two factors at index1 and index2.
@@ -133,7 +131,7 @@ public:
     int merge(
         int index1,
         int index2,
-        utils::LogProxy &log);
+        utils::Verbosity verbosity);
 
     /*
       Extract the factor at the given index, rendering the FTS invalid.
@@ -141,9 +139,9 @@ public:
     std::pair<std::unique_ptr<MergeAndShrinkRepresentation>,
               std::unique_ptr<Distances>> extract_factor(int index);
 
-    void statistics(int index, utils::LogProxy &log) const;
-    void dump(int index, utils::LogProxy &log) const;
-    void dump(utils::LogProxy &log) const;
+    void statistics(int index) const;
+    void dump(int index) const;
+    void dump() const;
 
     const TransitionSystem &get_transition_system(int index) const {
         return *transition_systems[index];

@@ -10,11 +10,11 @@
 */
 
 namespace utils {
-class LogProxy;
+enum class Verbosity;
 }
 
 class SearchStatistics {
-    utils::LogProxy &log;
+    const utils::Verbosity verbosity;
 
     // General statistics
     int expanded_states;  // no states for which successors were generated
@@ -35,7 +35,7 @@ class SearchStatistics {
 
     void print_f_line() const;
 public:
-    explicit SearchStatistics(utils::LogProxy &log);
+    explicit SearchStatistics(utils::Verbosity verbosity);
     ~SearchStatistics() = default;
 
     // Methods that update statistics.

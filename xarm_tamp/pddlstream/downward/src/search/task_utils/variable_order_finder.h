@@ -6,11 +6,6 @@
 #include <memory>
 #include <vector>
 
-namespace utils {
-class LogProxy;
-class RandomNumberGenerator;
-}
-
 namespace variable_order_finder {
 enum VariableOrderType {
     CG_GOAL_LEVEL,
@@ -21,13 +16,12 @@ enum VariableOrderType {
     REVERSE_LEVEL
 };
 
-extern void dump_variable_order_type(
-    VariableOrderType variable_order_type, utils::LogProxy &log);
+extern void dump_variable_order_type(VariableOrderType variable_order_type);
 
 /*
-  NOTE: VariableOrderFinder keeps a copy of the task proxy passed to the
-  constructor. Therefore, users of the class must ensure that the underlying
-  task lives at least as long as the variable order finder.
+  NOTE: VariableOrderFinder keeps a reference to the task proxy passed to the
+  constructor. Therefore, users of the class must ensure that the task lives at
+  least as long as the variable order finder.
 */
 class VariableOrderFinder {
     TaskProxy task_proxy;
@@ -39,10 +33,8 @@ class VariableOrderFinder {
 
     void select_next(int position, int var_no);
 public:
-    VariableOrderFinder(
-        const TaskProxy &task_proxy,
-        VariableOrderType variable_order_type,
-        const std::shared_ptr<utils::RandomNumberGenerator> &rng = nullptr);
+    VariableOrderFinder(const TaskProxy &task_proxy,
+                        VariableOrderType variable_order_type);
     ~VariableOrderFinder() = default;
     bool done() const;
     int next();

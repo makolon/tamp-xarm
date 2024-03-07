@@ -1,8 +1,8 @@
 #! /usr/bin/env python3
 
+from __future__ import print_function
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
 
 import build_model
 import pddl_to_prolog
@@ -30,37 +30,14 @@ def get_objects_by_type(typed_objects, types):
             result[type].append(obj.name)
     return result
 
-def instantiate_goal(goal, init_facts, fluent_facts):
-    # With the way this module is designed, we need to "instantiate"
-    # the goal to make sure we properly deal with static conditions,
-    # in particular flagging unreachable negative static goals as
-    # impossible. See issue1055.
-    #
-    # This returns None for goals that are impossible due to static
-    # facts.
-
-    # HACK! The implementation of this probably belongs into
-    # pddl.condition or a similar file, not here. The `instantiate`
-    # method of conditions with its slightly weird interface and the
-    # existence of the `Impossible` exceptions should perhaps be
-    # implementation details of `pddl`.
-    result = []
-    try:
-        goal.instantiate({}, init_facts, fluent_facts, result)
-    except pddl.conditions.Impossible:
-        return None
+def get_atoms_by_predicate(atoms):
+    result = {} # TODO: defaultdict?
+    for atom in atoms:
+        if isinstance(atom, pddl.Atom):
+            result.setdefault(atom.predicate, []).append(atom)
     return result
 
-# The input task must have been normalized
-# The model has been computed by build_model.compute_model
-def instantiate(task: pddl.Task, model: Any) -> Tuple[
-             bool, # relaxed_reachable
-             Set[pddl.Literal], # fluent_facts (ground)
-             List[pddl.PropositionalAction], # instantiated_actions
-             Optional[List[pddl.Literal]], # instantiated_goal
-             List[pddl.PropositionalAxiom], # instantiated_axioms
-             Dict[pddl.Action, List[str]] # reachable_action_parameters
-            ]:
+def instantiate(task, model):
     relaxed_reachable = False
     fluent_facts = get_fluent_facts(task, model)
     init_facts = set()
@@ -72,6 +49,7 @@ def instantiate(task: pddl.Task, model: Any) -> Tuple[
             init_facts.add(element)
 
     type_to_objects = get_objects_by_type(task.objects, task.types)
+    predicate_to_atoms = get_atoms_by_predicate(init_facts | fluent_facts)
 
     instantiated_actions = []
     instantiated_axioms = []
@@ -92,7 +70,8 @@ def instantiate(task: pddl.Task, model: Any) -> Tuple[
             inst_action = action.instantiate(
                 variable_mapping, init_facts, init_assignments,
                 fluent_facts, type_to_objects,
-                task.use_min_cost_metric)
+                task.use_min_cost_metric,
+                predicate_to_atoms)
             if inst_action:
                 instantiated_actions.append(inst_action)
         elif isinstance(atom.predicate, pddl.Axiom):
@@ -105,12 +84,8 @@ def instantiate(task: pddl.Task, model: Any) -> Tuple[
         elif atom.predicate == "@goal-reachable":
             relaxed_reachable = True
 
-    instantiated_goal = instantiate_goal(task.goal, init_facts, fluent_facts)
-
-    return (relaxed_reachable, fluent_facts,
-            instantiated_actions, instantiated_goal,
+    return (relaxed_reachable, fluent_facts, instantiated_actions,
             sorted(instantiated_axioms), reachable_action_parameters)
-
 
 def explore(task):
     prog = pddl_to_prolog.translate(task)
@@ -118,11 +93,10 @@ def explore(task):
     with timers.timing("Completing instantiation"):
         return instantiate(task, model)
 
-
 if __name__ == "__main__":
     import pddl_parser
     task = pddl_parser.open()
-    relaxed_reachable, atoms, actions, goals, axioms, _ = explore(task)
+    relaxed_reachable, atoms, actions, axioms, _ = explore(task)
     print("goal relaxed reachable: %s" % relaxed_reachable)
     print("%d atoms:" % len(atoms))
     for atom in atoms:
@@ -132,14 +106,8 @@ if __name__ == "__main__":
     for action in actions:
         action.dump()
         print()
+    print()
     print("%d axioms:" % len(axioms))
     for axiom in axioms:
         axiom.dump()
         print()
-    print()
-    if goals is None:
-        print("impossible goal")
-    else:
-        print("%d goals:" % len(goals))
-        for literal in goals:
-            literal.dump()

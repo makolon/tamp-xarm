@@ -5,7 +5,7 @@
 
 #include "../operator_cost.h"
 
-namespace plugins {
+namespace options {
 class Options;
 }
 

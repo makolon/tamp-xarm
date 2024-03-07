@@ -1,8 +1,10 @@
+from __future__ import print_function
+
 import sys
 
 """
 We document Fast Downward exit codes at
-https://www.fast-downward.org/ExitCodes. Please update this documentation when
+http://www.fast-downward.org/ExitCodes. Please update this documentation when
 making changes below.
 """
 

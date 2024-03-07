@@ -3,8 +3,8 @@
 
 #include <memory>
 
-namespace plugins {
-class Feature;
+namespace options {
+class OptionParser;
 class Options;
 }
 
@@ -12,7 +12,7 @@ namespace utils {
 class RandomNumberGenerator;
 
 // Add random_seed option to parser.
-extern void add_rng_options(plugins::Feature &feature);
+extern void add_rng_options(options::OptionParser &parser);
 
 /*
   Return an RNG based on the given options, which can either be the global
@@ -20,7 +20,7 @@ extern void add_rng_options(plugins::Feature &feature);
   "add_rng_options()".
 */
 extern std::shared_ptr<RandomNumberGenerator> parse_rng_from_options(
-    const plugins::Options &options);
+    const options::Options &options);
 }
 
 #endif

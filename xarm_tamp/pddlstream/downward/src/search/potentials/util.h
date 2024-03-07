@@ -7,8 +7,8 @@
 
 class State;
 
-namespace plugins {
-class Feature;
+namespace options {
+class OptionParser;
 }
 
 namespace utils {
@@ -24,7 +24,7 @@ std::vector<State> sample_without_dead_end_detection(
     utils::RandomNumberGenerator &rng);
 
 std::string get_admissible_potentials_reference();
-void prepare_parser_for_admissible_potentials(plugins::Feature &feature);
+void prepare_parser_for_admissible_potentials(options::OptionParser &parser);
 }
 
 #endif

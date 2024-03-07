@@ -7,10 +7,6 @@
 
 #include <memory>
 
-namespace utils {
-class LogProxy;
-}
-
 namespace pdbs {
 /*
   This class is a wrapper for a pair of a pattern and the corresponding PDB.
@@ -32,8 +28,7 @@ class PatternInformation {
 
     bool information_is_valid() const;
 public:
-    PatternInformation(
-        const TaskProxy &task_proxy, Pattern pattern, utils::LogProxy &log);
+    PatternInformation(const TaskProxy &task_proxy, Pattern pattern);
 
     void set_pdb(const std::shared_ptr<PatternDatabase> &pdb);
 

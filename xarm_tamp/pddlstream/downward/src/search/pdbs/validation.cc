@@ -13,8 +13,7 @@ using utils::ExitCode;
 
 namespace pdbs {
 void validate_and_normalize_pattern(const TaskProxy &task_proxy,
-                                    Pattern &pattern,
-                                    utils::LogProxy &log) {
+                                    Pattern &pattern) {
     /*
       - Sort by variable number and remove duplicate variables.
       - Warn if duplicate variables exist.
@@ -24,10 +23,8 @@ void validate_and_normalize_pattern(const TaskProxy &task_proxy,
     auto it = unique(pattern.begin(), pattern.end());
     if (it != pattern.end()) {
         pattern.erase(it, pattern.end());
-        if (log.is_warning()) {
-            log << "Warning: duplicate variables in pattern have been removed"
-                << endl;
-        }
+        utils::g_log << "Warning: duplicate variables in pattern have been removed"
+                     << endl;
     }
     if (!pattern.empty()) {
         if (pattern.front() < 0) {
@@ -43,21 +40,18 @@ void validate_and_normalize_pattern(const TaskProxy &task_proxy,
 }
 
 void validate_and_normalize_patterns(const TaskProxy &task_proxy,
-                                     PatternCollection &patterns,
-                                     utils::LogProxy &log) {
+                                     PatternCollection &patterns) {
     /*
       - Validate and normalize each pattern (see there).
       - Warn if duplicate patterns exist.
     */
     for (Pattern &pattern : patterns)
-        validate_and_normalize_pattern(task_proxy, pattern, log);
+        validate_and_normalize_pattern(task_proxy, pattern);
     PatternCollection sorted_patterns(patterns);
     sort(sorted_patterns.begin(), sorted_patterns.end());
     auto it = unique(sorted_patterns.begin(), sorted_patterns.end());
     if (it != sorted_patterns.end()) {
-        if (log.is_warning()) {
-            log << "Warning: duplicate patterns have been detected" << endl;
-        }
+        utils::g_log << "Warning: duplicate patterns have been detected" << endl;
     }
 }
 }

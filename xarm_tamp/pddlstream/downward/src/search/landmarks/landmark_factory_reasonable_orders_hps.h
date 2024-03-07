@@ -9,17 +9,19 @@ class LandmarkFactoryReasonableOrdersHPS : public LandmarkFactory {
 
     virtual void generate_landmarks(const std::shared_ptr<AbstractTask> &task) override;
 
-    void approximate_reasonable_orders(const TaskProxy &task_proxy);
+    void approximate_reasonable_orders(
+        const TaskProxy &task_proxy, bool obedient_orders);
     bool interferes(
-        const TaskProxy &task_proxy, const Landmark &landmark_a,
-        const Landmark &landmark_b) const;
+        const TaskProxy &task_proxy, const LandmarkNode *node_a,
+        const LandmarkNode *node_b) const;
     void collect_ancestors(
-        std::unordered_set<LandmarkNode *> &result, LandmarkNode &node);
+        std::unordered_set<LandmarkNode *> &result,
+        LandmarkNode &node, bool use_reasonable);
     bool effect_always_happens(
         const VariablesProxy &variables, const EffectsProxy &effects,
         std::set<FactPair> &eff) const;
 public:
-    LandmarkFactoryReasonableOrdersHPS(const plugins::Options &opts);
+    LandmarkFactoryReasonableOrdersHPS(const options::Options &opts);
 
     virtual bool computes_reasonable_orders() const override;
     virtual bool supports_conditional_effects() const override;

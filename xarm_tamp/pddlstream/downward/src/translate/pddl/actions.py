@@ -1,18 +1,11 @@
 import copy
-from typing import List, Optional, Tuple
 
 from . import conditions
-from .conditions import Condition, Literal
-from .effects import Effect
-from .f_expression import Increase
-from .pddl_types import TypedObject
 
 
 class Action:
-    def __init__(self, name: str, parameters: List[TypedObject],
-            num_external_parameters: int,
-            precondition: Condition, effects: List[Effect],
-            cost: Optional[Increase]):
+    def __init__(self, name, parameters, num_external_parameters,
+                 precondition, effects, cost):
         assert 0 <= num_external_parameters <= len(parameters)
         self.name = name
         self.parameters = parameters
@@ -38,7 +31,7 @@ class Action:
         for eff in self.effects:
             eff.dump()
         print("Cost:")
-        if self.cost:
+        if(self.cost):
             self.cost.dump()
         else:
             print("  None")
@@ -57,7 +50,7 @@ class Action:
                 new_effects.append(relaxed_eff)
         return Action(self.name, self.parameters, self.num_external_parameters,
                       self.precondition.relaxed().simplified(),
-                      new_effects)
+                      new_effects, self.cost)
 
     def untyped(self):
         # We do not actually remove the types from the parameter lists,
@@ -71,7 +64,7 @@ class Action:
         return result
 
     def instantiate(self, var_mapping, init_facts, init_assignments,
-                    fluent_facts, objects_by_type, metric):
+                    fluent_facts, objects_by_type, metric, predicate_to_atoms):
         """Return a PropositionalAction which corresponds to the instantiation of
         this action with the arguments in var_mapping. Only fluent parts of the
         conditions (those in fluent_facts) are included. init_facts are evaluated
@@ -92,7 +85,7 @@ class Action:
         effects = []
         for eff in self.effects:
             eff.instantiate(var_mapping, init_facts, fluent_facts,
-                            objects_by_type, effects)
+                            objects_by_type, effects, predicate_to_atoms)
         if effects:
             if metric:
                 if self.cost is None:
@@ -102,29 +95,31 @@ class Action:
                         var_mapping, init_assignments).expression.value)
             else:
                 cost = 1
-            return PropositionalAction(name, precondition, effects, cost)
+            return PropositionalAction(name, precondition, effects, cost, self, var_mapping)
         else:
             return None
 
 
 class PropositionalAction:
-    def __init__(self, name: str, precondition: List[Literal], effects:
-            List[Tuple[List[Literal], Literal]], cost: int):
+    def __init__(self, name, precondition, effects, cost, action=None, var_mapping=None):
         self.name = name
         self.precondition = precondition
         self.add_effects = []
         self.del_effects = []
-        for condition, effect in effects:
+        self.effect_mappings = effects
+        for condition, effect, _, _ in effects:
             if not effect.negated:
                 self.add_effects.append((condition, effect))
         # Warning: This is O(N^2), could be turned into O(N).
         # But that might actually harm performance, since there are
         # usually few effects.
         # TODO: Measure this in critical domains, then use sets if acceptable.
-        for condition, effect in effects:
+        for condition, effect, _, _ in effects:
             if effect.negated and (condition, effect.negate()) not in self.add_effects:
                 self.del_effects.append((condition, effect.negate()))
         self.cost = cost
+        self.action = action
+        self.var_mapping = var_mapping
 
     def __repr__(self):
         return "<PropositionalAction %r at %#x>" % (self.name, id(self))

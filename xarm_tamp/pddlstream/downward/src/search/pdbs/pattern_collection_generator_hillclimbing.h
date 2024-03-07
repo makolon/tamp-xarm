@@ -11,6 +11,10 @@
 #include <set>
 #include <vector>
 
+namespace options {
+class Options;
+}
+
 namespace utils {
 class CountdownTimer;
 class RandomNumberGenerator;
@@ -121,7 +125,9 @@ class PatternCollectionGeneratorHillclimbing : public PatternCollectionGenerator
     */
     void hill_climbing(const TaskProxy &task_proxy);
 
-    virtual std::string name() const override;
+public:
+    explicit PatternCollectionGeneratorHillclimbing(const options::Options &opts);
+    virtual ~PatternCollectionGeneratorHillclimbing() = default;
 
     /*
       Runs the hill climbing algorithm. Note that the
@@ -129,11 +135,8 @@ class PatternCollectionGeneratorHillclimbing : public PatternCollectionGenerator
       variable) may break the maximum collection size limit, if the latter is
       set too small or if there are many goal variables with a large domain.
     */
-    virtual PatternCollectionInformation compute_patterns(
+    virtual PatternCollectionInformation generate(
         const std::shared_ptr<AbstractTask> &task) override;
-public:
-    explicit PatternCollectionGeneratorHillclimbing(const plugins::Options &opts);
-    virtual ~PatternCollectionGeneratorHillclimbing() = default;
 };
 }
 

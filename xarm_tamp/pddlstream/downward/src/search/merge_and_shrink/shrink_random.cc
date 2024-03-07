@@ -3,7 +3,8 @@
 #include "factored_transition_system.h"
 #include "transition_system.h"
 
-#include "../plugins/plugin.h"
+#include "../option_parser.h"
+#include "../plugin.h"
 
 #include <cassert>
 #include <memory>
@@ -11,7 +12,7 @@
 using namespace std;
 
 namespace merge_and_shrink {
-ShrinkRandom::ShrinkRandom(const plugins::Options &opts)
+ShrinkRandom::ShrinkRandom(const Options &opts)
     : ShrinkBucketBased(opts) {
 }
 
@@ -33,15 +34,18 @@ string ShrinkRandom::name() const {
     return "random";
 }
 
-class ShrinkRandomFeature : public plugins::TypedFeature<ShrinkStrategy, ShrinkRandom> {
-public:
-    ShrinkRandomFeature() : TypedFeature("shrink_random") {
-        document_title("Random");
-        document_synopsis("");
+static shared_ptr<ShrinkStrategy>_parse(OptionParser &parser) {
+    parser.document_synopsis("Random", "");
+    ShrinkBucketBased::add_options_to_parser(parser);
+    Options opts = parser.parse();
+    if (parser.help_mode())
+        return nullptr;
 
-        ShrinkBucketBased::add_options_to_feature(*this);
-    }
-};
+    if (parser.dry_run())
+        return nullptr;
+    else
+        return make_shared<ShrinkRandom>(opts);
+}
 
-static plugins::FeaturePlugin<ShrinkRandomFeature> _plugin;
+static Plugin<ShrinkStrategy> _plugin("shrink_random", _parse);
 }

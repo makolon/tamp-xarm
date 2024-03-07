@@ -46,7 +46,8 @@ def get_literals(condition):
     if isinstance(condition, pddl.Literal):
         yield condition
     elif isinstance(condition, pddl.Conjunction):
-        yield from condition.parts
+        for part in condition.parts:
+            yield part
 
 
 def ensure_conjunction_sat(system, *parts):
@@ -85,7 +86,7 @@ def ensure_cover(system, literal, invariant, inv_vars):
     """Modifies the constraint system such that it is only solvable if the
        invariant covers the literal"""
     a = invariant.get_covering_assignments(inv_vars, literal)
-    assert len(a) == 1
+    assert(len(a) == 1)
     # if invariants could contain several parts of one predicate, this would
     # not be true but the depending code in parts relies on this assumption
     system.add_assignment_disjunction(a)

@@ -5,7 +5,7 @@
 using namespace std;
 
 namespace sccs {
-static void dfs(
+void dfs(
     const vector<vector<int>> &graph,
     int vertex,
     vector<int> &dfs_numbers,

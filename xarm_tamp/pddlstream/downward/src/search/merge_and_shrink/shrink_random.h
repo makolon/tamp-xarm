@@ -3,7 +3,7 @@
 
 #include "shrink_bucket_based.h"
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -15,9 +15,9 @@ protected:
         const Distances &distances) const override;
 
     virtual std::string name() const override;
-    void dump_strategy_specific_options(utils::LogProxy &) const override {}
+    void dump_strategy_specific_options() const override {}
 public:
-    explicit ShrinkRandom(const plugins::Options &opts);
+    explicit ShrinkRandom(const options::Options &opts);
     virtual ~ShrinkRandom() override = default;
 
     virtual bool requires_init_distances() const override {

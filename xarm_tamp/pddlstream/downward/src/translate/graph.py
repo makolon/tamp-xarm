@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+from __future__ import print_function
 
 class Graph:
     def __init__(self, nodes):

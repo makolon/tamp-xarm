@@ -23,6 +23,8 @@ removed, too. (See also the docstring of
 filter_unreachable_propositions.)
 """
 
+from __future__ import print_function
+
 from collections import defaultdict
 from itertools import count
 
@@ -378,7 +380,7 @@ class VarValueRenaming:
             if var in new_prevail_vars)
         return sas_tasks.SASOperator(
             name=op.name, prevail=new_prevail, pre_post=new_pre_post,
-            cost=op.cost)
+            cost=op.cost, propositional_action=op.propositional_action)
 
     def apply_to_axiom(self, axiom):
         # The following line may generate an Impossible exception,

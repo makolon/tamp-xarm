@@ -1,12 +1,4 @@
-from typing import Iterable, List, Union
-
 from . import conditions
-from .f_expression import Increase
-from .conditions import Condition, Literal
-from .pddl_types import TypedObject
-
-AnyEffect = Union["ConditionalEffect", "ConjunctiveEffect", "UniversalEffect",
-                  "SimpleEffect", "CostEffect"]
 
 def cartesian_product(*sequences):
     # TODO: Also exists in tools.py outside the pddl package (defined slightly
@@ -20,8 +12,7 @@ def cartesian_product(*sequences):
 
 
 class Effect:
-    def __init__(self, parameters: List[TypedObject], condition: Condition,
-                 literal: Literal) -> None:
+    def __init__(self, parameters, condition, literal):
         self.parameters = parameters
         self.condition = condition
         self.literal = literal
@@ -50,15 +41,34 @@ class Effect:
         self.condition = self.condition.uniquify_variables(type_map, renamings)
         self.literal = self.literal.rename_variables(renamings)
     def instantiate(self, var_mapping, init_facts, fluent_facts,
-                    objects_by_type, result):
+                    objects_by_type, result, predicate_to_atoms):
         if self.parameters:
             var_mapping = var_mapping.copy() # Will modify this.
-            object_lists = [objects_by_type.get(par.type_name, [])
-                            for par in self.parameters]
-            for object_tuple in cartesian_product(*object_lists):
-                for (par, obj) in zip(self.parameters, object_tuple):
-                    var_mapping[par.name] = obj
-                self._instantiate(var_mapping, init_facts, fluent_facts, result)
+            if isinstance(self.condition, conditions.Truth):
+                facts = []
+            elif isinstance(self.condition, conditions.Atom):
+                facts = [self.condition]
+            elif isinstance(self.condition, conditions.Condition):
+                facts = self.condition.parts
+            else:
+                raise NotImplementedError(self.condition)
+            for fact in facts:
+                if ({p.name for p in self.parameters} <= set(fact.args)) and \
+                        (fact.predicate in predicate_to_atoms):
+                    # caelan: special case where consider the dual
+                    for atom in predicate_to_atoms[fact.predicate]:
+                        mapping = dict(zip(fact.args, atom.args))
+                        for par in self.parameters:
+                            var_mapping[par.name] = mapping[par.name]
+                        self._instantiate(var_mapping, init_facts, fluent_facts, result)
+                    break
+            else:
+                object_lists = [objects_by_type.get(par.type_name, [])
+                                for par in self.parameters]
+                for object_tuple in cartesian_product(*object_lists):
+                    for (par, obj) in zip(self.parameters, object_tuple):
+                        var_mapping[par.name] = obj
+                    self._instantiate(var_mapping, init_facts, fluent_facts, result)
         else:
             self._instantiate(var_mapping, init_facts, fluent_facts, result)
     def _instantiate(self, var_mapping, init_facts, fluent_facts, result):
@@ -71,7 +81,7 @@ class Effect:
         self.literal.instantiate(var_mapping, init_facts, fluent_facts, effects)
         assert len(effects) <= 1
         if effects:
-            result.append((condition, effects[0]))
+            result.append((condition, effects[0], self, var_mapping.copy()))
     def relaxed(self):
         if self.literal.negated:
             return None
@@ -82,7 +92,7 @@ class Effect:
 
 
 class ConditionalEffect:
-    def __init__(self, condition: Condition, effect: AnyEffect) -> None:
+    def __init__(self, condition, effect):
         if isinstance(effect, ConditionalEffect):
             self.condition = conditions.Conjunction([condition, effect.condition])
             self.effect = effect.effect
@@ -112,7 +122,7 @@ class ConditionalEffect:
         return None, self
 
 class UniversalEffect:
-    def __init__(self, parameters: List[TypedObject], effect: AnyEffect):
+    def __init__(self, parameters, effect):
         if isinstance(effect, UniversalEffect):
             self.parameters = parameters + effect.parameters
             self.effect = effect.effect
@@ -137,7 +147,7 @@ class UniversalEffect:
         return None, self
 
 class ConjunctiveEffect:
-    def __init__(self, effects: List[AnyEffect]) -> None:
+    def __init__(self, effects):
         flattened_effects = []
         for effect in effects:
             if isinstance(effect, ConjunctiveEffect):
@@ -165,7 +175,7 @@ class ConjunctiveEffect:
         return cost_effect, ConjunctiveEffect(new_effects)
 
 class SimpleEffect:
-    def __init__(self, effect: Literal) -> None:
+    def __init__(self, effect):
         self.effect = effect
     def dump(self, indent="  "):
         print("%s%s" % (indent, self.effect))
@@ -175,7 +185,7 @@ class SimpleEffect:
         return None, self
 
 class CostEffect:
-    def __init__(self, effect: Increase) -> None:
+    def __init__(self, effect):
         self.effect = effect
     def dump(self, indent="  "):
         print("%s%s" % (indent, self.effect))

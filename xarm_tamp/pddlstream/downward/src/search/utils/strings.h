@@ -5,23 +5,28 @@
 
 #include <sstream>
 #include <string>
-#include <vector>
 
 namespace utils {
+class StringOperationError : public utils::Exception {
+    std::string msg;
+public:
+    explicit StringOperationError(const std::string &msg);
+
+    virtual void print() const override;
+};
+
 extern void lstrip(std::string &s);
 extern void rstrip(std::string &s);
 extern void strip(std::string &s);
 
 /*
-  Split a given string at the first max_splits occurrence of separator. Use
-  the default of -1 for an unlimited amount of splits.
+  Split a given string at the first occurrence of separator or throw
+  StringOperationError if separator is not found.
 */
-extern std::vector<std::string> split(
-    const std::string &s, const std::string &separator, int max_splits = -1);
+extern std::pair<std::string, std::string> split(
+    const std::string &s, const std::string &separator);
 
 extern bool startswith(const std::string &s, const std::string &prefix);
-
-extern std::string tolower(std::string s);
 
 template<typename Collection>
 std::string join(const Collection &collection, const std::string &delimiter) {
@@ -37,7 +42,5 @@ std::string join(const Collection &collection, const std::string &delimiter) {
     }
     return oss.str();
 }
-
-extern bool is_alpha_numeric(const std::string &s);
 }
 #endif

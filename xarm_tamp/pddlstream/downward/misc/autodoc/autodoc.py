@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+from os.path import dirname, join
 import re
 import subprocess
 import sys
@@ -18,7 +19,7 @@ sleep_time = 10
 BOT_USERNAME = "XmlRpcBot"
 ENV_VAR_PASSWORD = "DOWNWARD_AUTODOC_PASSWORD"
 PASSWORD = os.environ.get(ENV_VAR_PASSWORD)
-WIKI_URL = "https://www.fast-downward.org"
+WIKI_URL = "http://www.fast-downward.org"
 DOC_PREFIX = "Doc/"
 
 # a list of characters allowed to be used in doc titles
@@ -47,7 +48,7 @@ def get_all_titles_from_wiki():
     multi_call = connect()
     multi_call.getAllPages()
     response = list(multi_call())
-    assert response[0] == 'SUCCESS' and len(response) == 2
+    assert(response[0] == 'SUCCESS' and len(response) == 2)
     return response[1]
 
 
@@ -56,7 +57,7 @@ def get_pages_from_wiki(titles):
     for title in titles:
         multi_call.getPage(title)
     response = list(multi_call())
-    assert response[0] == 'SUCCESS'
+    assert(response[0] == 'SUCCESS')
     return dict(zip(titles, response[1:]))
 
 
@@ -119,6 +120,10 @@ def insert_wiki_links(text, titles):
     return text
 
 
+def build_planner(build):
+    subprocess.check_call([sys.executable, "build.py", build, "downward"], cwd=REPO_ROOT_DIR)
+
+
 def get_pages_from_planner(build):
     out = subprocess.check_output(
         ["./fast-downward.py", "--build", build, "--search", "--", "--help", "--txt2tags"],
@@ -161,6 +166,8 @@ if __name__ == '__main__':
     if not args.dry_run and PASSWORD is None:
         logging.critical(f"{ENV_VAR_PASSWORD} not set.")
         sys.exit(1)
+    logging.info("building planner...")
+    build_planner(args.build)
     logging.info("getting new pages from planner...")
     new_doc_pages = get_pages_from_planner(args.build)
     if args.dry_run:

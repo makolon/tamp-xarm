@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -22,7 +22,7 @@ class OperatorCountingHeuristic : public Heuristic {
 protected:
     virtual int compute_heuristic(const State &ancestor_state) override;
 public:
-    explicit OperatorCountingHeuristic(const plugins::Options &opts);
+    explicit OperatorCountingHeuristic(const options::Options &opts);
     ~OperatorCountingHeuristic();
 };
 }

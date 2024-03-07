@@ -5,11 +5,17 @@
 
 #include <memory>
 
+namespace utils {
+enum class Verbosity;
+}
+
 namespace merge_and_shrink {
 class FactoredTransitionSystem;
 class MergeAndShrinkRepresentation;
 
 class MergeAndShrinkHeuristic : public Heuristic {
+    const utils::Verbosity verbosity;
+
     // The final merge-and-shrink representations, storing goal distances.
     std::vector<std::unique_ptr<MergeAndShrinkRepresentation>> mas_representations;
 
@@ -20,7 +26,7 @@ class MergeAndShrinkHeuristic : public Heuristic {
 protected:
     virtual int compute_heuristic(const State &ancestor_state) override;
 public:
-    explicit MergeAndShrinkHeuristic(const plugins::Options &opts);
+    explicit MergeAndShrinkHeuristic(const options::Options &opts);
 };
 }
 

@@ -13,7 +13,7 @@ class ZeroOnePDBsHeuristic : public Heuristic {
 protected:
     virtual int compute_heuristic(const State &ancestor_state) override;
 public:
-    ZeroOnePDBsHeuristic(const plugins::Options &opts);
+    ZeroOnePDBsHeuristic(const options::Options &opts);
     virtual ~ZeroOnePDBsHeuristic() = default;
 };
 }

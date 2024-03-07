@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -61,7 +61,7 @@ protected:
     virtual int compute_heuristic(const State &ancestor_state) override;
 
 public:
-    explicit HMHeuristic(const plugins::Options &opts);
+    explicit HMHeuristic(const options::Options &opts);
 
     virtual bool dead_ends_are_reliable() const override;
 };

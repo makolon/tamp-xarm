@@ -3,20 +3,12 @@
 
 #include "types.h"
 
-#include "pattern_database.h"
-
 #include "../task_proxy.h"
 
 #include <cstddef>
 #include <vector>
 
-namespace utils {
-class LogProxy;
-}
-
 namespace pdbs {
-class Projection;
-
 /*
   Successor Generator for abstract operators.
 
@@ -27,8 +19,10 @@ class Projection;
 
 class MatchTree {
     TaskProxy task_proxy;
-    Projection projection;
     struct Node;
+    // See PatternDatabase for documentation on pattern and hash_multipliers.
+    Pattern pattern;
+    std::vector<int> hash_multipliers;
     Node *root;
     void insert_recursive(int op_id,
                           const std::vector<FactPair> &regression_preconditions,
@@ -36,14 +30,12 @@ class MatchTree {
                           Node **edge_from_parent);
     void get_applicable_operator_ids_recursive(
         Node *node, int state_index, std::vector<int> &operator_ids) const;
-    void dump_recursive(Node *node, utils::LogProxy &log) const;
+    void dump_recursive(Node *node) const;
 public:
-    /*
-      Initialize an empty match tree. We copy projection to ensure that the
-      match tree remains in a valid state independently of projection.
-    */
+    // Initialize an empty match tree.
     MatchTree(const TaskProxy &task_proxy,
-              const Projection &projection);
+              const Pattern &pattern,
+              const std::vector<int> &hash_multipliers);
     ~MatchTree();
     /* Insert an abstract operator into the match tree, creating or
        enlarging it. */
@@ -56,7 +48,7 @@ public:
     */
     void get_applicable_operator_ids(
         int state_index, std::vector<int> &operator_ids) const;
-    void dump(utils::LogProxy &log) const;
+    void dump() const;
 };
 }
 

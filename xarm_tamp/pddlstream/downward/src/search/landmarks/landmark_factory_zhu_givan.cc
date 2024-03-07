@@ -1,12 +1,13 @@
 #include "landmark_factory_zhu_givan.h"
 
-#include "landmark.h"
 #include "landmark_graph.h"
 #include "util.h"
 
+#include "../option_parser.h"
+#include "../plugin.h"
 #include "../task_proxy.h"
 
-#include "../plugins/plugin.h"
+#include "../utils/language.h"
 #include "../utils/logging.h"
 
 #include <iostream>
@@ -16,59 +17,56 @@
 using namespace std;
 
 namespace landmarks {
-LandmarkFactoryZhuGivan::LandmarkFactoryZhuGivan(const plugins::Options &opts)
-    : LandmarkFactoryRelaxation(opts),
-      use_orders(opts.get<bool>("use_orders")) {
+LandmarkFactoryZhuGivan::LandmarkFactoryZhuGivan(const Options &opts)
+    : use_orders(opts.get<bool>("use_orders")) {
 }
 
 void LandmarkFactoryZhuGivan::generate_relaxed_landmarks(
-    const shared_ptr<AbstractTask> &task, Exploration &) {
+    const shared_ptr<AbstractTask> &task, Exploration &exploration) {
     TaskProxy task_proxy(*task);
-    if (log.is_at_least_normal()) {
-        log << "Generating landmarks using Zhu/Givan label propagation" << endl;
-    }
+    utils::g_log << "Generating landmarks using Zhu/Givan label propagation\n";
 
     compute_triggers(task_proxy);
 
     PropositionLayer last_prop_layer = build_relaxed_plan_graph_with_labels(task_proxy);
 
-    extract_landmarks(task_proxy, last_prop_layer);
+    if (!satisfies_goal_conditions(task_proxy.get_goals(), last_prop_layer)) {
+        utils::g_log << "Problem not solvable, even if relaxed.\n";
+        return;
+    }
+
+    extract_landmarks(task_proxy, exploration, last_prop_layer);
 
     if (!use_orders) {
         discard_all_orderings();
     }
 }
 
-void LandmarkFactoryZhuGivan::extract_landmarks(
-    const TaskProxy &task_proxy, const PropositionLayer &last_prop_layer) {
-    /*
-      We first check if at least one of the goal facts is relaxed unreachable.
-      In this case we create a graph with just this fact as landmark. Since
-      the landmark will have no achievers, the heuristic can detect the
-      initial state as a dead-end.
-     */
-    for (FactProxy goal : task_proxy.get_goals()) {
-        if (!last_prop_layer[goal.get_variable().get_id()][goal.get_value()].reached()) {
-            if (log.is_at_least_normal()) {
-                log << "Problem not solvable, even if relaxed." << endl;
-            }
-            Landmark landmark({goal.get_pair()}, false, false, true);
-            lm_graph->add_landmark(move(landmark));
-            return;
-        }
-    }
+bool LandmarkFactoryZhuGivan::satisfies_goal_conditions(
+    const GoalsProxy &goals,
+    const PropositionLayer &layer) const {
+    for (FactProxy goal : goals)
+        if (!layer[goal.get_variable().get_id()][goal.get_value()].reached())
+            return false;
 
+    return true;
+}
+
+void LandmarkFactoryZhuGivan::extract_landmarks(
+    const TaskProxy &task_proxy, Exploration &exploration,
+    const PropositionLayer &last_prop_layer) {
+    utils::unused_variable(exploration);
     State initial_state = task_proxy.get_initial_state();
     // insert goal landmarks and mark them as goals
     for (FactProxy goal : task_proxy.get_goals()) {
         FactPair goal_lm = goal.get_pair();
-        LandmarkNode *lm_node;
+        LandmarkNode *lmp;
         if (lm_graph->contains_simple_landmark(goal_lm)) {
-            lm_node = &lm_graph->get_simple_landmark(goal_lm);
-            lm_node->get_landmark().is_true_in_goal = true;
+            lmp = &lm_graph->get_simple_landmark(goal_lm);
+            lmp->is_true_in_goal = true;
         } else {
-            Landmark landmark({goal_lm}, false, false, true);
-            lm_node = &lm_graph->add_landmark(move(landmark));
+            lmp = &lm_graph->add_simple_landmark(goal_lm);
+            lmp->is_true_in_goal = true;
         }
         // extract landmarks from goal labels
         const plan_graph_node &goal_node =
@@ -82,15 +80,19 @@ void LandmarkFactoryZhuGivan::extract_landmarks(
             LandmarkNode *node;
             // Add new landmarks
             if (!lm_graph->contains_simple_landmark(lm)) {
-                Landmark landmark({lm}, false, false);
-                node = &lm_graph->add_landmark(move(landmark));
+                node = &lm_graph->add_simple_landmark(lm);
+
+                // if landmark is not in the initial state,
+                // relaxed_task_solvable() should be false
+                assert(initial_state[lm.var].get_value() == lm.value ||
+                       !relaxed_task_solvable(task_proxy, exploration, true, node));
             } else {
                 node = &lm_graph->get_simple_landmark(lm);
             }
             // Add order: lm ->_{nat} lm
-            assert(node->parents.find(lm_node) == node->parents.end());
-            assert(lm_node->children.find(node) == lm_node->children.end());
-            edge_add(*node, *lm_node, EdgeType::NATURAL);
+            assert(node->parents.find(lmp) == node->parents.end());
+            assert(lmp->children.find(node) == lmp->children.end());
+            edge_add(*node, *lmp, EdgeType::NATURAL);
         }
     }
 }
@@ -308,23 +310,24 @@ bool LandmarkFactoryZhuGivan::supports_conditional_effects() const {
     return true;
 }
 
-class LandmarkFactoryZhuGivanFeature : public plugins::TypedFeature<LandmarkFactory, LandmarkFactoryZhuGivan> {
-public:
-    LandmarkFactoryZhuGivanFeature() : TypedFeature("lm_zg") {
-        document_title("Zhu/Givan Landmarks");
-        document_synopsis(
-            "The landmark generation method introduced by "
-            "Zhu & Givan (ICAPS 2003 Doctoral Consortium).");
+static shared_ptr<LandmarkFactory> _parse(OptionParser &parser) {
+    parser.document_synopsis(
+        "Zhu/Givan Landmarks",
+        "The landmark generation method introduced by "
+        "Zhu & Givan (ICAPS 2003 Doctoral Consortium).");
+    _add_use_orders_option_to_parser(parser);
+    Options opts = parser.parse();
 
-        add_landmark_factory_options_to_feature(*this);
-        add_use_orders_option_to_feature(*this);
+    // TODO: Make sure that conditional effects are indeed supported.
+    parser.document_language_support("conditional_effects",
+                                     "We think they are supported, but this "
+                                     "is not 100% sure.");
 
-        // TODO: Make sure that conditional effects are indeed supported.
-        document_language_support(
-            "conditional_effects",
-            "We think they are supported, but this is not 100% sure.");
-    }
-};
+    if (parser.dry_run())
+        return nullptr;
+    else
+        return make_shared<LandmarkFactoryZhuGivan>(opts);
+}
 
-static plugins::FeaturePlugin<LandmarkFactoryZhuGivanFeature> _plugin;
+static Plugin<LandmarkFactory> _plugin("lm_zg", _parse);
 }

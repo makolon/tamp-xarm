@@ -3,6 +3,10 @@
 
 #include "../heuristic.h"
 
+namespace options {
+class Options;
+}
+
 namespace pdbs {
 class PatternDatabase;
 
@@ -21,7 +25,7 @@ public:
        operator. This is useful for action cost partitioning. If left
        empty, default operator costs are used.
     */
-    PDBHeuristic(const plugins::Options &opts);
+    PDBHeuristic(const options::Options &opts);
     virtual ~PDBHeuristic() override = default;
 };
 }

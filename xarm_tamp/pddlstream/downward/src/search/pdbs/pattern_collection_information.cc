@@ -1,7 +1,6 @@
 #include "pattern_collection_information.h"
 
 #include "pattern_database.h"
-#include "pattern_database_factory.h"
 #include "pattern_cliques.h"
 #include "validation.h"
 
@@ -18,15 +17,13 @@ using namespace std;
 namespace pdbs {
 PatternCollectionInformation::PatternCollectionInformation(
     const TaskProxy &task_proxy,
-    const shared_ptr<PatternCollection> &patterns,
-    utils::LogProxy &log)
+    const shared_ptr<PatternCollection> &patterns)
     : task_proxy(task_proxy),
       patterns(patterns),
       pdbs(nullptr),
-      pattern_cliques(nullptr),
-      log(log) {
+      pattern_cliques(nullptr) {
     assert(patterns);
-    validate_and_normalize_patterns(task_proxy, *patterns, log);
+    validate_and_normalize_patterns(task_proxy, *patterns);
 }
 
 bool PatternCollectionInformation::information_is_valid() const {
@@ -60,34 +57,25 @@ void PatternCollectionInformation::create_pdbs_if_missing() {
     assert(patterns);
     if (!pdbs) {
         utils::Timer timer;
-        if (log.is_at_least_normal()) {
-            log << "Computing PDBs for pattern collection..." << endl;
-        }
+        utils::g_log << "Computing PDBs for pattern collection..." << endl;
         pdbs = make_shared<PDBCollection>();
         for (const Pattern &pattern : *patterns) {
             shared_ptr<PatternDatabase> pdb =
-                compute_pdb(task_proxy, pattern);
+                make_shared<PatternDatabase>(task_proxy, pattern);
             pdbs->push_back(pdb);
         }
-        if (log.is_at_least_normal()) {
-            log << "Done computing PDBs for pattern collection: "
-                << timer << endl;
-        }
+        utils::g_log << "Done computing PDBs for pattern collection: " << timer << endl;
     }
 }
 
 void PatternCollectionInformation::create_pattern_cliques_if_missing() {
     if (!pattern_cliques) {
         utils::Timer timer;
-        if (log.is_at_least_normal()) {
-            log << "Computing pattern cliques for pattern collection..." << endl;
-        }
+        utils::g_log << "Computing pattern cliques for pattern collection..." << endl;
         VariableAdditivity are_additive = compute_additive_vars(task_proxy);
         pattern_cliques = compute_pattern_cliques(*patterns, are_additive);
-        if (log.is_at_least_normal()) {
-            log << "Done computing pattern cliques for pattern collection: "
-                << timer << endl;
-        }
+        utils::g_log << "Done computing pattern cliques for pattern collection: "
+                     << timer << endl;
     }
 }
 

@@ -5,7 +5,7 @@
 
 #include <vector>
 
-namespace plugins {
+namespace options {
 class Options;
 }
 
@@ -15,7 +15,7 @@ protected:
     virtual int combine_values(const std::vector<int> &values) override;
 
 public:
-    explicit MaxEvaluator(const plugins::Options &opts);
+    explicit MaxEvaluator(const options::Options &opts);
     virtual ~MaxEvaluator() override;
 };
 }

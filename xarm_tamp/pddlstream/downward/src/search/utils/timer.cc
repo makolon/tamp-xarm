@@ -1,7 +1,6 @@
 #include "timer.h"
 
 #include <ctime>
-#include <iomanip>
 #include <ostream>
 
 #if OPERATING_SYSTEM == LINUX || OPERATING_SYSTEM == OSX
@@ -34,21 +33,19 @@ static double compute_sanitized_duration(double start_clock, double end_clock) {
 }
 
 #if OPERATING_SYSTEM == OSX
-static double get_timebase_ratio() {
-    mach_timebase_info_data_t info;
-    mach_timebase_info(&info);
-    return static_cast<double>(info.numer) / static_cast<double>(info.denom);
-}
-
 void mach_absolute_difference(uint64_t end, uint64_t start, struct timespec *tp) {
-    constexpr uint64_t nanoseconds_per_second = 1'000'000'000UL;
-    static double timebase_ratio = get_timebase_ratio();
-
     uint64_t difference = end - start;
-    uint64_t elapsed_nanoseconds = static_cast<uint64_t>(difference * timebase_ratio);
+    static mach_timebase_info_data_t info = {
+        0, 0
+    };
 
-    tp->tv_sec = elapsed_nanoseconds / nanoseconds_per_second;
-    tp->tv_nsec = elapsed_nanoseconds % nanoseconds_per_second;
+    if (info.denom == 0)
+        mach_timebase_info(&info);
+
+    uint64_t elapsednano = difference * (info.numer / info.denom);
+
+    tp->tv_sec = elapsednano * 1e-9;
+    tp->tv_nsec = elapsednano - (tp->tv_sec * 1e9);
 }
 #endif
 
@@ -111,7 +108,7 @@ Duration Timer::reset() {
 }
 
 ostream &operator<<(ostream &os, const Timer &timer) {
-    os << fixed << setprecision(6) << timer();
+    os << timer();
     return os;
 }
 

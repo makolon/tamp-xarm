@@ -1,6 +1,10 @@
-from typing import List
+from __future__ import print_function
 
-class FunctionalExpression:
+import math
+
+COST_SCALE = 1
+
+class FunctionalExpression(object):
     def __init__(self, parts):
         self.parts = tuple(parts)
     def dump(self, indent="  "):
@@ -14,12 +18,13 @@ class FunctionalExpression:
 
 class NumericConstant(FunctionalExpression):
     parts = ()
-    def __init__(self, value: str) -> None:
-        if value != int(value):
-            raise ValueError("Fractional numbers are not supported")
-        self.value = int(value)
+    def __init__(self, value):
+        #if value != int(value):
+        #    raise ValueError("Fractional numbers are not supported")
+        #self.value = int(value)
+        self.value = int(math.ceil(COST_SCALE*float(value)))
     def __eq__(self, other):
-        return (self.__class__ == other.__class__ and self.value == other.value)
+        return self.__class__ == other.__class__ and self.value == other.value
     def __str__(self):
         return "%s %s" % (self.__class__.__name__, self.value)
     def _dump(self):
@@ -29,7 +34,7 @@ class NumericConstant(FunctionalExpression):
 
 class PrimitiveNumericExpression(FunctionalExpression):
     parts = ()
-    def __init__(self, symbol: str, args: List[str]) -> None:
+    def __init__(self, symbol, args):
         self.symbol = symbol
         self.args = tuple(args)
         self.hash = hash((self.__class__, self.symbol, self.args))
@@ -55,8 +60,7 @@ class PrimitiveNumericExpression(FunctionalExpression):
         return result
 
 class FunctionAssignment:
-    def __init__(self, fluent: PrimitiveNumericExpression,
-                 expression: FunctionalExpression) -> None:
+    def __init__(self, fluent, expression):
         self.fluent = fluent
         self.expression = expression
     def __str__(self):

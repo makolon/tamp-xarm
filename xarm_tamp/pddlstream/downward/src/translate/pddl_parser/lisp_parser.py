@@ -1,18 +1,20 @@
-__all__ = ["parse_nested_list"]
+__all__ = ["ParseError", "parse_nested_list"]
 
-from .parse_error import ParseError
+class ParseError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return self.value
 
 # Basic functions for parsing PDDL (Lisp) files.
 def parse_nested_list(input_file):
     tokens = tokenize(input_file)
     next_token = next(tokens)
     if next_token != "(":
-        raise ParseError(f"Expected '(', got '{next_token}'.")
+        raise ParseError("Expected '(', got %s." % next_token)
     result = list(parse_list_aux(tokens))
-    remaining_tokens = list(tokens)
-    if remaining_tokens:
-        raise ParseError(f"Tokens remaining after parsing: "
-                         f"{' '.join(remaining_tokens)}")
+    for tok in tokens:  # Check that generator is exhausted.
+        raise ParseError("Unexpected token: %s." % tok)
     return result
 
 def tokenize(input):
@@ -21,7 +23,8 @@ def tokenize(input):
         try:
             line.encode("ascii")
         except UnicodeEncodeError:
-            raise ParseError(f"Non-ASCII character outside comment: {line[0:-1]}")
+            raise ParseError("Non-ASCII character outside comment: %s" %
+                             line[0:-1])
         line = line.replace("(", " ( ").replace(")", " ) ").replace("?", " ?")
         for token in line.split():
             yield token.lower()

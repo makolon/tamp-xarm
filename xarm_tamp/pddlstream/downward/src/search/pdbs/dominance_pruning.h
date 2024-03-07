@@ -3,10 +3,6 @@
 
 #include "types.h"
 
-namespace utils {
-class LogProxy;
-}
-
 namespace pdbs {
 /*
   Clique superset dominates clique subset iff for every pattern
@@ -18,8 +14,7 @@ extern void prune_dominated_cliques(
     PDBCollection &pdbs,
     std::vector<PatternClique> &pattern_cliques,
     int num_variables,
-    double max_time,
-    utils::LogProxy &log);
+    double max_time);
 }
 
 #endif
