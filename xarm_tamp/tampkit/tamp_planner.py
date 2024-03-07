@@ -31,7 +31,7 @@ from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_appr
     get_cfree_traj_pose_test, get_supported, get_inserted
 
 # PDDLStream functions
-from pddlstream.algorithms.meta import solve
+from pddlstream.algorithms.meta import solve, create_parser
 from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
 from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
 from pddlstream.language.external import defer_shared, never_defer
@@ -90,8 +90,8 @@ class TAMPPlanner(object):
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
 
-        domain_pddl = read(get_file_path(__file__, 'task/assemble/domain.pddl'))
-        stream_pddl = read(get_file_path(__file__, 'task/assemble/stream.pddl'))
+        domain_pddl = read(get_file_path(__file__, 'problems/assemble/domain.pddl'))
+        stream_pddl = read(get_file_path(__file__, 'problems/assemble/stream.pddl'))
         constant_map = {}
 
         # Initlaize init & goal
