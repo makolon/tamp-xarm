@@ -128,6 +128,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# PDDLStream
+outputs
+
 # IsaacSim
 .DS_Store
 .thumbs

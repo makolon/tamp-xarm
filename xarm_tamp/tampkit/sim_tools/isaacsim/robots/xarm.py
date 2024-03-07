@@ -24,7 +24,8 @@ class xArm(Robot):
         self._name = name
 
         if self._usd_path is None:
-            self._usd_path = ('xarm7' / 'xarm_instanceable' / 'xarm7.usd').as_posix() # TODO: fix this
+            # TODO: fix this
+            self._usd_path = "/root/tamp-xarm/xarm_tamp/tampkit/models/usd/xarm_with_sphere_collision/xarm7.usd"
 
         add_reference_to_stage(self._usd_path, prim_path)
 

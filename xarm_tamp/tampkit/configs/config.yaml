@@ -72,22 +72,32 @@ sim:
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   base_block:
+    name: base_block
+    task: momo
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   block1:
+    name: block1
+    task: momo
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0]
 
   block2:
+    name: block2
+    task: momo
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0]
 
   block3:
+    name: block3
+    task: momo
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0]
 
   block4:
+    name: block4
+    task: momo
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0]
 

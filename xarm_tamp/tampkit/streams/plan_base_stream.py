@@ -1,8 +1,8 @@
 import random
+import itertools
 import numpy as np
 from tampkit.sim_tools.isaacsim.geometry import Pose, Conf
 from tampkit.sim_tools.isaacsim.sim_utils import (
-    islice,
     is_placement,
     all_between,
     pairwise_collision,
@@ -10,7 +10,6 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     get_arm_joints,
     get_custom_limits,
     get_base_joints,
-    islice,
     all_between,
     set_joint_positions,
     unit_from_theta
@@ -45,7 +44,7 @@ def plan_base_fn(problem, collisions=True, max_attempts=25, custom_limits={}):
 
         lower_limits, upper_limits = get_custom_limits(robot, base_joints, custom_limits)
         while True:
-            for base_conf in islice(base_generator, max_attempts):
+            for base_conf in itertools.islice(base_generator, max_attempts):
                 if not all_between(lower_limits, base_conf, upper_limits):
                     continue
                 bq = Conf(robot, base_joints, base_conf)

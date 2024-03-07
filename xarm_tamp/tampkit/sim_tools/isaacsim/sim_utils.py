@@ -57,20 +57,20 @@ def create_floor(world, plane_cfg):
     )
     return plane
 
-def create_surface(surface_name, position, orientation):
+def create_surface(surface_name, translation, orientation):
     surface = cuboid.VisualCuboid(
         f"/World/{surface_name}",
-        position=position,
+        translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
         size=0.01,
     )
     return surface
 
-def create_hole(hole_name, position, orientation):
+def create_hole(hole_name, translation, orientation):
     hole = cuboid.VisualCuboid(
         f"/World/{hole_name}",
-        position=position,
+        translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
         size=0.01,
@@ -80,9 +80,9 @@ def create_hole(hole_name, position, orientation):
 def create_table(table_cfg):
     table = cuboid.VisualCuboid(
         "/World/table",
-        position=np.array([table_cfg.position]),
-        orientation=np.array([table_cfg.orientation]),
-        color=np.array([table_cfg.color]),
+        translation=np.array(table_cfg.translation),
+        orientation=np.array(table_cfg.orientation),
+        color=np.array(table_cfg.color),
         size=table_cfg.size,
     )
     return table
@@ -91,8 +91,8 @@ def create_robot(robot_cfg):
     if "xarm" in robot_cfg.name:
         robot = xarm.xArm(
             "/World/xarm7",
-            position=np.array([robot_cfg.position]),
-            orientation=np.array([robot_cfg.orientation]),
+            translation=np.array(robot_cfg.translation),
+            orientation=np.array(robot_cfg.orientation),
         )
     else:
         raise ValueError("Need to give known robot_name")
@@ -102,14 +102,14 @@ def create_fmb(fmb_cfg):
     if fmb_cfg.task == 'momo':
         block = fmb_momo.Block(
             f"/World/{fmb_cfg.name}",
-            position=np.array([fmb_cfg.position]),
-            orientation=np.array([fmb_cfg.orientation])
+            translation=np.array(fmb_cfg.translation),
+            orientation=np.array(fmb_cfg.orientation)
         )
     elif fmb_cfg.task == 'simo':
         block = fmb_simo.Block(
             f"/World/{fmb_cfg.name}",
-            position=np.array([fmb_cfg.position]),
-            orientation=np.array([fmb_cfg.orientation])
+            translation=np.array(fmb_cfg.translation),
+            orientation=np.array(fmb_cfg.orientation)
         )
     return block
 
@@ -127,7 +127,11 @@ def get_base_joints(robot: Robot):
 def get_gripper_joints(robot: Robot):
     return robot.gripper_joints
 
-def get_joint_positions(robot: Robot, joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
+def get_joint_positions(robot: Robot,
+                        joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    if joint_indices == None:
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.arm_joints]
     joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
     return joint_positions
 
@@ -162,25 +166,28 @@ def get_custom_limits(robot: Robot,
     return get_min_limit(robot), get_max_limit(robot)
 
 def get_initial_conf(robot: Robot,
-                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
-    default_pos, _ = robot.get_joints_default_state(joint_indices=joint_indices)
-    if default_pos is None:
+                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    if joint_indices == None:
+        joint_indices = [robot.get_dof_index(name) \
+            for name in robot.arm_joints]
+    state = robot.get_joints_default_state()
+    if state is None:
         default_pos = robot.get_joint_positions(joint_indices=joint_indices)
     return default_pos
 
 def get_group_conf(robot: Robot,
                    group: str = 'arm'):
     if group == 'arm':
-        joint_indices = [robot.get_joint_index(name) \
-            for name in robot.active_joints]
+        joint_indices = [robot.get_dof_index(name) \
+            for name in robot.arm_joints]
     elif group == 'gripper':
-        joint_indices = [robot.get_joint_index(name) \
+        joint_indices = [robot.get_dof_index(name) \
             for name in robot.gripper_joints]
     elif group == 'base':
-        joint_indices = [robot.get_joint_index(name) \
+        joint_indices = [robot.get_dof_index(name) \
             for name in robot.base_joints]
     elif group == 'whole_body':
-        joint_indices = [robot.get_joint_index(name) \
+        joint_indices = [robot.get_dof_index(name) \
             for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
     return robot.get_joint_positions(joint_indices=joint_indices)
 
@@ -271,8 +278,8 @@ def set_joint_positions(robot: Robot,
                         positions: Optional[Union[np.ndarray, torch.Tensor]],
                         joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
-        joint_indices = [robot.get_joint_index(name) \
-            for name in robot.active_joints]
+        joint_indices = [robot.get_dof_index(name) \
+            for name in robot.arm_joints]
     robot.set_joint_positions(positions, joint_indices)
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
@@ -284,8 +291,8 @@ def set_arm_conf(robot: Robot,
                  conf: Optional[Union[np.ndarray, torch.Tensor]],
                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
-        joint_indices = [robot.get_joint_index(name) \
-            for name in robot.active_joints]
+        joint_indices = [robot.get_dof_index(name) \
+            for name in robot.arm_joints]
     robot.set_joint_positions(conf, joint_indices=joint_indices)
 
 ### Utility API
@@ -355,25 +362,73 @@ def base_values_from_pose(pose, tolerance=1e-3):
     x, y, _ = point
     roll, pitch, yaw = euler_from_quat(quat)
     assert (abs(roll) < tolerance) and (abs(pitch) < tolerance)
-    return Pose2d(x, y, yaw)
+    return np.array([x, y, yaw])
 
-def islice():
-    pass
+def all_between(lower_limits, values, upper_limits):
+    assert len(lower_limits) == len(values)
+    assert len(values) == len(upper_limits)
+    return np.less_equal(lower_limits, values).all() and \
+           np.less_equal(values, upper_limits).all()
 
-def all_between():
-    pass
+def parse_body(body, link=None):
+    collision_pair = namedtuple('Collision', ['robot', 'links'])
+    return body if isinstance(body, tuple) else collision_pair(body, link)
 
-def pairwise_collision():
-    pass
+def get_all_links(robot: Robot):
+    return [link_prim for link_prim in robot.GetChildren()]
 
-def iterate_approach_path():
-    pass
+def expand_links(body, **kwargs):
+    body, links = parse_body(body, **kwargs)
+    if links is None:
+        links = get_all_links(body)
+    collision_pair = namedtuple('Collision', ['robot', 'links'])
+    return collision_pair(body, links)
 
-def is_placement():
-    pass
+def pairwise_link_collision(body1, link1, body2, link2=None, **kwargs):
+    return len(get_closest_points(body1, body2, link1=link1, link2=link2, **kwargs)) != 0
 
-def is_insertion():
-    pass
+def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
+    # TODO: this likely isn't needed anymore
+    if links1 is None:
+        links1 = get_all_links(body1)
+    if links2 is None:
+        links2 = get_all_links(body2)
+    for link1, link2 in product(links1, links2):
+        if (body1 == body2) and (link1 == link2):
+            continue
+        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+            return True
+    return False
+
+def body_collision(body1, body2, **kwargs):
+    return len(get_closest_points(body1, body2, **kwargs)) != 0
+
+def pairwise_collision(body1, body2, **kwargs):
+    if isinstance(body1, tuple) or isinstance(body2, tuple):
+        body1, links1 = expand_links(body1)
+        body2, links2 = expand_links(body2)
+        return any_link_pair_collision(body1, links1, body2, links2, **kwargs)
+    return body_collision(body1, body2, **kwargs)
+
+def iterate_approach_path(robot, arm, gripper, pose, grasp, body=None):
+    tool_from_root = get_tool_from_root(robot, arm)
+    grasp_pose = multiply(pose.value, invert(grasp.value))
+    approach_pose = multiply(pose.value, invert(grasp.approach))
+    for tool_pose in interpolate_poses(grasp_pose, approach_pose):
+        set_pose(gripper, multiply(tool_pose, tool_from_root))
+        if body is not None:
+            set_pose(body, multiply(tool_pose, grasp.value))
+        yield
+
+def is_placement(body, surface, **kwargs):
+    if get_aabb(surface) is None:
+        return False
+    return is_placed_on_aabb(body, get_aabb(surface), **kwargs)
+
+def is_placement(body, hole, **kwargs):
+    if get_aabb(hole) is None:
+        return False
+    return is_inserted_on_aabb(body, get_aabb(hole), **kwargs)
 
 def multiply():
     pass
@@ -382,28 +437,36 @@ def get_side_grasps():
     pass
 
 def unit_quat():
-    pass
+    return np.array([1.0, 0.0, 0.0, 0.0])
 
-def compute_grasp_width():
-    pass
+def compute_grasp_width(robot, arm, body, grasp_pose, **kwargs):
+    tool_link = get_tool_frame(robot)
+    tool_pose = get_link_pose(robot, tool_link)
+    body_pose = multiply(tool_pose, grasp_pose)
+    set_pose(body, body_pose)
+    gripper_joints = get_gripper_joints(robot, arm)
+    return close_until_collision(robot, gripper_joints, bodies=[body], **kwargs)
 
 def unit_pose():
-    pass
+    return (unit_point(), unit_quat())
 
-def get_point():
-    pass
+def get_point(body):
+    return get_pose(body)[0]
 
-def get_center_extent():
-    pass
+def get_center_extent(body, **kwargs):
+    aabb = get_aabb(body, **kwargs)
+    return get_aabb_center(aabb), get_aabb_extent(aabb)
 
-def aabb_empty():
-    pass
+def aabb_empty(aabb):
+    lower, upper = aabb
+    return np.less(upper, lower).any()
 
-def sample_aabb():
-    pass
+def sample_aabb(aabb):
+    lower, upper = aabb
+    return np.random.uniform(lower, upper)
 
-def unit_from_theta():
-    pass
+def unit_from_theta(theta):
+    return np.array([np.cos(theta), np.sin(theta)])
 
 def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
     for i, command in enumerate(commands):
