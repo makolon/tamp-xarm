@@ -84,7 +84,7 @@ class TAMPPlanner(object):
 
         np.set_printoptions(precision=2)
         if deterministic:
-            random.seed(seed=0)
+            random.seed(0)
             np.random.seed(seed=0)
 
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):

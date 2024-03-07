@@ -1,9 +1,9 @@
 # PDDLStream problem
 pddlstream:
-  algorithm: 
-  unit:
+  algorithm: adaptive
+  unit: True
   deterministic: True
-  problem: assembly
+  problem: fmb_momo_problem
   cfree: True
   teleport: False
 
@@ -110,25 +110,6 @@ sim:
     name: surface1
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
-
-  table:
-    # -1 to use default values
-    override_usd_defaults: False
-    make_kinematic: True
-    enable_self_collisions: False
-    enable_gyroscopic_forces: True
-    # also in stage params
-    # per-actor
-    solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 32
-    sleep_threshold: 0.005
-    stabilization_threshold: 0.001
-    # per-body
-    density: -1
-    max_depenetration_velocity: 3.0
-    # per-shape
-    contact_offset: 0.005
-    rest_offset: 0.0
 
   parts:
     mass: 0.01

@@ -51,7 +51,6 @@ def create_world():
 
 def create_floor(world, plane_cfg):
     plane = world.scene.add_default_ground_plane(
-        size=plane_cfg.size,
         static_friction=plane_cfg.static_friction,
         dynamic_friction=plane_cfg.dynamic_friction,
         restitution=plane_cfg.restitution,

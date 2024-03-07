@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 import time
-from collections import namedtuple, Sized
+from collections import namedtuple
+from collections.abc import Sized
 from itertools import count
 from heapq import heappush, heappop
 
