@@ -30,6 +30,7 @@ from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from tampkit.sim_tools.isaacsim.robots import xarm
 from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
+from tampkit.sim_tools.isaacsim.curobo_utils import CuroboController
 
 ### Simulation Utils
 
@@ -260,8 +261,8 @@ def add_segments():
 def step_simulation():
     pass
 
-def joint_controller():
-    pass
+def joint_controller(world):
+    return CuroboController()
 
 def waypoints_from_path():
     pass

@@ -22,7 +22,7 @@ from tampkit.sim_tools.isaacsim.geometry import Grasp
 
 
 def get_grasp_gen(problem, collisions=True, randomize=False):
-    def gen_fn(obj):
+    def gen_fn(body):
         grasps = []
         arm = 'arm'
         approach_vector = get_unit_vector([0, -1, 0])

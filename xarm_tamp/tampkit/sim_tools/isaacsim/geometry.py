@@ -1,3 +1,6 @@
+import torch
+import numpy as np
+from typing import Optional, Union
 from itertools import count
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Getter
@@ -9,16 +12,19 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     base_values_from_pose, body_from_end_effector, flatten_links, link_from_name
 )
 
+from omni.isaac.core.robots import Robot
+from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
+
 
 class Pose(object):
     num = count()
-    def __init__(self, body, value=None, support=None, init=False):
+    def __init__(self,
+                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim, Robot]],
+                 value: Optional[Union[np.ndarray, torch.Tensor]] = None):
         self.body = body
         if value is None:
             value = get_pose(self.body)
         self.value = tuple(value)
-        self.support = support
-        self.init = init
         self.index = next(self.num)
 
     @property
@@ -40,8 +46,11 @@ class Pose(object):
         return '{}'.format(index)
 
 class Grasp(object):
-    def __init__(self, grasp_type, body, value, approach, carry):
-        self.grasp_type = grasp_type
+    def __init__(self,
+                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                 value: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                 approach: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                 carry: Optional[Union[np.ndarray, torch.Tensor]] = None):
         self.body = body
         self.value = tuple(value)
         self.approach = tuple(approach)
@@ -54,43 +63,12 @@ class Grasp(object):
     def __repr__(self):
         return 'g{}'.format(id(self) % 1000)
 
-class Conf(object):
-    def __init__(self, body, joints, values=None, init=False):
-        self.body = body
-        self.joints = joints
-        if values is None:
-            values = get_joint_positions(self.body, self.joints)
-        self.values = tuple(values)
-        self.init = init
-
-    @property
-    def bodies(self): # TODO: misnomer
-        return flatten_links(self.body, get_moving_links(self.body, self.joints))
-
-    def assign(self):
-        set_joint_positions(self.body, self.joints, self.values)
-
-    def iterate(self):
-        yield self
-
-    def __repr__(self):
-        return 'q{}'.format(id(self) % 1000)
-
-class State(object):
-    def __init__(self, attachments={}, cleaned=set(), cooked=set()):
-        self.poses = {body: Pose(body, get_pose(body))
-                      for body in get_bodies() if body not in attachments}
-        self.grasps = {}
-        self.attachments = attachments
-        self.cleaned = cleaned
-        self.cooked = cooked
-
-    def assign(self):
-        for attachment in self.attachments.values():
-            attachment.assign()
-
 class Attachment(object):
-    def __init__(self, parent, parent_link, grasp_pose, child):
+    def __init__(self,
+                 parent,
+                 parent_link,
+                 grasp_pose,
+                 child):
         self.parent = parent # TODO: support no parent
         self.parent_link = parent_link
         self.grasp_pose = grasp_pose
@@ -113,3 +91,45 @@ class Attachment(object):
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.parent, self.child)
+
+class Conf(object):
+    def __init__(self,
+                 robot: Robot,
+                 values: Optional[Union[np.ndarray, torch.Tensor]],
+                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                 init=False):
+        self.robot = robot
+        self.joints = joint_indices
+        if values is None:
+            values = get_joint_positions(self.robot, self.joints)
+        self.values = tuple(values)
+        self.init = init
+
+    @property
+    def bodies(self): # TODO: misnomer
+        return flatten_links(self.robot, get_moving_links(self.robot, self.joints))
+
+    def assign(self):
+        set_joint_positions(self.robot, self.values, self.joints)
+
+    def iterate(self):
+        yield self
+
+    def __repr__(self):
+        return 'q{}'.format(id(self) % 1000)
+
+class State(object):
+    def __init__(self,
+                 attachments: dict = {},
+                 cleaned: set = set(),
+                 cooked: set = set()):
+        self.poses = {body: Pose(body, get_pose(body))
+                      for body in get_bodies() if body not in attachments}
+        self.grasps = {}
+        self.attachments = attachments
+        self.cleaned = cleaned
+        self.cooked = cooked
+
+    def assign(self):
+        for attachment in self.attachments.values():
+            attachment.assign()

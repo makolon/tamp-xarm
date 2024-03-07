@@ -14,8 +14,6 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     waypoints_from_path, link_from_name, create_attachment, add_fixed_constraint,
     joints_from_names, remove_fixed_constraint
 )
-# TODO: fix
-from omni.isaac.core.utils.torch.transformations import tf_combine
 
 #####################################
 
@@ -67,13 +65,22 @@ class Trajectory(Command):
 
     def control(self, dt=0, **kwargs):
         controller = joint_controller()
+        articulation_controller = self.robot.get_articulation_controller()
+
         for conf in self.path:
             if isinstance(conf, Pose):
                 conf = conf.to_base_conf()
 
-            for _ in controller.execute(conf.body, conf.joints, conf.values):
-                step_simulation()
-                time.sleep(dt)
+            if controller.reached_target():
+                if self.robot.gripper.get_joint_positions()[0] < 0.035:
+                    controller.gripper_command()
+                else:
+                    controller.gripper_command()
+            else:
+                sim_js = self.robot.get_joint_state()
+                art_action = controller.forward(sim_js, self.robot.dof_names)
+                if art_action is not None:
+                    articulation_controller.apply_action(art_action)
 
     def to_points(self, link=None):
         points = []
@@ -134,8 +141,16 @@ class GripperCommand(Command):
 
     def control(self, **kwargs):
         controller = joint_controller()
-        for _ in controller.execute(self.robot, joints, positions):
-            yield
+        articulation_controller = self.robot.get_articulation_controller()
+        ignore_substring = ["material", "Plane"]
+
+        if not controller.init_curobo:
+            controller.reset(ignore_substring, self.robot.prim_path)
+
+        if self.robot.gripper.get_joint_positions()[0] < 0.035:
+            controller.gripper_command()
+        else:
+            controller.gripper_command()
 
     def __repr__(self):
         return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
@@ -185,7 +200,7 @@ class Detach(Command):
         yield
 
     def control(self, motion_gen):
-        controller = joint_controller(self.robots)
+        controller = joint_controller()
         controller.detach_object_from_robot()
 
     def __repr__(self):
