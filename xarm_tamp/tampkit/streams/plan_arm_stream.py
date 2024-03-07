@@ -4,13 +4,14 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     get_arm_joints,
     get_initial_conf,
     set_joint_positions,
+    BodySaver
 )
 from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_tensor_device_type,
     get_motion_gen_plan_cfg
 )
-from tampkit.sim_tools.isaacsim.geometry import Conf, State, Trajectory
-from tampkit.sim_tools.isaacsim.control import Commands
+from tampkit.sim_tools.isaacsim.geometry import Conf, State
+from tampkit.sim_tools.isaacsim.control import Commands, Trajectory
 
 from curobo.types.math import Pose
 from curobo.types.state import JointState
@@ -44,6 +45,9 @@ def get_motion_fn(problem, collisions=True, teleport=False):
             quaternion=tensor_args.to_device(pose.rotation),
         )
 
+        # Get joint states
+        sim_js = robot.get_joints_state()
+
         # Plan joint motion for grasp
         curr_js = JointState(
             position=tensor_args.to_device(sim_js.positions),
@@ -67,7 +71,7 @@ def get_motion_fn(problem, collisions=True, teleport=False):
 
     return fn
 
-def plan_arm_fn(problem, max_attempts=25, learned=False, teleport=False, **kwargs):
+def plan_arm_fn(problem, max_attempts=25, teleport=False, **kwargs):
     ik_fn = get_motion_fn(problem, teleport=teleport, **kwargs)
 
     def gen_fn(*inputs):

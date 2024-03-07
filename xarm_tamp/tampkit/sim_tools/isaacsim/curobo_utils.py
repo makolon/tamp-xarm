@@ -28,7 +28,7 @@ from curobo.wrap.model.robot_world import RobotWorld, RobotWorldConfig
 # Reacher wrapper
 from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
 from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, \
-    MotionGenPlanConfig, MotionGenResult, PoseCostMetric
+    MotionGenPlanConfig, MotionGenResult
 from curobo.wrap.reacher.mpc import MpcSolver, MpcSolverConfig
 
 ########################
@@ -231,10 +231,10 @@ class CuroboController(BaseController):
         print("warming up...")
         self.motion_gen.warmup(parallel_finetune=True)
         pose_metric = None
-        if constrain_grasp_approach:
-            pose_metric = PoseCostMetric.create_grasp_approach_metric(
-                offset_position=0.1, tstep_fraction=0.6
-            )
+        # if constrain_grasp_approach:
+        #     pose_metric = PoseCostMetric.create_grasp_approach_metric(
+        #         offset_position=0.1, tstep_fraction=0.6
+        #     )
 
         self.plan_config = MotionGenPlanConfig(
             enable_graph=False,

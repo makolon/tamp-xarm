@@ -4,6 +4,8 @@ import numpy as np
 from collections import namedtuple
 from omegaconf import DictConfig
 
+import tampkit.sim_tools.isaacsim.sim_utils
+
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
     connect, disconnect, \
@@ -14,7 +16,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     apply_commands, control_commands
 )
 from tampkit.sim_tools.isaacsim.geometry import (
-    Pose, Conf, State, Trajectory, JointState
+    Pose, Conf, State
 )
 from tampkit.sim_tools.isaacsim.control import (
     GripperCommand, Attach, Detach

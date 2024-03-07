@@ -1,7 +1,7 @@
 import copy
 import time
 import numpy as np
-from geometry import Pose
+from tampkit.sim_tools.isaacsim.geometry import Pose
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Getter
     get_distance, get_group_conf, get_target_path, get_gripper_joints,
@@ -168,7 +168,7 @@ class Attach(Command):
 
     def assign(self):
         gripper_pose = get_link_pose(self.robot, self.link)
-        body_pose = tf_combine(gripper_pose, self.grasp.value)
+        body_pose = multiply(gripper_pose, self.grasp.value)
         set_pose(self.body, body_pose)
 
     def apply(self, state, **kwargs):

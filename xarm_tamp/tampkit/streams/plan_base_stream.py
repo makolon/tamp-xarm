@@ -5,18 +5,20 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     islice,
     is_placement,
     all_between,
-    max_attempts,
     pairwise_collision,
     iterate_approach_path,
-    arm_conf,
     get_arm_joints,
     get_custom_limits,
-    get_group_joints,
-    set_joint_positions
+    get_base_joints,
+    islice,
+    all_between,
+    set_joint_positions,
+    unit_from_theta
 )
 
+CIRCULAR_LIMITS = (10.0, 10.0)
 
-def uniform_pose_generator(robot, gripper_pose, **kwargs):
+def uniform_pose_generator(robot, gripper_pose, reachable_range=(10.0, 10.0), **kwargs):
     point = gripper_pose[0]
     while True:
         radius = np.random.uniform(*reachable_range)
@@ -28,23 +30,16 @@ def uniform_pose_generator(robot, gripper_pose, **kwargs):
         yield base_values
 
 
-def plan_base_fn(problem, collisions=True, learned=False):
+def plan_base_fn(problem, collisions=True, max_attempts=25, custom_limits={}):
     # Sample move_base pose
     robot = problem.robot
     obstacles = problem.fixed if collisions else []
-    gripper = problem.get_gripper()
 
-    def gen_fn(arm, body, pose, grasp):
+    def gen_fn(base, body, pose):
         pose.assign()
-        approach_obstacles = {obst for obst in obstacles if not is_placement(body, obst)}
-        for _ in iterate_approach_path(robot, arm, gripper, pose, grasp, body=body):
-            if any(pairwise_collision(gripper, b) or pairwise_collision(body, b) for b in approach_obstacles):
-                return
 
-        gripper_pose = pose.value # multiply(pose.value, invert(grasp.value))
-        default_conf = arm_conf(arm, grasp.carry)
-        arm_joints = get_arm_joints(robot, arm)
-        base_joints = get_group_joints(robot, 'base')
+        gripper_pose = pose.value
+        base_joints = get_base_joints(robot)
 
         base_generator = uniform_pose_generator(robot, gripper_pose)
 
@@ -54,11 +49,7 @@ def plan_base_fn(problem, collisions=True, learned=False):
                 if not all_between(lower_limits, base_conf, upper_limits):
                     continue
                 bq = Conf(robot, base_joints, base_conf)
-                pose.assign()
                 bq.assign()
-                set_joint_positions(robot, arm_joints, default_conf)
-                if any(pairwise_collision(robot, b) for b in obstacles + [body]):
-                    continue
                 yield (bq,)
                 break
             else:

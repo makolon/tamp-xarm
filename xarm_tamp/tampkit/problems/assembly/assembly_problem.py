@@ -17,7 +17,7 @@ from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_ik_solver,
     get_mpc_solver,
 )
-from base_problem import Problem
+from tampkit.problems.base_problem import Problem
 
 
 def fmb_momo_problem(sim_cfg):

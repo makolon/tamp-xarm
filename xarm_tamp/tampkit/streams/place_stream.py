@@ -1,32 +1,38 @@
 import random
 import numpy as np
+from collections import namedtuple
 from tampkit.sim_tools.isaacsim.geometry import Pose
-from tampkit.sim_tools.isaacsim.sim_utils import pairwise_collision
-from omni.isaac.core.utils.torch.maths import normalize, scale_transform, unscale_transform
-from omni.isaac.core.utils.torch.rotations import (
-    quat_apply,
-    quat_conjugate,
-    quat_from_angle_axis,
-    quat_mul,
-    quat_rotate,
-    quat_rotate_inverse,
+from tampkit.sim_tools.isaacsim.sim_utils import (
+    pairwise_collision,
+    get_aabb,
+    set_pose,
+    multiply,
+    get_center_extent,
+    aabb_empty,
+    sample_aabb,
+    get_point,
+    get_pose
 )
 
+CIRCULAR_LIMITS = (10.0, 10.0)
+Euler = None # Pose
+AABB = namedtuple('AABB', ['lower', 'upper'])
 
-def sample_placement(top_body, bottom_body, bottom_link=None, **kwargs):
+def sample_placement(top_body, bottom_body, bottom_link=None, max_attempts=25, **kwargs):
     bottom_aabb = get_aabb(bottom_body, link=bottom_link)
+    top_pose = get_pose(top_body)
     for _ in range(max_attempts):
         theta = np.random.uniform(*CIRCULAR_LIMITS)
         rotation = Euler(yaw=theta)
         set_pose(top_body, multiply(Pose(euler=rotation), top_pose))
         center, extent = get_center_extent(top_body)
-        lower = (np.array(bottom_aabb[0]))[:2] # - percent*extent/2)[:2]
-        upper = (np.array(bottom_aabb[1]))[:2] # + percent*extent/2)[:2]
+        lower = (np.array(bottom_aabb[0]))[:2]
+        upper = (np.array(bottom_aabb[1]))[:2]
         aabb = AABB(lower, upper)
         if aabb_empty(aabb):
             continue
         x, y = sample_aabb(aabb)
-        z = (bottom_aabb[1])[2] # + extent/2.)[2] + epsilon
+        z = (bottom_aabb[1])[2]
         point = np.array([x, y, z]) + (get_point(top_body) - center)
         pose = multiply(Pose(point, rotation), top_pose)
         set_pose(top_body, pose)

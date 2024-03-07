@@ -156,6 +156,12 @@ def get_min_limit(robot: Robot) -> np.ndarray:
 def get_max_limit(robot: Robot) -> np.ndarray:
     return robot.dof_properties.upper
 
+def get_custom_limits(robot: Robot,
+                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]],
+                      cutom_limits: dict = {}):
+    # TODO: fix this
+    return get_min_limit(robot), get_max_limit(robot)
+
 def get_initial_conf(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
     default_pos, _ = robot.get_joints_default_state(joint_indices=joint_indices)
@@ -205,8 +211,31 @@ def get_target_point(conf):
         point[2] = center[2]
         return point
 
-def get_link_subtree():
-    pass
+def get_all_link_parents(body):
+    return {link: get_link_parent(body, link) for link in get_links(body)}
+
+def get_all_link_children(body):
+    children = {}
+    for child, parent in get_all_link_parents(body).items():
+        if parent not in children:
+            children[parent] = []
+        children[parent].append(child)
+    return children    
+
+def get_link_children(body, link):
+    children = get_all_link_children(body)
+    return children.get(link, [])
+    
+def get_link_descendants(body, link, test=lambda l: True):
+    descendants = []
+    for child in get_link_children(body, link):
+        if test(child):
+            descendants.append(child)
+            descendants.extend(get_link_descendants(body, child, test=test))
+    return descendants
+
+def get_link_subtree(body, link, **kwargs):
+    return [link] + get_link_descendants(body, link, **kwargs)
 
 ### Geom/Rigid/XForm Utils (Getter)
 
@@ -329,6 +358,54 @@ def base_values_from_pose(pose, tolerance=1e-3):
     assert (abs(roll) < tolerance) and (abs(pitch) < tolerance)
     return Pose2d(x, y, yaw)
 
+def islice():
+    pass
+
+def all_between():
+    pass
+
+def pairwise_collision():
+    pass
+
+def iterate_approach_path():
+    pass
+
+def is_placement():
+    pass
+
+def is_insertion():
+    pass
+
+def multiply():
+    pass
+
+def get_side_grasps():
+    pass
+
+def unit_quat():
+    pass
+
+def compute_grasp_width():
+    pass
+
+def unit_pose():
+    pass
+
+def get_point():
+    pass
+
+def get_center_extent():
+    pass
+
+def aabb_empty():
+    pass
+
+def sample_aabb():
+    pass
+
+def unit_from_theta():
+    pass
+
 def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
     for i, command in enumerate(commands):
         print(i, command)
@@ -338,16 +415,12 @@ def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
                 continue
             if time_step is None:
                 wait_for_duration(1e-2)
-                wait_if_gui('Command {}, Step {}) Next?'.format(i, j))
             else:
                 wait_for_duration(time_step)
         if pause:
             wait_if_gui()
 
 def control_commands(commands, **kwargs):
-    wait_if_gui('Control?')
-    disable_real_time()
-    enable_gravity()
     for i, command in enumerate(commands):
         print(i, command)
         command.control(*kwargs)
