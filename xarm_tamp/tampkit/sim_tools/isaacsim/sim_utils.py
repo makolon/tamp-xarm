@@ -21,6 +21,8 @@ simulation_app = SimulationApp(
 # Third party
 import carb
 import numpy as np
+import omni.isaac.core.utils.prims as prims_utils
+import omni.isaac.core.utils.bounds as bounds_utils
 from typing import Union, Optional, Tuple
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
@@ -29,6 +31,7 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from tampkit.sim_tools.isaacsim.robots import xarm
 from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
 
+### Simulation Utils
 
 def connect():
     global simulation_app
@@ -109,7 +112,47 @@ def create_fmb(fmb_cfg):
         )
     return block
 
-### Getter API
+### Robot Utils (Getter)
+
+def get_tool_frame(robot: Robot):
+    return robot.tool_frame
+
+def get_arm_joints(robot: Robot):
+    return robot.arm_joints
+
+def get_base_joints(robot: Robot):
+    return robot.base_joints
+
+def get_gripper_joints(robot: Robot):
+    return robot.gripper_joints
+
+def get_joint_positions(robot: Robot, joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
+    joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
+    return joint_positions
+
+def get_link_pose(robot: Robot, link_name: str):
+    link_names = [link_prim.name for link_prim in robot.GetChildren()]
+    if link_name not in link_names:
+        raise ValueError("Specified link does not exist.")
+    else:
+        prim_path = get_prim_from_name(link_name)
+        link_prim = prims_utils.get_prim_at_path(prim_path)
+        return link_prim.get_local_pose()
+
+def get_prim_from_name(name: str):
+    # TODO: fix this function to recursively search prim_path
+    prim_paths = prims_utils.find_matching_prim_paths(f"/World/*{name}")
+    print('prim_paths:', prim_paths)
+    if len(prim_paths) == 1:
+        return prim_paths[0]
+    else:
+        raise ValueError("The specified prim path does not exist.")
+
+def get_min_limit(robot: Robot) -> np.ndarray:
+    return robot.dof_properties.lower
+
+def get_max_limit(robot: Robot) -> np.ndarray:
+    return robot.dof_properties.upper
 
 def get_initial_conf(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
@@ -134,41 +177,47 @@ def get_group_conf(robot: Robot,
             for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
     return robot.get_joint_positions(joint_indices=joint_indices)
 
-def get_body_name(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
-    return body.name
-
-def get_distance():
+def get_moving_links():
     pass
 
-def get_target_path():
+def get_distance(p1, p2, **kwargs):
+    assert len(p1) == len(p2)
+    diff = np.array(p2) - np.array(p1)
+    return np.linalg.norm(diff, ord=2)
+
+def get_target_point(conf):
+    robot = conf.body
+    link = link_from_name(robot, 'torso_lift_link')
+
+    with BodySaver(conf.body):
+        conf.assign()
+        lower, upper = get_aabb(robot, link)
+        center = np.average([lower, upper], axis=0)
+        point = np.array(get_group_conf(conf.body, 'base'))
+        point[2] = center[2]
+        return point
+
+def get_link_subtree():
     pass
 
-def get_tool_frame():
-    pass
+### Geom/Rigid/XForm Utils (Getter)
 
-def get_gripper_joints(robot: Robot):
-    return robot.gripper_joints
-
-def get_joint_positions(robot: Robot, joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
-    joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
-    return joint_positions
-
-# TODO: fix this function
-def get_link_pose(prim: Tuple[np.ndarray, np.ndarray]):
-    if prim.is_valid():
-        pos, orn = prim.get_local_pose()
-    else:
-        raise NotImplementedError()
-    return pos, orn
-
-def get_min_limit(robot: Robot) -> np.ndarray:
-    return robot.dof_properties.lower
-
-def get_max_limit(robot: Robot) -> np.ndarray:
-    return robot.dof_properties.upper
+def get_target_path(trajectory):
+    return [get_target_point(conf) for conf in trajectory.path]
 
 def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     return body.get_local_pose()
+
+def get_bodies():
+    return []
+
+def get_body_name(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    return body.name
+
+def get_aabb(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    cache = bounds_utils.create_bbox_cache()
+    body_aabb = bounds_utils.compute_aabb(cache, body.prim_path)
+    return body_aabb
 
 def get_extend_fn(robot: Robot, joints):
     def fn(start_conf: torch.Tensor, end_conf: torch.Tensor):
@@ -180,7 +229,7 @@ def get_distance_fn():
         pass
     return fn
 
-### Setter API
+### Robot Utils (Setter)
 
 def set_joint_positions(robot: Robot,
                         positions: Optional[Union[np.ndarray, torch.Tensor]],
@@ -220,20 +269,29 @@ def waypoints_from_path():
 def link_from_name():
     pass
 
+def joints_from_names():
+    pass
+
 def create_attachment():
     pass
 
 def add_fixed_constraint():
     pass
 
-def joints_from_names():
+def remove_fixed_constraint():
     pass
 
-def remove_fixed_constraint():
+def flatten_links():
+    pass
+
+def base_values_from_pose():
     pass
 
 def apply_commands():
     pass
 
 def control_commands():
+    pass
+
+def body_from_end_effector():
     pass

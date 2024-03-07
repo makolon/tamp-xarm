@@ -1,4 +1,5 @@
 import hydra
+import random
 import numpy as np
 from collections import namedtuple
 from omegaconf import DictConfig
@@ -106,7 +107,8 @@ class TAMPPlanner(object):
 
         np.set_printoptions(precision=2)
         if deterministic:
-            self.set_deterministic()
+            random.seed(seed=0)
+            np.random.seed(seed=0)
 
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
@@ -115,36 +117,39 @@ class TAMPPlanner(object):
         stream_pddl = read(get_file_path(__file__, 'task/assemble/stream.pddl'))
         constant_map = {}
 
-        initial_bq = Conf(robot, get_group_joints(robot, 'base'), get_group_conf(robot, 'base'))
         init = [
             ('CanMove',),
-            ('BConf', initial_bq),
-            ('AtBConf', initial_bq),
             Equal(('PickCost',), 1),
             Equal(('PlaceCost',), 1),
             Equal(('InsertCost',), 1),
         ]
 
-        joints = get_arm_joints(robot, 'arm')
+        joints = get_arm_joints(robot)
         conf = Conf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', 'arm'), ('AConf', 'arm', conf), ('HandEmpty', 'arm'), ('AtAConf', 'arm', conf)]
+        init += [('Arm', 'arm'), ('Conf', 'arm', conf), ('HandEmpty', 'arm'), ('AtConf', 'arm', conf)]
         init += [('Controllable', 'arm')]
 
         for body in problem.movable:
             pose = Pose(body, get_pose(body))
-            init += [('Graspable', body), ('Pose', body, pose),
-                    ('AtPose', body, pose)]
+            init += [('Graspable', body),
+                     ('Pose', body, pose),
+                     ('AtPose', body, pose)]
 
+        # Initlaize goal
         goal = [AND]
+        
+        # Goal configuration
         if problem.goal_conf is not None:
             goal_conf = Pose(robot, problem.goal_conf)
-            init += [('BConf', goal_conf)]
-            goal += [('AtBConf', goal_conf)]
+            init += [('Conf', goal_conf)]
+            goal += [('AtConf', goal_conf)]
 
+        # Surface pose
         for body in problem.surfaces:
             pose = Pose(body, get_pose(body))
             init += [('RegionPose', body, pose)]
 
+        # Hole pose
         for body in problem.holes:
             pose = Pose(body, get_pose(body))
             init += [('HolePose', body, pose)]
@@ -179,7 +184,7 @@ class TAMPPlanner(object):
             return None
         commands = []
         for i, (name, args) in enumerate(plan):
-            if name == 'move_base':
+            if name == 'move':
                 q1, q2, c = args
                 new_commands = c.commands
             elif name == 'pick':
@@ -267,7 +272,7 @@ def main(cfg: DictConfig):
         cfree=cfg.pddlstream.cfree,
         teleport=cfg.pddlstream.teleport,
     )
-    tamp_planer.execute(cfg)
+    tamp_planer.execute(cfg.sim)
 
 
 if __name__ == '__main__':

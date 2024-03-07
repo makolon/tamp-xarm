@@ -1,10 +1,8 @@
 import copy
 import time
 import numpy as np
-from geometry import (
-    Pose, 
-)
-from isaacsim.sim_utils import (
+from geometry import Pose
+from tampkit.sim_tools.isaacsim.sim_utils import (
     # Getter
     get_distance, get_group_conf, get_target_path, get_gripper_joints,
     get_joint_positions, get_extend_fn, get_body_name, get_link_pose,
@@ -16,6 +14,8 @@ from isaacsim.sim_utils import (
     waypoints_from_path, link_from_name, create_attachment, add_fixed_constraint,
     joints_from_names, remove_fixed_constraint
 )
+# TODO: fix
+from omni.isaac.core.utils.torch.transformations import tf_combine
 
 #####################################
 
@@ -153,7 +153,7 @@ class Attach(Command):
 
     def assign(self):
         gripper_pose = get_link_pose(self.robot, self.link)
-        body_pose = multiply(gripper_pose, self.grasp.value)
+        body_pose = tf_combine(gripper_pose, self.grasp.value)
         set_pose(self.body, body_pose)
 
     def apply(self, state, **kwargs):
@@ -167,7 +167,7 @@ class Attach(Command):
             add_fixed_constraint(self.body, self.robot, self.link)
         else:
             gripper_name = '{}_gripper'.format(self.arm)
-            joints = joints_from_names(self.robot, PR2_GROUPS[gripper_name])
+            joints = joints_from_names(self.robot, self.robot.gripper_joints)
             values = [get_min_limit(self.robot, joint) for joint in joints] # Closed
             for _ in joint_controller_hold(self.robot, joints, values):
                 step_simulation()

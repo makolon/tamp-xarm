@@ -2,6 +2,15 @@ import random
 import numpy as np
 from tampkit.sim_tools.isaacsim.geometry import Pose
 from tampkit.sim_tools.isaacsim.sim_utils import pairwise_collision
+from omni.isaac.core.utils.torch.maths import normalize, scale_transform, unscale_transform
+from omni.isaac.core.utils.torch.rotations import (
+    quat_apply,
+    quat_conjugate,
+    quat_from_angle_axis,
+    quat_mul,
+    quat_rotate,
+    quat_rotate_inverse,
+)
 
 
 def sample_placement(top_body, bottom_body, bottom_link=None, **kwargs):

@@ -22,20 +22,13 @@ from curobo.util_file import (
     join_path,
     load_yaml,
 )
-from curobo.wrap.reacher.ik_solver import (
-    IKSolver,
-    IKSolverConfig,
-)
-from curobo.wrap.reacher.motion_gen import (
-    MotionGen,
-    MotionGenConfig,
-    MotionGenPlanConfig,
-    PoseCostMetric,
-)
-from curobo.wrap.reacher.mpc import (
-    MpcSolver,
-    MpcSolverConfig,
-)
+# Model wrapper
+from curobo.wrap.model.robot_world import RobotWorld, RobotWorldConfig
+# Reacher wrapper
+from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
+from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, \
+    MotionGenPlanConfig, PoseCostMetric
+from curobo.wrap.reacher.mpc import MpcSolver, MpcSolverConfig
 
 
 def fmb_momo_problem(sim_cfg):
@@ -44,6 +37,8 @@ def fmb_momo_problem(sim_cfg):
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
     stage.DefinePrim("/fmb_momo", "Xform")
+
+    ########################
 
     # create plane
     plane = create_floor(world, sim_cfg.floor)
@@ -135,6 +130,8 @@ def fmb_momo_problem(sim_cfg):
     hole4_pose = calc_hole_pose(block4_pose, "hole4")
     set_pose(hole4, hole4_pose)
 
+    ########################
+
     # define world_config
     world_cfg = WorldConfig(
         cuboid=world_cfg_table.cuboid,
@@ -146,6 +143,21 @@ def fmb_momo_problem(sim_cfg):
             world_cfg_block4.mesh,
         ],
     )
+    
+    # define robot config
+    robot_file = robot_cfg.robot_path
+    robot_world_cfg = RobotWorldConfig.load_from_config(
+        robot_file,
+        world_cfg,
+        collision_activation_distance=sim_cfg.robot_world_cfg.activation_distance,
+        collision_checker_type=CollisionCheckerType.BLOX \
+            if sim_cfg.robot_world_cfg.nvblox else CollisionCheckerType.MESH
+    )
+    
+    # define world model
+    world_model = RobotWorld(robot_world_cfg)
+
+    ########################
 
     # define plan config
     plan_cfg = MotionGenPlanConfig(
@@ -227,6 +239,8 @@ def fmb_momo_problem(sim_cfg):
     # define model predictive controller
     mpc = MpcSolver(mpc_config)
 
+    ########################
+
     return Problem(
         # Instance
         robot=xarm,
@@ -249,6 +263,8 @@ def fmb_momo_problem(sim_cfg):
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         plan_cfg=plan_cfg,
+        # World
+        world_model=world_model,
         # Planner
         ik_solver=ik_solver,
         motion_planner=motion_gen,
@@ -295,10 +311,11 @@ def fmb_simo_problem(sim_cfg):
         goal_on=[],
         goal_inserted=[],
     )
-    
-    
+
+# TODO: add function   
 def calc_surf_pose(block_pose, name):
     return block_pose
-    
+
+# TODO: add function
 def calc_hole_pose(block_pose, name):
     return block_pose

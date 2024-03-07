@@ -7,9 +7,15 @@ import numpy as np
 from helper import add_extensions, add_robot_to_scene
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
-
-########### OV #################
-from omni.isaac.core.utils.types import ArticulationAction
+from omni.isaac.core.utils.torch.maths import normalize, scale_transform, unscale_transform
+from omni.isaac.core.utils.torch.rotations import (
+    quat_apply,
+    quat_conjugate,
+    quat_from_angle_axis,
+    quat_mul,
+    quat_rotate,
+    quat_rotate_inverse,
+)
 
 # CuRobo
 # from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
