@@ -20,11 +20,11 @@ from tampkit.sim_tools.isaacsim.control import (
     GripperCommand, Attach, Detach
 )
 from tampkit.problems import PROBLEMS
-from tampkit.streams.move_stream import get_move_gen
+from tampkit.streams.plan_base_stream import plan_base_fn
+from tampkit.streams.plan_arm_stream import plan_arm_fn
 from tampkit.streams.grasp_stream import get_grasp_gen
-from tampkit.streams.place_stream import get_stable_gen
+from tampkit.streams.place_stream import get_place_gen
 from tampkit.streams.insert_stream import get_insert_gen
-from tampkit.streams.ik_stream import get_ik_gen
 from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
 
@@ -43,39 +43,14 @@ BASE_VELOCITY = 0.5
 
 #######################################################
 
-def extract_point2d(v):
-    if isinstance(v, Conf):
-        return v.values[:2]
-    if isinstance(v, Pose):
-        return v.value[0][:2]
-    if isinstance(v, SharedOptValue):
-        if v.stream == 'sample-place':
-            r, = v.values
-            return get_pose(r)[0][:2]
-        if v.stream == 'sample-insert':
-            r, = v.values
-            return get_pose(r)[0][:2]
-        if v.stream == 'inverse-kinematics':
-            p, = v.values
-            return extract_point2d(p)
-    if isinstance(v, CustomValue):
-        if v.stream == 'p-sp':
-            r, = v.values
-            return get_pose(r)[0][:2]
-        if v.stream == 'q-ik':
-            p, = v.values
-            return extract_point2d(p)
-    raise ValueError(v.stream)
-
-#######################################################
-
 CustomValue = namedtuple('CustomValue', ['stream', 'values'])
 
 def move_cost_fn(c):
     return 1
 
-def opt_move_cost_fn(t):
-    return 1
+def opt_grasp_fn(o, r):
+    p2 = CustomValue('p-sg', (r,))
+    return p2,
 
 def opt_place_fn(o, r):
     p2 = CustomValue('p-sp', (r,))
@@ -85,12 +60,12 @@ def opt_insert_fn(o, r):
     p2 = CustomValue('p-si', (r,))
     return p2,
 
-def opt_ik_fn(a, o, p, g):
+def opt_motion_arm_fn(a, o, p, g):
     q = CustomValue('q-ik', (p,))
     t = CustomValue('t-ik', tuple())
     return q, t
 
-def opt_motion_fn(q1, q2):
+def opt_motion_base_fn(q1, q2):
     t = CustomValue('t-pbm', (q1, q2))
     return t,
 
@@ -164,17 +139,19 @@ class TAMPPlanner(object):
                 [('Cooked', b)  for b in problem.goal_cooked]
 
         stream_map = {
-            'sample-place': from_gen_fn(get_stable_gen(problem, collisions=collisions)),
+            # Constrained sampler
+            'sample-place': from_gen_fn(get_place_gen(problem, collisions=collisions)),
             'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
             'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=False)),
-            'plan-base-motion': from_fn(get_move_gen(problem, collisions=True, teleport=teleport)),
-            'inverse-kinematics': from_gen_fn(get_ik_gen(problem, collisions=collisions, teleport=teleport)),
+            # Planner
+            'plan-base-motion': from_fn(plan_base_fn(problem, collisions=True, teleport=teleport)),
+            'plan-arm-motion': from_fn(plan_arm_fn(problem, collisions=collisions, teleport=teleport)),
+            # Test function
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
             'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem, collisions=collisions)),
             'test-supported': from_test(get_supported(problem, collisions=collisions)),
             'test-inserted': from_test(get_inserted(problem, collisions=collisions)),
-            'MoveCost': move_cost_fn,
         }
 
         return PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, init, goal)
@@ -227,11 +204,11 @@ class TAMPPlanner(object):
         pddlstream_problem = self.pddlstream_from_problem(tamp_problem, collisions=not self._cfree, teleport=self._teleport)
 
         stream_info = {
-            'MoveCost': FunctionInfo(opt_move_cost_fn),
+            'sample-grasp': StreamInfo(opt_gen_fn=from_fn(opt_grasp_fn)),
             'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
             'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'inverse-kinematics': StreamInfo(opt_gen_fn=from_fn(opt_ik_fn)),
-            'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
+            'plan-arm_motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_arm_fn)),
+            'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_base_fn)),
         }
 
         _, _, _, stream_map, init, goal = pddlstream_problem
@@ -250,19 +227,23 @@ class TAMPPlanner(object):
         print('plan: ', plan)
         print('#############################')
 
-        if (plan is None) or simulation_app.is_running():
+        if (plan is None) or not simulation_app.is_running():
             return
 
+        # Post process
         commands = self.post_process(tamp_problem, plan)
-        tamp_problem.remove_gripper()
 
-        apply_commands(State(), commands, time_step=0.03)
+        # Execute commands
+        if sim_cfg.simulate:
+            control_commands(State(), commands, time_step=0.03)
+        else:
+            apply_commands(State(), commands, time_step=0.03)
+
+        # Close simulator
         disconnect()
 
-        return
 
-
-@hydra.main(version_base=None, config_name="config", config_path="../cfg")
+@hydra.main(version_base=None, config_name="config", config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(
         algorithm=cfg.pddlstream.algorithm,

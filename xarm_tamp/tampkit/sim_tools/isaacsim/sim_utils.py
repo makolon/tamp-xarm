@@ -260,7 +260,7 @@ def add_segments():
 def step_simulation():
     pass
 
-def joint_controller_hold():
+def joint_controller():
     pass
 
 def waypoints_from_path():

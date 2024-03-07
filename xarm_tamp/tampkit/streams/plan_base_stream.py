@@ -28,17 +28,17 @@ def uniform_pose_generator(robot, gripper_pose, **kwargs):
         yield base_values
 
 
-def get_move_gen(problem, collisions=True, learned=False):
+def plan_base_fn(problem, collisions=True, learned=False):
     # Sample move_base pose
     robot = problem.robot
     obstacles = problem.fixed if collisions else []
     gripper = problem.get_gripper()
 
-    def gen_fn(arm, obj, pose, grasp):
+    def gen_fn(arm, body, pose, grasp):
         pose.assign()
-        approach_obstacles = {obst for obst in obstacles if not is_placement(obj, obst)}
-        for _ in iterate_approach_path(robot, arm, gripper, pose, grasp, body=obj):
-            if any(pairwise_collision(gripper, b) or pairwise_collision(obj, b) for b in approach_obstacles):
+        approach_obstacles = {obst for obst in obstacles if not is_placement(body, obst)}
+        for _ in iterate_approach_path(robot, arm, gripper, pose, grasp, body=body):
+            if any(pairwise_collision(gripper, b) or pairwise_collision(body, b) for b in approach_obstacles):
                 return
 
         gripper_pose = pose.value # multiply(pose.value, invert(grasp.value))
@@ -57,7 +57,7 @@ def get_move_gen(problem, collisions=True, learned=False):
                 pose.assign()
                 bq.assign()
                 set_joint_positions(robot, arm_joints, default_conf)
-                if any(pairwise_collision(robot, b) for b in obstacles + [obj]):
+                if any(pairwise_collision(robot, b) for b in obstacles + [body]):
                     continue
                 yield (bq,)
                 break

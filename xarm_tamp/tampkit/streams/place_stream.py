@@ -33,7 +33,7 @@ def sample_placement(top_body, bottom_body, bottom_link=None, **kwargs):
     return pose
 
 
-def get_stable_gen(problem, collisions=True, **kwargs):
+def get_place_gen(problem, collisions=True, **kwargs):
     # Sample place pose
     robot = problem.robot
     obstacles = problem.fixed if collisions else []

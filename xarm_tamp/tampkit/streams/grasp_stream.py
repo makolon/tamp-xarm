@@ -18,35 +18,11 @@ from omni.isaac.core.utils.torch.rotations import (
     quat_rotate_inverse,
 )
 
-# CuRobo
-from curobo.geom.sdf.world import CollisionCheckerType
-from curobo.geom.types import WorldConfig
-from curobo.types.base import TensorDeviceType
-from curobo.types.math import Pose
-from curobo.types.robot import JointState
-from curobo.types.state import JointState
-from curobo.util.logger import log_error, setup_curobo_logger
-from curobo.util.usd_helper import UsdHelper
-from curobo.util_file import (
-    get_assets_path,
-    get_filename,
-    get_path_of_dir,
-    get_robot_configs_path,
-    get_world_configs_path,
-    join_path,
-    load_yaml,
-)
-from curobo.wrap.reacher.motion_gen import (
-    MotionGen,
-    MotionGenConfig,
-    MotionGenPlanConfig,
-    PoseCostMetric,
-)
 from tampkit.sim_tools.isaacsim.geometry import Grasp
 
 
 def get_grasp_gen(problem, collisions=True, randomize=False):
-    def gen_fn(body):
+    def gen_fn(obj):
         grasps = []
         arm = 'arm'
         approach_vector = get_unit_vector([0, -1, 0])
