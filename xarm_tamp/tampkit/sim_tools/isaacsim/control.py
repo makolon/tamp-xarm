@@ -11,8 +11,8 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     set_joint_positions, set_pose, 
     # Utils
     step_simulation, joint_controller,
-    waypoints_from_path, link_from_name, create_attachment, add_fixed_constraint,
-    joints_from_names, remove_fixed_constraint
+    waypoints_from_path, link_from_name, create_attachment,
+    joints_from_names
 )
 
 #####################################

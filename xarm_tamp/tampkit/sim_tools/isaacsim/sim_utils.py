@@ -1,5 +1,6 @@
 import torch
 import argparse
+from collections import namedtuple
 
 from omni.isaac.kit import SimulationApp
 
@@ -178,8 +179,14 @@ def get_group_conf(robot: Robot,
             for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
     return robot.get_joint_positions(joint_indices=joint_indices)
 
-def get_moving_links():
-    pass
+def get_moving_links(robot: Robot,
+                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
+    moving_links = set()
+    for joint in joint_indices:
+        link = child_link_from_joint(joint) # TODO: add
+        if link not in moving_links:
+            moving_links.update(get_link_subtree(robot, link))
+    return list(moving_links)
 
 def get_distance(p1, p2, **kwargs):
     assert len(p1) == len(p2)
@@ -188,7 +195,7 @@ def get_distance(p1, p2, **kwargs):
 
 def get_target_point(conf):
     robot = conf.body
-    link = link_from_name(robot, 'torso_lift_link')
+    link = link_from_name(robot, 'torso_lift_link') # TODO: fix this
 
     with BodySaver(conf.body):
         conf.assign()
@@ -255,44 +262,178 @@ def set_arm_conf(robot: Robot,
 
 ### Utility API
 
-def add_segments():
-    pass
-
-def step_simulation():
-    pass
+def step_simulation(world):
+    world.step(render=True)
 
 def joint_controller(world):
     return CuroboController()
 
-def waypoints_from_path():
-    pass
+def remove_redundant(path, tolerance=1e-3):
+    assert path
+    new_path = [path[0]]
+    for conf in path[1:]:
+        difference = np.array(new_path[-1]) - np.array(conf)
+        if not np.allclose(np.zeros(len(difference)), difference, atol=tolerance, rtol=0):
+            new_path.append(conf)
+    return new_path
 
-def link_from_name():
-    pass
+def get_unit_vector(vec, norm=2):
+    norm = np.linalg.norm(vec, ord=norm)
+    if norm == 0:
+        return vec
+    return np.array(vec) / norm
 
-def joints_from_names():
-    pass
+def waypoints_from_path(path, tolerance=1e-3):
+    path = remove_redundant(path, tolerance=tolerance)
+    if len(path) < 2:
+        return path
+    difference_fn = lambda q2, q1: np.array(q2) - np.array(q1)
 
-def create_attachment():
-    pass
+    waypoints = [path[0]]
+    last_conf = path[1]
+    last_difference = get_unit_vector(difference_fn(last_conf, waypoints[-1]))
+    for conf in path[2:]:
+        difference = get_unit_vector(difference_fn(conf, waypoints[-1]))
+        if not np.allclose(last_difference, difference, atol=tolerance, rtol=0):
+            waypoints.append(last_conf)
+            difference = get_unit_vector(difference_fn(conf, waypoints[-1]))
+        last_conf = conf
+        last_difference = difference
+    waypoints.append(last_conf)
+    return waypoints
 
-def add_fixed_constraint():
-    pass
+def link_from_name(robot: Robot, name: str):
+    prim_path = get_prim_from_name(name)
+    link_prim = prims_utils.get_prim_at_path(prim_path)
+    return link_prim
 
-def remove_fixed_constraint():
-    pass
+def joints_from_names(body, names):
+    return tuple(joint_from_name(body, name) for name in names)
 
-def flatten_links():
-    pass
+def create_attachment(parent, parent_link, child):
+    parent_link_pose = get_link_pose(parent, parent_link)
+    child_pose = get_pose(child)
+    grasp_pose = multiply(invert(parent_link_pose), child_pose)
+    return Attachment(parent, parent_link, grasp_pose, child)
 
-def base_values_from_pose():
-    pass
+def flatten_links(robot: Robot, links=None):
+    if links is None:
+        links = [link_prim.name for link_prim in robot.GetChildren()]
+    collision_pair = namedtuple('Collision', ['robot', 'links'])
+    return {collision_pair(robot, frozenset([link])) for link in links}
 
-def apply_commands():
-    pass
+def base_values_from_pose(pose, tolerance=1e-3):
+    (point, quat) = pose
+    x, y, _ = point
+    roll, pitch, yaw = euler_from_quat(quat)
+    assert (abs(roll) < tolerance) and (abs(pitch) < tolerance)
+    return Pose2d(x, y, yaw)
 
-def control_commands():
-    pass
+def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
+    for i, command in enumerate(commands):
+        print(i, command)
+        for j, _ in enumerate(command.apply(state, **kwargs)):
+            state.assign()
+            if j == 0:
+                continue
+            if time_step is None:
+                wait_for_duration(1e-2)
+                wait_if_gui('Command {}, Step {}) Next?'.format(i, j))
+            else:
+                wait_for_duration(time_step)
+        if pause:
+            wait_if_gui()
 
-def body_from_end_effector():
-    pass
+def control_commands(commands, **kwargs):
+    wait_if_gui('Control?')
+    disable_real_time()
+    enable_gravity()
+    for i, command in enumerate(commands):
+        print(i, command)
+        command.control(*kwargs)
+
+### Savers
+
+class Saver(object):
+    def save(self):
+        pass
+
+    def restore(self):
+        raise NotImplementedError()
+
+    def __enter__(self):
+        self.save()
+
+    def __exit__(self, type, value, traceback):
+        self.restore()
+
+class PoseSaver(Saver):
+    def __init__(self, body, pose=None):
+        self.body = body
+        if pose is None:
+            pose = get_pose(self.body)
+        self.pose = pose
+        self.velocity = get_velocity(self.body)
+
+    def apply_mapping(self, mapping):
+        self.body = mapping.get(self.body, self.body)
+
+    def restore(self):
+        set_pose(self.body, self.pose)
+        set_velocity(self.body, *self.velocity)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.body)
+
+class ConfSaver(Saver):
+    def __init__(self, body, joints=None, positions=None):
+        self.body = body
+        if joints is None:
+            joints = get_movable_joints(self.body)
+        self.joints = joints
+        if positions is None:
+            positions = get_joint_positions(self.body, self.joints)
+        self.positions = positions
+        self.velocities = get_joint_velocities(self.body, self.joints)
+
+    @property
+    def conf(self):
+        return self.positions
+
+    def apply_mapping(self, mapping):
+        self.body = mapping.get(self.body, self.body)
+
+    def restore(self):
+        set_joint_positions(self.body, self.joints, self.positions, self.velocities)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.body)
+
+class BodySaver(Saver):
+    def __init__(self, body, **kwargs):
+        self.body = body
+        self.pose_saver = PoseSaver(body)
+        self.conf_saver = ConfSaver(body, **kwargs)
+        self.savers = [self.pose_saver, self.conf_saver]
+
+    def apply_mapping(self, mapping):
+        for saver in self.savers:
+            saver.apply_mapping(mapping)
+
+    def restore(self):
+        for saver in self.savers:
+            saver.restore()
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.body)
+
+class WorldSaver(Saver):
+    def __init__(self, bodies=None):
+        if bodies is None:
+            bodies = get_bodies()
+        self.bodies = bodies
+        self.body_savers = [BodySaver(body) for body in self.bodies]
+
+    def restore(self):
+        for body_saver in self.body_savers:
+            body_saver.restore()

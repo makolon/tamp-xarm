@@ -9,7 +9,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_pose, set_joint_positions, 
     # Utils
-    base_values_from_pose, body_from_end_effector, flatten_links, link_from_name
+    base_values_from_pose, flatten_links, link_from_name
 )
 
 from omni.isaac.core.robots import Robot
@@ -81,7 +81,7 @@ class Attachment(object):
 
     def assign(self):
         parent_link_pose = get_link_pose(self.parent, self.parent_link)
-        child_pose = body_from_end_effector(parent_link_pose, self.grasp_pose)
+        child_pose = multiply(parent_link_pose, self.grasp_pose)
         set_pose(self.child, child_pose)
         return child_pose
 
