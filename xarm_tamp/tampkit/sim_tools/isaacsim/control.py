@@ -12,7 +12,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Utils
     step_simulation, joint_controller,
     waypoints_from_path, link_from_name, create_attachment,
-    joints_from_names
+    joints_from_names, multiply
 )
 
 #####################################
@@ -191,7 +191,7 @@ class Detach(Command):
         self.robot = robot
         self.arm = arm
         self.body = body
-        self.link = link_from_name(self.robot,  get_tool_frame(self.robot))
+        self.link = link_from_name(self.robot, get_tool_frame(self.robot))
 
     def apply(self, state, **kwargs):
         del state.attachments[self.body]

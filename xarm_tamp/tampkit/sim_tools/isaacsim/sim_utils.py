@@ -643,6 +643,33 @@ def control_commands(commands, **kwargs):
         print(i, command)
         command.control(*kwargs)
 
+### Attachment
+
+class Attachment(object):
+    def __init__(self, parent, parent_link, grasp_pose, child):
+        self.parent = parent # TODO: support no parent
+        self.parent_link = parent_link
+        self.grasp_pose = grasp_pose
+        self.child = child
+
+    @property
+    def bodies(self):
+        return flatten_links(self.child) | flatten_links(self.parent, get_link_subtree(
+            self.parent, self.parent_link))
+
+    def assign(self):
+        parent_link_pose = get_link_pose(self.parent, self.parent_link)
+        child_pose = body_from_end_effector(parent_link_pose, self.grasp_pose)
+        set_pose(self.child, child_pose)
+        return child_pose
+
+    def apply_mapping(self, mapping):
+        self.parent = mapping.get(self.parent, self.parent)
+        self.child = mapping.get(self.child, self.child)
+
+    def __repr__(self):
+        return '{}({},{})'.format(self.__class__.__name__, self.parent, self.child)
+
 ### Savers
 
 class Saver(object):
