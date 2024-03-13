@@ -63,7 +63,7 @@ class Trajectory(Command):
         if isinstance(end_conf, Pose):
             state.poses[end_conf.body] = end_conf
 
-    def control(self, dt=0, **kwargs):
+    def control(self, **kwargs):
         controller = joint_controller()
         articulation_controller = self.robot.get_articulation_controller()
 

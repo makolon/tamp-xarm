@@ -19,8 +19,14 @@ simulation_app = SimulationApp(
     }
 )
 
+# pytorch3d
+from pytorch3d.transforms import Transform3d
+from pytorch3d.transforms import quaternion_invert
+
 # Third party
 import carb
+import math
+import time
 import numpy as np
 import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.bounds as bounds_utils
@@ -32,6 +38,7 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from tampkit.sim_tools.isaacsim.robots import xarm
 from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
 from tampkit.sim_tools.isaacsim.curobo_utils import CuroboController
+from tampkit.sim_tools.isaacsim.usd_helper import *
 
 ### Simulation Utils
 
@@ -135,6 +142,14 @@ def get_joint_positions(robot: Robot,
     joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
     return joint_positions
 
+def get_joint_velocities(robot: Robot,
+                         joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    if joint_indices == None:
+        joint_indices = [robot.get_joint_index(name) \
+            for name in robot.arm_joints]
+    joint_velocities = robot.get_joint_velocities(joint_indices=joint_indices)
+    return joint_velocities
+
 def get_link_pose(robot: Robot, link_name: str):
     link_names = [link_prim.name for link_prim in robot.GetChildren()]
     if link_name not in link_names:
@@ -191,14 +206,28 @@ def get_group_conf(robot: Robot,
             for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
     return robot.get_joint_positions(joint_indices=joint_indices)
 
+def get_link(robot: Robot, name: str):
+    link_prims = [link_prim for link_prim in robot.GetChildren()]
+    for link_prim in link_prims:
+        if link_prim.name == name:
+            return link_prim
+        else:
+            return None
+
+def get_links(robot: Robot):
+    link_prims = [link_prim for link_prim in robot.GetChildren()]
+    return link_prims
+
+# TODO: fix
 def get_moving_links(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]):
-    moving_links = set()
+    all_links = get_links(robot)
     for joint in joint_indices:
-        link = child_link_from_joint(joint) # TODO: add
-        if link not in moving_links:
-            moving_links.update(get_link_subtree(robot, link))
-    return list(moving_links)
+        joint_prim = get_prim_from_joint_index(joint)
+        link = get_child_link_for_joint(joint_prim) # TODO: add
+        if link not in all_links:
+            all_links.update(get_link_subtree(robot, link))
+    return list(all_links)
 
 def get_distance(p1, p2, **kwargs):
     assert len(p1) == len(p2)
@@ -207,7 +236,7 @@ def get_distance(p1, p2, **kwargs):
 
 def get_target_point(conf):
     robot = conf.body
-    link = link_from_name(robot, 'torso_lift_link') # TODO: fix this
+    link = get_link(robot, 'torso_lift_link') # TODO: fix this
 
     with BodySaver(conf.body):
         conf.assign()
@@ -217,8 +246,8 @@ def get_target_point(conf):
         point[2] = center[2]
         return point
 
-def get_all_link_parents(body):
-    return {link: get_link_parent(body, link) for link in get_links(body)}
+def get_all_link_parents(robot: Robot):
+    return {link: get_parent(link) for link in get_links(robot)}
 
 def get_all_link_children(body):
     children = {}
@@ -257,19 +286,90 @@ def get_bodies():
 def get_body_name(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     return body.name
 
+def get_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    linear_velocity = body.linear_velocity
+    angular_velocity = body.angular_velocity
+    return (linear_velocity, angular_velocity)
+
 def get_aabb(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     cache = bounds_utils.create_bbox_cache()
     body_aabb = bounds_utils.compute_aabb(cache, body.prim_path)
     return body_aabb
 
-def get_extend_fn(robot: Robot, joints):
-    def fn(start_conf: torch.Tensor, end_conf: torch.Tensor):
-        pass
+def get_refine_fn(body, joints, num_steps=0):
+    difference_fn = get_difference_fn(body, joints)
+    num_steps = num_steps + 1
+    def fn(q1, q2):
+        q = q1
+        for i in range(num_steps):
+            positions = (1. / (num_steps - i)) * np.array(difference_fn(q2, q)) + q
+            q = tuple(positions)
+            yield q
     return fn
 
-def get_distance_fn():
+def get_default_resolutions(body, joints, resolutions=None):
+    if resolutions is not None:
+        return resolutions
+    return math.radians(3) * np.ones(len(joints))
+
+def get_extend_fn(body, joints, resolutions=None, norm=2):
+    # norm = 1, 2, INF
+    resolutions = get_default_resolutions(body, joints, resolutions)
+    difference_fn = get_difference_fn(body, joints)
+    def fn(q1, q2):
+        # steps = int(np.max(np.abs(np.divide(difference_fn(q2, q1), resolutions))))
+        steps = int(np.linalg.norm(np.divide(difference_fn(q2, q1), resolutions), ord=norm))
+        refine_fn = get_refine_fn(body, joints, num_steps=steps)
+        return refine_fn(q1, q2)
+    return fn
+
+def wrap_interval(value, interval=(0., 1.)):
+    lower, upper = interval
+    assert lower <= upper
+    return (value - lower) % (upper - lower) + lower
+
+def interval_distance(value1, value2, interval=(0., 1.)):
+    value1 = wrap_interval(value1, interval)
+    value2 = wrap_interval(value2, interval)
+    if value1 > value2:
+        value1, value2 = value2, value1
+    lower, upper = interval
+    return min(value2 - value1, (value1 - lower) + (upper - value2))
+
+def circular_interval(lower=-np.pi):
+    return Interval(lower, lower + 2 * np.pi)
+
+def wrap_angle(theta, **kwargs):
+    return wrap_interval(theta, interval=circular_interval(**kwargs))
+
+def circular_difference(theta2, theta1, **kwargs):
+    return wrap_angle(theta2 - theta1, **kwargs)
+
+def is_circular(body, joint):
+    if not is_a_fixed_joint(joint):
+        return False
+    return get_joint_limits(joint)
+
+def get_difference_fn(body, joints):
+    circular_joints = [is_circular(body, joint) for joint in joints]
+    def fn(q2, q1):
+        return tuple(circular_difference(value2, value1) if circular else (value2 - value1)
+                for circular, value2, value1 in zip(circular_joints, q2, q1))
+    return fn
+
+def get_default_weights(body, joints, weights=None):
+    if weights is not None:
+        return weights
+    # TODO: derive from resolutions
+    # TODO: use the energy resulting from the mass matrix here?
+    return 1 * np.ones(len(joints)) # TODO: use velocities here
+
+def get_distance_fn(body, joints, weights=None):
+    weights = get_default_weights(body, joints, weights)
+    difference_fn = get_difference_fn(body, joints)
     def fn(q1: torch.Tensor, q2: torch.Tensor):
-        pass
+        diff = np.array(difference_fn(q2, q1))
+        return np.sqrt(np.dot(weights, diff * diff))
     return fn
 
 ### Robot Utils (Setter)
@@ -282,11 +382,6 @@ def set_joint_positions(robot: Robot,
             for name in robot.arm_joints]
     robot.set_joint_positions(positions, joint_indices)
 
-def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-             translation=np.array([0., 0., 0.]),
-             orientation=np.array([1., 0., 0., ])) -> None:
-    body.set_local_pose(translation=translation, orientation=orientation)
-
 def set_arm_conf(robot: Robot,
                  conf: Optional[Union[np.ndarray, torch.Tensor]],
                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
@@ -295,12 +390,23 @@ def set_arm_conf(robot: Robot,
             for name in robot.arm_joints]
     robot.set_joint_positions(conf, joint_indices=joint_indices)
 
+def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+             translation=np.array([0., 0., 0.]),
+             orientation=np.array([1., 0., 0., ])) -> None:
+    body.set_local_pose(translation=translation, orientation=orientation)
+
+def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                 translation=np.array([0., 0., 0.]),
+                 rotation=np.array([0., 0., 0.])) -> None:
+    body.set_linear_velocity(velocity=translation)
+    body.set_angular_velocity(velocity=rotation)
+
 ### Utility API
 
 def step_simulation(world):
     world.step(render=True)
 
-def joint_controller(world):
+def joint_controller():
     return CuroboController()
 
 def remove_redundant(path, tolerance=1e-3):
@@ -336,14 +442,6 @@ def waypoints_from_path(path, tolerance=1e-3):
         last_difference = difference
     waypoints.append(last_conf)
     return waypoints
-
-def link_from_name(robot: Robot, name: str):
-    prim_path = get_prim_from_name(name)
-    link_prim = prims_utils.get_prim_at_path(prim_path)
-    return link_prim
-
-def joints_from_names(body, names):
-    return tuple(joint_from_name(body, name) for name in names)
 
 def create_attachment(parent, parent_link, child):
     parent_link_pose = get_link_pose(parent, parent_link)
@@ -420,38 +518,74 @@ def iterate_approach_path(robot, arm, gripper, pose, grasp, body=None):
             set_pose(body, multiply(tool_pose, grasp.value))
         yield
 
+def aabb2d_from_aabb(aabb):
+    (lower, upper) = aabb
+    AABB = namedtuple('AABB', ['lower', 'upper'])
+    return AABB(lower[:2], upper[:2])
+
+def aabb_contains_aabb(contained, container):
+    lower1, upper1 = contained
+    lower2, upper2 = container
+    return np.less_equal(lower2, lower1).all() and \
+           np.less_equal(upper1, upper2).all()
+
+def is_placed_on_aabb(body, bottom_aabb, above_epsilon=5e-2, below_epsilon=5e-2):
+    assert (0 <= above_epsilon) and (0 <= below_epsilon)
+    top_aabb = get_aabb(body) # TODO: approximate_as_prism
+    top_z_min = top_aabb[0][2]
+    bottom_z_max = bottom_aabb[1][2]
+    return ((bottom_z_max - below_epsilon) <= top_z_min <= (bottom_z_max + above_epsilon)) and \
+           (aabb_contains_aabb(aabb2d_from_aabb(top_aabb), aabb2d_from_aabb(bottom_aabb)))
+
 def is_placement(body, surface, **kwargs):
     if get_aabb(surface) is None:
         return False
     return is_placed_on_aabb(body, get_aabb(surface), **kwargs)
 
-def is_placement(body, hole, **kwargs):
-    if get_aabb(hole) is None:
-        return False
-    return is_inserted_on_aabb(body, get_aabb(hole), **kwargs)
+### Mathmatic function
 
-def multiply():
+def multiply(*poses):
+    # Initialize Transform3d object at first pose
+    t = Transform3d().translate(*poses[0][0]).rotate_euler(*poses[0][1])
+
+    # Composite the remaining poses
+    for next_pose in poses[1:]:
+        next_t = Transform3d().translate(*next_pose[0]).rotate_euler(*next_pose[1])
+        t = t.compose(next_t)
+
+    # Obtain final position and rotation
+    final_position = t.get_matrix()[:, :3, 3]
+    final_rotation = t.get_euler()
+
+    return (final_position, final_rotation)
+
+def invert(pose):
+    # Initialize Transform3d object
+    position, quaternion = pose
+    t = Transform3d().translate(*position).rotate_quaternion(quaternion)
+
+    # Compute the inverse transform
+    inverted_t = t.inverse()
+
+    # Compute inverse transform, get position and quaternion of inverse transform
+    inverted_position = inverted_t.get_matrix()[:, :3, 3]
+    inverted_quaternion = quaternion_invert(quaternion)
+
+    return inverted_position.numpy(), inverted_quaternion.numpy()
+
+def product():
     pass
 
 def get_side_grasps():
     pass
 
-def unit_quat():
-    return np.array([1.0, 0.0, 0.0, 0.0])
+def get_aabb_center(aabb):
+    lower, upper = aabb
+    return (np.array(lower) + np.array(upper)) / 2.
 
-def compute_grasp_width(robot, arm, body, grasp_pose, **kwargs):
-    tool_link = get_tool_frame(robot)
-    tool_pose = get_link_pose(robot, tool_link)
-    body_pose = multiply(tool_pose, grasp_pose)
-    set_pose(body, body_pose)
-    gripper_joints = get_gripper_joints(robot, arm)
-    return close_until_collision(robot, gripper_joints, bodies=[body], **kwargs)
-
-def unit_pose():
-    return (unit_point(), unit_quat())
-
-def get_point(body):
-    return get_pose(body)[0]
+def get_aabb_extent(aabb):
+    lower, upper = aabb
+    return np.array(upper) - np.array(lower)
 
 def get_center_extent(body, **kwargs):
     aabb = get_aabb(body, **kwargs)
@@ -465,10 +599,34 @@ def sample_aabb(aabb):
     lower, upper = aabb
     return np.random.uniform(lower, upper)
 
+def compute_grasp_width(robot, arm, body, grasp_pose, **kwargs):
+    tool_link = get_tool_frame(robot)
+    tool_pose = get_link_pose(robot, tool_link)
+    body_pose = multiply(tool_pose, grasp_pose)
+    set_pose(body, body_pose)
+    gripper_joints = get_gripper_joints(robot, arm)
+    return close_until_collision(robot, gripper_joints, bodies=[body], **kwargs)
+
+### Unit
+
+def unit_point():
+    return np.array([0.0, 0.0, 0.0])
+
+def unit_quat():
+    return np.array([1.0, 0.0, 0.0, 0.0])
+
+def unit_pose():
+    return (unit_point(), unit_quat())
+
 def unit_from_theta(theta):
     return np.array([np.cos(theta), np.sin(theta)])
 
-def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
+def get_point(body):
+    return get_pose(body)[0]
+
+### Executer
+
+def apply_commands(state, commands, time_step=None, **kwargs):
     for i, command in enumerate(commands):
         print(i, command)
         for j, _ in enumerate(command.apply(state, **kwargs)):
@@ -476,11 +634,9 @@ def apply_commands(state, commands, time_step=None, pause=False, **kwargs):
             if j == 0:
                 continue
             if time_step is None:
-                wait_for_duration(1e-2)
+                time.sleep(1e-2)
             else:
-                wait_for_duration(time_step)
-        if pause:
-            wait_if_gui()
+                time.sleep(time_step)
 
 def control_commands(commands, **kwargs):
     for i, command in enumerate(commands):
@@ -524,7 +680,7 @@ class ConfSaver(Saver):
     def __init__(self, body, joints=None, positions=None):
         self.body = body
         if joints is None:
-            joints = get_movable_joints(self.body)
+            joints = get_arm_joints(self.body)
         self.joints = joints
         if positions is None:
             positions = get_joint_positions(self.body, self.joints)
