@@ -3,7 +3,6 @@ import numpy as np
 
 from omni.isaac.core import World
 from omni.isaac.core.controllers import BaseController
-from omni.isaac.core.tasks import BaseTask
 from omni.isaac.core.utils.types import ArticulationAction
 
 from curobo.types.math import Pose
@@ -13,7 +12,6 @@ from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.sphere_fit import SphereFitType
 from curobo.rollout.rollout_base import Goal
-from curobo.rollout.cost.pose_cost import PoseCostMetric
 from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import (
     get_assets_path,
@@ -38,12 +36,12 @@ def get_tensor_device_type():
     tensor_args = TensorDeviceType()
     return tensor_args
 
-def get_robot_cfg(robot_cfg: dict):
-    return load_yaml(join_path(robot_cfg.robot_cfg_path, robot_cfg.robot)["robot_cfg"])
+def get_robot_cfg(cfg: dict):
+    return load_yaml(join_path(get_robot_configs_path(), cfg.yaml))
 
-def get_world_cfg(world_cfg: dict):
+def get_world_cfg(cfg: dict):
     cuboid_cfg, mesh_cfg = [], []
-    for _, cfg in world_cfg.items():
+    for _, cfg in cfg.items():
         if cfg.type == 'cuboid':
             world_cfg_cuboid = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), cfg.yaml))
@@ -171,7 +169,7 @@ def get_curobo_controller(world, sim_cfg):
     plan_cfg = get_motion_gen_plan_cfg(sim_cfg)
     motion_gen_cfg = get_motion_gen_cfg(sim_cfg)
     motion_gen = get_motion_gen()
-    return CuroboController(tensor_args, robot_cfg, world_cfg,
+    return CuroboController(world, tensor_args, robot_cfg, world_cfg,
                             plan_cfg, motion_gen_cfg, motion_gen)
 
 ########################
@@ -191,8 +189,6 @@ class CuroboController(BaseController):
         BaseController.__init__(self, name=name)
 
         self.my_world = my_world
-        self._save_log = False
-        self._step_idx = 0
 
         # warmup curobo instance
         self.init_curobo = False
@@ -278,7 +274,6 @@ class CuroboController(BaseController):
 
         if self.cmd_plan is None:
             self.cmd_idx = 0
-            self._step_idx = 0
 
             # compute curobo solution:
             result = self.plan(ee_translation_goal, ee_orientation_goal, sim_js, js_names)
@@ -291,7 +286,6 @@ class CuroboController(BaseController):
                 carb.log_warn("Plan did not converge to a solution.")
                 return None
 
-        if self._step_idx % 3 == 0:
             cmd_state = self.cmd_plan[self.cmd_idx]
             self.cmd_idx += 1
 
@@ -304,9 +298,6 @@ class CuroboController(BaseController):
             if self.cmd_idx >= len(self.cmd_plan.position):
                 self.cmd_idx = 0
                 self.cmd_plan = None
-        else:
-            art_action = None
-        self._step_idx += 1
         return art_action
 
     def reached_target(self, curr_ee_pose, target_ee_pose) -> bool:
@@ -333,7 +324,8 @@ class CuroboController(BaseController):
             ignore_substring=ignore_substring, reference_prim_path=robot_prim_path
         ).get_collision_check_world()
 
-        # add ground plane as it's not readable:
-        obstacles.add_obstacle(self._world_cfg_table.cuboid[0])
+        # add ground plane as it's not readable
+        # TODO: fix
+        obstacles.add_obstacle(self.world_cfg.cuboid[0])
         self.motion_gen.update_world(obstacles)
         self._world_cfg = obstacles

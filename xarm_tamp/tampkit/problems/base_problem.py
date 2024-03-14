@@ -1,12 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Union
 
 
 @dataclass
 class Problem:
     # Objects
     robot: object
-    arms: tuple = field(default_factory=tuple)
     movable: tuple = field(default_factory=tuple)
     bodies: tuple = field(default_factory=tuple)
     fixed: tuple = field(default_factory=tuple)
@@ -44,12 +42,6 @@ class Problem:
     def get_gripper(self, gripper_name: str, visual: bool=True):
         if self.gripper is None:
             import omni.isaac.core.utils.prims as prims_utils
-            # self.gripper = prims_utils.create_prim(
-            #     prim_path=f"/World/{self.robot.name}/{gripper_name}",
-            #     prim_type="Xform",
-            #     usd_path=""
-            # )
-            # TODO: fix this
             self.gripper = prims_utils.define_prim(
                 prim_path=f"/World/{self.robot.name}/{gripper_name}",
                 prim_type="Xform",
@@ -59,7 +51,6 @@ class Problem:
     def remove_gripper(self):
         if self.gripper is not None:
             import omni.isaac.core.utils.prims as prims_utils
-            # TODO: must be prim_path
             prims_utils.delete_prim(self.gripper.prim_path)
             self.gripper = None
 

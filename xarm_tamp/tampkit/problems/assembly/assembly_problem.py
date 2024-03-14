@@ -8,7 +8,6 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_pose, set_arm_conf,
 )
-from tampkit.sim_tools.isaacsim.curobo_utils import CuroboController
 from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_robot_cfg,
     get_world_cfg,
@@ -17,7 +16,6 @@ from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_robot_world,
     get_ik_solver,
     get_mpc_solver,
-    get_curobo_controller,
 )
 from tampkit.problems.base_problem import Problem
 
@@ -27,7 +25,6 @@ def fmb_momo_problem(sim_cfg):
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
-    stage.DefinePrim("/World/fmb_momo", "Xform") # TODO: check
 
     ########################
 
@@ -64,7 +61,7 @@ def fmb_momo_problem(sim_cfg):
     # TODO: add function to calculate surface position
     block1_pose = get_pose(block1)
     surf1 = create_surface(sim_cfg.surface1.name, *block1_pose)
-    surf1_pose = calc_surf_pose(block1_pose,"surface1")
+    surf1_pose = calc_surf_pose(block1_pose, "surface1")
     set_pose(surf1, surf1_pose)
     
     block2_pose = get_pose(block2)
@@ -133,19 +130,13 @@ def fmb_momo_problem(sim_cfg):
     print('cuRobo is Ready!')
 
     ########################
-    
-    curobo_controller = get_curobo_controller()
-    articulation_controller = xarm.get_articulation_controller()
-
-    ########################
 
     return Problem(
         # Instance
         robot=xarm,
-        arms=['arm'],
         movable=[block1, block2, block3, block4],
         fixed=[table, base_block],
-        surfaces=[surf1, surf2, surf3, surf4], # surfaces=[table, base_block],
+        surfaces=[surf1, surf2, surf3, surf4],
         holes=[hole1, hole2, hole3, hole4],
         bodies=[table, base_block, block1, block2, block3, block4],
         init_placeable=[
@@ -168,9 +159,6 @@ def fmb_momo_problem(sim_cfg):
         ik_solver=ik_solver,
         motion_planner=motion_gen,
         mpc=mpc,
-        # Controller
-        curobo_controller=curobo_controller,
-        articulation_controller=articulation_controller
     )
 
 
