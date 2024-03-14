@@ -8,7 +8,7 @@ from omni.isaac.core.robots.robot import Robot
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
 from omni.isaac.manipulators.grippers.parallel_gripper import ParallelGripper
-from xarm_rl.tasks.utils.usd_utils import set_drive
+from xarm_rl.tasks.utils.usd_utils import set_drive # TODO: fix this
 from pxr import PhysxSchema
 
 
@@ -30,36 +30,31 @@ class xArm(Robot):
         self._end_effector = None
         self._gripper = None
         self._end_effector_prim_name = end_effector_prim_name
+
         if not prim.IsValid():
             if usd_path:
                 add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
             else:
-                assets_root_path = get_assets_root_path()
+                assets_root_path = get_usd_path()
                 if assets_root_path is None:
                     carb.log_error("Could not find Isaac Sim assets folder")
-                usd_path = assets_root_path + "/Isaac/Robots/Franka/franka.usd"
+                usd_path = assets_root_path + "xarm7.usd"
                 add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
+
+            # end effector
             if self._end_effector_prim_name is None:
-                self._end_effector_prim_path = prim_path + "/panda_rightfinger"
+                self._end_effector_prim_path = prim_path + "/fingertip_centered"
             else:
                 self._end_effector_prim_path = prim_path + "/" + end_effector_prim_name
+
+            # gripper
             if gripper_dof_names is None:
-                gripper_dof_names = ["panda_finger_joint1", "panda_finger_joint2"]
+                gripper_dof_names = ["left_drive_joint", "right_drive_joint"]
             if gripper_open_position is None:
                 gripper_open_position = np.array([0.05, 0.05]) / get_stage_units()
             if gripper_closed_position is None:
                 gripper_closed_position = np.array([0.0, 0.0])
-        else:
-            if self._end_effector_prim_name is None:
-                self._end_effector_prim_path = prim_path + "/panda_rightfinger"
-            else:
-                self._end_effector_prim_path = prim_path + "/" + end_effector_prim_name
-            if gripper_dof_names is None:
-                gripper_dof_names = ["panda_finger_joint1", "panda_finger_joint2"]
-            if gripper_open_position is None:
-                gripper_open_position = np.array([0.05, 0.05]) / get_stage_units()
-            if gripper_closed_position is None:
-                gripper_closed_position = np.array([0.0, 0.0])
+        
         super().__init__(
             prim_path=prim_path,
             name=name,
@@ -67,6 +62,10 @@ class xArm(Robot):
             orientation=orientation,
             articulation_controller=None
         )
+
+        self.arm_dof_idxs = []
+        self.gripper_dof_idxs = []
+
         if gripper_dof_names is not None:
             if deltas is None:
                 deltas = np.array([0.05, 0.05]) / get_stage_units()
@@ -119,20 +118,21 @@ class xArm(Robot):
                 rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
                 rb.GetDisableGravityAttr().Set(True)
 
-    @property
-    def arm_joints(self):
-        return [
-            "joint1", "joint2", "joint3",
-            "joint4", "joint5", "joint6", "joint7"
-        ]
+    def set_dof_idxs(self):
+        [self.arm_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._arm_names]
+        [self.gripper_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._gripper_proximal_names]
+
+        # Movable joints
+        self.actuated_dof_indices = torch.LongTensor(self.arm_dof_idxs+self.gripper_dof_idxs)
+        self.movable_dof_indices = torch.LongTensor(self.arm_dof_idxs)
 
     @property
-    def base_joints(self):
-        return []
+    def arm_joints(self):
+        self.arm_dof_idxs
 
     @property
     def gripper_joints(self):
-        return ["left_drive_joint", "right_drive_joint"]
+        self.gripper_dof_idxs
 
     @property
     def end_effector(self) -> RigidPrim:

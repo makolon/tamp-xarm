@@ -9,8 +9,14 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     set_pose, set_arm_conf,
 )
 from tampkit.sim_tools.isaacsim.curobo_utils import (
+    # Config
     get_robot_cfg,
     get_world_cfg,
+    get_robot_world_cfg,
+    get_motion_gen_plan_cfg,
+    get_ik_solver_cfg,
+    get_motion_gen_cfg,
+    get_mpc_solver_cfg,
     get_tensor_device_type,
     get_motion_gen,
     get_robot_world,
@@ -20,7 +26,7 @@ from tampkit.sim_tools.isaacsim.curobo_utils import (
 from tampkit.problems.base_problem import Problem
 
 
-def fmb_momo_problem(sim_cfg):
+def fmb_momo_problem(sim_cfg, curobo_cfg):
     world = create_world()
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
@@ -58,7 +64,6 @@ def fmb_momo_problem(sim_cfg):
     set_pose(block4, sim_cfg.block4.translation, sim_cfg.block4.orientation)
     
     # define surfaces
-    # TODO: add function to calculate surface position
     block1_pose = get_pose(block1)
     surf1 = create_surface(sim_cfg.surface1.name, *block1_pose)
     surf1_pose = calc_surf_pose(block1_pose, "surface1")
@@ -80,7 +85,6 @@ def fmb_momo_problem(sim_cfg):
     set_pose(surf4, surf4_pose)
  
     # define holes
-    # TODO: add function to calculate hole position
     hole1 = create_hole(sim_cfg.hole1.name, *block1_pose)
     hole1_pose = calc_hole_pose(block1_pose, "hole1")
     set_pose(hole1, hole1_pose)
@@ -100,10 +104,13 @@ def fmb_momo_problem(sim_cfg):
     ########################
 
     # define robot_cfg
-    robot_cfg = get_robot_cfg(sim_cfg.robot_cfg)
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
 
-    # define world_config
-    world_cfg = get_world_cfg(sim_cfg.world_cfg)
+    # define world_cfg
+    world_cfg = get_world_cfg(curobo_cfg.world_cfg)
+
+    # define plan_cfg
+    plan_cfg = get_motion_gen_plan_cfg(curobo_cfg.motion_generation_plan_cfg)
 
     ########################
     
@@ -113,16 +120,39 @@ def fmb_momo_problem(sim_cfg):
     ########################
 
     # define world model
-    robot_world = get_robot_world()
+    robot_world_cfg = get_robot_world_cfg(
+        robot_file='xarm7.yaml',
+        cfg=curobo_cfg.robot_world_cfg,
+        world_cfg=world_cfg,
+    )
+    robot_world = get_robot_world(robot_world_cfg)
     
     # define inverse kinematics
-    ik_solver = get_ik_solver()
+    ik_solver_cfg = get_ik_solver_cfg(
+        cfg=curobo_cfg.ik_solver_cfg,
+        robot_cfg=robot_cfg,
+        world_cfg=world_cfg,
+        tensor_args=tensor_args,
+    )
+    ik_solver = get_ik_solver(ik_solver_cfg)
 
     # define model predictive controller
-    mpc = get_mpc_solver()
+    mpc_cfg = get_mpc_solver_cfg(
+        cfg=curobo_cfg.mpc_cfg,
+        robot_cfg=robot_cfg,
+        world_cfg=world_cfg,
+        tensor_args=tensor_args,
+    )
+    mpc = get_mpc_solver(mpc_cfg)
 
     # define motion planner
-    motion_gen = get_motion_gen()
+    motion_gen_cfg = get_motion_gen_cfg(
+        cfg=curobo_cfg.motion_gen_cfg,
+        robot_cfg=robot_cfg,
+        world_cfg=world_cfg,
+        tensor_args=tensor_args,
+    )
+    motion_gen = get_motion_gen(motion_gen_cfg)
     print('warming up...')
     motion_gen.warmup(enable_graph=sim_cfg.motion_generation.enable_graph,
                       warmup_js_trajopt=sim_cfg.motion_generation.warmup_js_trajopt,
@@ -151,6 +181,7 @@ def fmb_momo_problem(sim_cfg):
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
+        plan_cfg=plan_cfg,
         # Tensor args
         tensor_args=tensor_args,
         # World

@@ -37,104 +37,135 @@ def get_tensor_device_type():
     return tensor_args
 
 def get_robot_cfg(cfg: dict):
-    return load_yaml(join_path(get_robot_configs_path(), cfg.yaml))
+    # load robot config from curobo content/config/robot
+    return load_yaml(join_path(get_robot_configs_path(), cfg.robot_cfg.name))["robot_cfg"]
 
 def get_world_cfg(cfg: dict):
+    # load world config from curobo content/config/world
     cuboid_cfg, mesh_cfg = [], []
-    for _, cfg in cfg.items():
-        if cfg.type == 'cuboid':
+    for _, val in cfg.world_cfg.items():
+        if val.type == 'cuboid':
             world_cfg_cuboid = WorldConfig.from_dict(
-                load_yaml(join_path(get_world_configs_path(), cfg.yaml))
+                load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
             cuboid_cfg.append(world_cfg_cuboid.cuboid)
-        elif cfg.type == 'mesh':
+        elif val.type == 'mesh':
             world_cfg_mesh = WorldConfig.from_dict(
-                load_yaml(join_path(get_world_configs_path(), cfg.yaml))
+                load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
             mesh_cfg.append(world_cfg_mesh.mesh)
 
-    return WorldConfig(
+    world_cfg = WorldConfig(
         cuboid=cuboid_cfg,
         mesh=mesh_cfg,
     )
+    return world_cfg
 
 ########################
     
-def get_robot_world_cfg(robot_cfg, world_cfg, sim_cfg):
-    robot_file = robot_cfg.robot_path
+def get_robot_world_cfg(robot_file: str = 'xarm7.yaml',
+                        cfg: dict = None,
+                        world_cfg: WorldConfig = None):
     robot_world_cfg = RobotWorldConfig.load_from_config(
         robot_file,
         world_cfg,
-        collision_activation_distance=sim_cfg.robot_world_cfg.activation_distance,
+        collision_activation_distance=cfg.robot_world_cfg.activation_distance,
         collision_checker_type=CollisionCheckerType.BLOX \
-            if sim_cfg.robot_world_cfg.nvblox else CollisionCheckerType.MESH
+            if cfg.robot_world_cfg.nvblox else CollisionCheckerType.MESH
     )
     return robot_world_cfg
 
-def get_motion_gen_plan_cfg(sim_cfg):
+def get_motion_gen_plan_cfg(cfg: dict):
     plan_cfg = MotionGenPlanConfig(
-        enable_graph=sim_cfg.motion_generation_plan.enable_graph,
-        enable_graph_attempt=sim_cfg.motion_generation_plan.enable_graph_attempt,
-        max_attempts=sim_cfg.motion_generation_plan.max_attempts,
-        enable_finetune_trajopt=sim_cfg.motion_generation_plan.enable_finetune_trajopt,
-        parallel_finetune=sim_cfg.motion_generation_plan.parallel_finetune,
+        enable_graph=cfg.motion_generation_plan.enable_graph,
+        enable_graph_attempt=cfg.motion_generation_plan.enable_graph_attempt,
+        max_attempts=cfg.motion_generation_plan.max_attempts,
+        enable_finetune_trajopt=cfg.motion_generation_plan.enable_finetune_trajopt,
+        parallel_finetune=cfg.motion_generation_plan.parallel_finetune,
     )
     return plan_cfg
 
-def get_ik_solver_cfg(robot_cfg, world_cfg, tensor_args, sim_cfg):
+def get_ik_solver_cfg(cfg: dict,
+                      robot_cfg: dict = None,
+                      world_cfg: WorldConfig = None,
+                      tensor_args: TensorDeviceType = None):
+    if robot_cfg is None:
+        robot_cfg = get_robot_cfg(cfg.robot_cfg)
+    if world_cfg is None:
+        world_cfg = get_world_cfg(cfg.world_cfg)
+    if tensor_args is None:
+        tensor_args = get_tensor_device_type()
+
     ik_config = IKSolverConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
         tensor_args,
-        position_threshold=sim_cfg.inverse_kinematics.position_threshold,
-        rotation_threshold=sim_cfg.inverse_kinematics.rotation_threshold,
-        num_seeds=sim_cfg.inverse_kinematics.num_seeds,
-        self_collision_check=sim_cfg.inverse_kinematics.self_collision_check,
-        self_collision_opt=sim_cfg.inverse_kinematics.self_collision_opt,
-        use_cuda_graph=sim_cfg.inverse_kinematics.use_cuda_graph,
+        position_threshold=cfg.inverse_kinematics.position_threshold,
+        rotation_threshold=cfg.inverse_kinematics.rotation_threshold,
+        num_seeds=cfg.inverse_kinematics.num_seeds,
+        self_collision_check=cfg.inverse_kinematics.self_collision_check,
+        self_collision_opt=cfg.inverse_kinematics.self_collision_opt,
+        use_cuda_graph=cfg.inverse_kinematics.use_cuda_graph,
         collision_checker_type=CollisionCheckerType.MESH,
         collision_cache={
-            "obb": sim_cfg.inverse_kinematics.n_obstacle_cuboids,
-            "mesh": sim_cfg.inverse_kinematics.n_obstacle_mesh},
+            "obb": cfg.inverse_kinematics.n_obstacle_cuboids,
+            "mesh": cfg.inverse_kinematics.n_obstacle_mesh},
     )
     return ik_config
 
-def get_motion_gen_cfg(robot_cfg, world_cfg, tensor_args, sim_cfg):
+def get_motion_gen_cfg(cfg: dict,
+                       robot_cfg: dict = None,
+                       world_cfg: WorldConfig = None,
+                       tensor_args: TensorDeviceType = None):
+    if robot_cfg is None:
+        robot_cfg = get_robot_cfg(cfg.robot_cfg)
+    if world_cfg is None:
+        world_cfg = get_world_cfg(cfg.world_cfg)
+    if tensor_args is None:
+        tensor_args = get_tensor_device_type()
+
     motion_gen_cfg = MotionGenConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
         tensor_args,
         collision_checker_type=CollisionCheckerType.MESH,
-        num_trajopt_seeds=sim_cfg.motion_generation.num_trajopt_seeds,
-        num_graph_seeds=sim_cfg.motion_generation.num_graph_seeds,
-        interpolation_dt=sim_cfg.motion_generation.interpolation_dt,
+        num_trajopt_seeds=cfg.motion_generation.num_trajopt_seeds,
+        num_graph_seeds=cfg.motion_generation.num_graph_seeds,
+        interpolation_dt=cfg.motion_generation.interpolation_dt,
         collision_cache={
-            "obb": sim_cfg.motion_generation.n_obstacle_cuboids,
-            "mesh": sim_cfg.motion_generation.n_obstacle_mesh},
-        optimize_dt=sim_cfg.motion_generation.optimize_dt,
-        trajopt_dt=sim_cfg.motion_generation.trajopt_dt,
-        trajopt_tsteps=sim_cfg.motion_generation.trajopt_tsteps,
-        trim_steps=sim_cfg.motion_generation.trim_steps,
+            "obb": cfg.motion_generation.n_obstacle_cuboids,
+            "mesh": cfg.motion_generation.n_obstacle_mesh},
+        optimize_dt=cfg.motion_generation.optimize_dt,
+        trajopt_dt=cfg.motion_generation.trajopt_dt,
+        trajopt_tsteps=cfg.motion_generation.trajopt_tsteps,
+        trim_steps=cfg.motion_generation.trim_steps,
     )
     return motion_gen_cfg
 
-def get_mpc_solver_cfg(robot_cfg, world_cfg, sim_cfg):
+def get_mpc_solver_cfg(cfg: dict,
+                       robot_cfg: dict = None,
+                       world_cfg: WorldConfig = None):
+    if robot_cfg is None:
+        robot_cfg = get_robot_cfg(cfg.robot_cfg)
+    if world_cfg is None:
+        world_cfg = get_world_cfg(cfg.world_cfg)
+
     mpc_config = MpcSolverConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
-        use_cuda_graph=sim_cfg.mpc.use_cuda_graph,
-        use_cuda_graph_metrics=sim_cfg.mpc.use_cuda_graph_metrics,
-        use_cuda_graph_full_step=sim_cfg.mpc.use_cuda_graph_full_step,
-        self_collision_check=sim_cfg.mpc.self_collision_check,
+        use_cuda_graph=cfg.mpc.use_cuda_graph,
+        use_cuda_graph_metrics=cfg.mpc.use_cuda_graph_metrics,
+        use_cuda_graph_full_step=cfg.mpc.use_cuda_graph_full_step,
+        self_collision_check=cfg.mpc.self_collision_check,
         collision_checker_type=CollisionCheckerType.MESH,
         collision_cache={
-            "obb": sim_cfg.mpc.n_obstackle_cuboids,
-            "mesh": sim_cfg.mpc.n_obstackle_mesh,
+            "obb": cfg.mpc.n_obstackle_cuboids,
+            "mesh": cfg.mpc.n_obstackle_mesh,
         },
-        use_mppi=sim_cfg.mpc.use_mppi,
-        use_lbfgs=sim_cfg.mpc.use_lbfgs,
-        store_rollouts=sim_cfg.mpc.store_rollouts,
-        step_dt=sim_cfg.mpc.step_dt
+        use_mppi=cfg.mpc.use_mppi,
+        use_lbfgs=cfg.mpc.use_lbfgs,
+        store_rollouts=cfg.mpc.store_rollouts,
+        step_dt=cfg.mpc.step_dt
     )
     return mpc_config
 
@@ -142,35 +173,23 @@ def get_mpc_solver_cfg(robot_cfg, world_cfg, sim_cfg):
 
 def get_motion_gen(motion_gen_cfg: MotionGenConfig = None):
     if motion_gen_cfg == None:
-        motion_gen_cfg = get_motion_gen_cfg()
+        raise ValueError("motion_gen_cfg is not specified.")
     return MotionGen(motion_gen_cfg)
 
 def get_robot_world(robot_world_cfg: RobotWorldConfig = None):
     if robot_world_cfg == None:
-        robot_world_cfg = get_robot_world_cfg()
+        raise ValueError("robot_world_cfg is not specified.")
     return RobotWorld(robot_world_cfg)
 
 def get_ik_solver(ik_cfg: IKSolverConfig = None):
     if ik_cfg == None:
-        ik_cfg = get_ik_solver_cfg()
+        raise ValueError("ik_cfg is not specified.")
     return IKSolver(ik_cfg)
 
 def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
     if mpc_cfg == None:
-        mpc_cfg = get_mpc_solver_cfg()
+        raise ValueError("mpc_cfg is not specified.")
     return MpcSolver(mpc_cfg)
-
-########################
-
-def get_curobo_controller(world, sim_cfg):
-    tensor_args = get_tensor_device_type()
-    robot_cfg = get_robot_cfg(sim_cfg)
-    world_cfg = get_world_cfg(sim_cfg)
-    plan_cfg = get_motion_gen_plan_cfg(sim_cfg)
-    motion_gen_cfg = get_motion_gen_cfg(sim_cfg)
-    motion_gen = get_motion_gen()
-    return CuroboController(world, tensor_args, robot_cfg, world_cfg,
-                            plan_cfg, motion_gen_cfg, motion_gen)
 
 ########################
 

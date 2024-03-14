@@ -52,14 +52,6 @@ def disconnect():
 def step_simulation(world):
     world.step(render=True)
 
-# TODO: fix    
-def get_prim_from_name(name: str):
-    prim_paths = prims_utils.find_matching_prim_paths(f"/World/*{name}")
-    if len(prim_paths) >= 1:
-        return prim_paths[0]
-    else:
-        raise ValueError("The specified prim path does not exist.")
-
 ### Create Simulation Environment API
 
 def create_world():
@@ -149,7 +141,7 @@ def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              translation=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., ])) -> None:
-    body.set_local_pose(translation=translation, orientation=orientation)
+    body.set_world_pose(translation=translation, orientation=orientation)
 
 def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                  translation=np.array([0., 0., 0.]),
@@ -209,10 +201,9 @@ def get_link_pose(robot: Robot, link_name: str):
     link_names = [link_prim.name for link_prim in robot.GetChildren()]
     if link_name not in link_names:
         raise ValueError("Specified link does not exist.")
-    else:
-        prim_path = get_prim_from_name(link_name)
-        link_prim = prims_utils.get_prim_at_path(prim_path)
-        return link_prim.get_local_pose()
+    for link_prim in robot.GetChildren():
+        if link_name == link_prim.name:
+            return link_prim.get_world_pose()
 
 def flatten_links(robot: Robot, links=None):
     if links is None:
@@ -230,33 +221,42 @@ def expand_links(body, **kwargs):
     collision_pair = namedtuple('Collision', ['robot', 'links'])
     return collision_pair(body, links)
 
+def body_from_end_effector(parent_pose, child_pose):
+    return None
+
 ### Joint Utils
 
-def joint_controller():
-    return CuroboController()
-
-def get_arm_joints(robot: Robot) -> List[str]:
+def get_arm_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+    # return arm joint indices
     return robot.arm_joints
 
-def get_base_joints(robot: Robot) -> List[str]:
+def get_base_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+    # return base joint indices
     return robot.base_joints
 
-def get_gripper_joints(robot: Robot) -> List[str]:
+def get_gripper_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+    # return gripper joint indices
     return robot.gripper_joints
+
+def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Union[np.ndarray, torch.Tensor]]:
+    # return movable joint indices
+    if use_gripper:
+        movable_joints = robot.arm_joints + robot.gripper_joints
+    else:
+        movable_joints = robot.arm_joints
+    return movable_joints
 
 def get_joint_positions(robot: Robot,
                         joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     if joint_indices == None:
-        joint_indices = [robot.get_joint_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = get_movable_joints(robot)
     joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
     return joint_positions
 
 def get_joint_velocities(robot: Robot,
                          joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     if joint_indices == None:
-        joint_indices = [robot.get_joint_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = get_movable_joints(robot)
     joint_velocities = robot.get_joint_velocities(joint_indices=joint_indices)
     return joint_velocities
 
@@ -264,16 +264,14 @@ def set_joint_positions(robot: Robot,
                         positions: Optional[Union[np.ndarray, torch.Tensor]],
                         joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = get_movable_joints(robot)
     robot.set_joint_positions(positions, joint_indices)
 
 def set_arm_conf(robot: Robot,
                  conf: Optional[Union[np.ndarray, torch.Tensor]],
                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     if joint_indices is None:
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = get_movable_joints(robot)
     robot.set_joint_positions(conf, joint_indices=joint_indices)
     
 def get_min_limit(robot: Robot) -> np.ndarray:
@@ -282,38 +280,49 @@ def get_min_limit(robot: Robot) -> np.ndarray:
 def get_max_limit(robot: Robot) -> np.ndarray:
     return robot.dof_properties.upper
 
-def get_custom_limits(robot: Robot,
-                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]],
-                      cutom_limits: dict = {}):
-    # TODO: fix this
+def get_joint_limits(robot: Robot):
     return get_min_limit(robot), get_max_limit(robot)
+
+def get_custom_limits(robot: Robot,
+                      joint_names: Optional[Union[list, np.ndarray, torch.Tensor]],
+                      custom_limits: dict = {}):
+    joint_limits = []
+    for joint in joint_names:
+        if joint in custom_limits:
+            joint_limits.append(custom_limits[joint])
+        else:
+            joint_limits.append(get_joint_limits(robot))
+    return zip(*joint_limits)
 
 def get_initial_conf(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     if joint_indices == None:
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = get_movable_joints(robot)
     state = robot.get_joints_default_state()
     if state is None:
         default_pos = robot.get_joint_positions(joint_indices=joint_indices)
-    return default_pos
+        return default_pos
+    return state.position
 
 def get_group_conf(robot: Robot,
                    group: str = 'arm'):
     if group == 'arm':
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.arm_joints]
+        joint_indices = robot.arm_joints
     elif group == 'gripper':
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.gripper_joints]
+        joint_indices = robot.gripper_joints
     elif group == 'base':
-        joint_indices = [robot.get_dof_index(name) \
-            for name in robot.base_joints]
+        joint_indices = robot.base_joints
     elif group == 'whole_body':
-        joint_indices = [robot.get_dof_index(name) \
-            for name in [robot.arm_joints+robot.base_joints+robot.gripper_joints]]
+        joint_indices = get_movable_joints(robot, use_gripper=True)
     return robot.get_joint_positions(joint_indices=joint_indices)
 
+# TODO
+def joint_controller(robot: Robot,
+                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
+                     configuration: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    pass
+
+# TODO
 def is_circular(body, joint):
     if not is_a_fixed_joint(joint):
         return False
@@ -336,6 +345,13 @@ def get_refine_fn(body, joints, num_steps=0):
             q = tuple(positions)
             yield q
     return fn
+
+def refine_path(body, joints, waypoints, num_steps):
+    refine_fn = get_refine_fn(body, joints, num_steps)
+    refined_path = []
+    for v1, v2 in get_pairs(waypoints):
+        refined_path.extend(refine_fn(v1, v2))
+    return refined_path
 
 def get_extend_fn(body, joints, resolutions=None, norm=2):
     resolutions = math.radians(3) * np.ones(len(joints))
@@ -503,6 +519,13 @@ def parse_body(body, link=None):
     return body if isinstance(body, tuple) else collision_pair(body, link)
 
 ### Mathmatic Utils
+
+def flatten(iterable_of_iterables):
+    return (item for iterables in iterable_of_iterables for item in iterables)
+
+def get_pairs(sequence):
+    sequence = list(sequence)
+    return zip(sequence[:-1], sequence[1:])
 
 def get_distance(p1, p2, **kwargs):
     assert len(p1) == len(p2)
@@ -819,149 +842,3 @@ class Commands:
 
     def __repr__(self):
         return 'c{}'.format(id(self) % 1000)
-    
-### Command
-
-class Trajectory:
-    def __init__(self, robot, path, curobo_controller, articulation_controller):
-        self.robot = robot
-        self.path = path
-        self.curobo_controller = curobo_controller
-        self.articulation_controller = articulation_controller
-
-    def apply(self, state, sample=1):
-        for conf in self.path[::sample]:
-            conf.assign()
-            yield
-
-        end_conf = self.path[-1]
-        if isinstance(end_conf, Pose):
-            state.poses[end_conf.body] = end_conf
-
-    def control(self, **kwargs):
-        for conf in self.path:
-            if isinstance(conf, Pose):
-                conf = conf.to_base_conf()
-
-            if self.curobo_controller.reached_target():
-                return
-            else:
-                sim_js = self.robot.get_joint_state()
-                art_action = self.curobo_controller.forward(sim_js, self.robot.dof_names)
-                if art_action is not None:
-                    self.articulation_controller.apply_action(art_action)
-
-    def distance(self, distance_fn=get_distance):
-        total = 0.
-        for q1, q2 in zip(self.path, self.path[1:]):
-            total += distance_fn(q1.values, q2.values)
-        return total
-
-    def iterate(self):
-        for conf in self.path:
-            yield conf
-
-    def reverse(self):
-        return Trajectory(self.robot,
-                          reversed(self.path),
-                          self.curobo_controller,
-                          self.articulation_controller)
-
-    def __repr__(self):
-        d = 0
-        if self.path:
-            conf = self.path[0]
-            d = 3 if isinstance(conf, Pose) else len(conf.joints)
-
-        return 't({},{})'.format(d, len(self.path))
-
-class GripperCommand:
-    def __init__(self, robot, arm, position, curobo_controller,
-                 articulation_controller, teleport=False):
-        self.robot = robot
-        self.arm = arm
-        self.position = position
-        self.curobo_controller = curobo_controller
-        self.articulation_controller = articulation_controller
-        self.teleport = teleport
-
-    def apply(self, state, **kwargs):
-        joints = get_gripper_joints(self.robot, self.arm)
-        start_conf = get_joint_positions(self.robot, joints)
-        end_conf = [self.position] * len(joints)
-        if self.teleport:
-            path = [start_conf, end_conf]
-        else:
-            extend_fn = get_extend_fn(self.robot, joints)
-            path = [start_conf] + list(extend_fn(start_conf, end_conf))
-
-        for positions in path:
-            set_joint_positions(self.robot, joints, positions)
-            yield positions
-
-    def control(self, **kwargs):
-        if not self.curobo_controller.init_curobo:
-            self.curobo_controller.reset([], self.robot.prim_path)
-
-        if self.robot.gripper.get_joint_positions()[0] < 0.035:
-            self.robot.gripper.close()
-        else:
-            self.robot.gripper.open()
-
-    def __repr__(self):
-        return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
-                                     self.arm, self.position)
-
-class Attach:
-    vacuum = True
-    def __init__(self, robot, arm, grasp, body):
-        self.robot = robot
-        self.arm = arm
-        self.grasp = grasp
-        self.body = body
-        self.link = get_link(self.robot, get_tool_link(self.robot))
-
-    def assign(self):
-        gripper_pose = get_link_pose(self.robot, self.link)
-        body_pose = multiply(gripper_pose, self.grasp.value)
-        set_pose(self.body, body_pose)
-
-    def apply(self, state, **kwargs):
-        state.attachments[self.body] = create_attachment(self.robot, self.link, self.body)
-        state.grasps[self.body] = self.grasp
-        del state.poses[self.body]
-        yield
-
-    def control(self, **kwargs):
-        controller = joint_controller()
-        controller.attach_objects_to_robot()
-
-    def __repr__(self):
-        return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
-                                     self.arm, get_body_name(self.body))
-
-class Detach:
-    def __init__(self, robot, arm, body):
-        self.robot = robot
-        self.arm = arm
-        self.body = body
-        self.link = get_link(self.robot, get_tool_link(self.robot))
-
-    def assign(self):
-        gripper_pose = get_link_pose(self.robot, self.link)
-        body_pose = multiply(gripper_pose, self.grasp.value)
-        set_pose(self.body, body_pose)
-
-    def apply(self, state, **kwargs):
-        del state.attachments[self.body]
-        state.poses[self.body] = Pose(self.body, get_pose(self.body))
-        del state.grasps[self.body]
-        yield
-
-    def control(self, **kwargs):
-        controller = joint_controller()
-        controller.detach_object_from_robot()
-
-    def __repr__(self):
-        return '{}({},{},{})'.format(self.__class__.__name__, get_body_name(self.robot),
-                                     self.arm, get_body_name(self.body))

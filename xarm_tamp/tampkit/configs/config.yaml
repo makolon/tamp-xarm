@@ -7,6 +7,71 @@ pddlstream:
   cfree: True
   teleport: False
 
+# cuRobo
+curobo:
+  robot_cfg:
+  # load from curobo content/config/robot
+    robot_name: xarm
+  world_cfg:
+  # load from curobo content/config/world
+    table:
+      type: cuboid
+      yaml: collision_table.yaml
+    base_block:
+      type: mesh
+      yaml: collision_base_block.yaml
+    block1:
+      type: mesh
+      yaml: collision_block1.yaml
+    block2:
+      type: mesh
+      yaml: collision_block2.yaml
+    block3:
+      type: mesh
+      yaml: collision_block3.yaml
+    block4:
+      type: mesh
+      yaml: collsion_block4.yaml
+  robot_world_cfg:
+    activation_distance: 0.0
+    nvblox: friction_correlation_distance
+  motion_generation_plan:
+    enable_graph: True
+    enable_graph_attempt: True
+    max_attempts: 10
+    enable_finetune_trajopt: True
+    parallel_finetune: True
+  inverse_kinematics:
+    position_threshold: 0.1
+    rotation_threshold: 0.1
+    num_seeds: 0
+    self_collision_check: True
+    self._collision_opt: True
+    use_cuda_graph: True
+    n_obstacle_cuboids: 1
+    n_obstacle_mesh: 4
+  motion_generation:
+    num_trajopt_seeds: 0
+    num_grarph_seeds: 0
+    interpolation_dt: 0.01
+    n_obstacle_cuboids: 1
+    n_obstacle_mesh: 4
+    optimize_dt: 0.1
+    trajopt_dt: 0.01
+    trajopt_tsteps: 4
+    trim_steps: 3
+  mpc:
+    use_cuda_graph: True
+    use_cuda_graph_metrics: True
+    use_cuda_graph_full_step: True
+    self_collision_check: True
+    n_obstacle_cuboids: 1
+    n_obstacle_mesh: 4
+    use_mppi: True
+    use_lbfgs: True
+    store_rollouts: True
+    step_dt: 0.01
+
 # Simulation environment
 sim:
   dt: 0.00833333333 # 1/120 s
@@ -67,8 +132,7 @@ sim:
     size: 1.0
 
   robot:
-    name: xarm
-    robot_cfg_path: '/'
+    name: xarm7
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
@@ -135,3 +199,4 @@ sim:
     static_friction: 1.0
     dynamic_friction: 1.0
     restitution: 0.0
+

@@ -22,7 +22,7 @@ class BodyPose:
     num = count()
     def __init__(self,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                 pose: Optional[Union[list, np.ndarary, torch.Tensor]]):
+                 pose: Optional[Union[list, np.ndarray, torch.Tensor]]):
         if pose is None:
             pose = get_pose(body)
         self.body = body
@@ -69,7 +69,7 @@ class BodyGrasp:
         parent_link_pose = get_link_pose(self.robot, self.link)
         child_pose = body_from_end_effector(parent_link_pose, self.grasp_pose)
         set_pose(self.body, child_pose)
-        return self.child_pose
+        return child_pose
     
     def __repr__(self):
         index = self.index

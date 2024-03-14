@@ -250,7 +250,7 @@ def main(cfg: DictConfig):
         cfree=cfg.pddlstream.cfree,
         teleport=cfg.pddlstream.teleport,
     )
-    tamp_planer.execute(cfg.sim)
+    tamp_planer.execute(cfg.sim, cfg.curobo)
 
 
 if __name__ == '__main__':
