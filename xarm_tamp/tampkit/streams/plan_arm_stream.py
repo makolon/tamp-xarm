@@ -1,5 +1,6 @@
 import carb
 import numpy as np
+from typing import Optional, List, Tuple, Union
 from tampkit.sim_tools.isaacsim.sim_utils import (
     get_arm_joints,
     get_initial_conf,
@@ -17,12 +18,11 @@ from curobo.types.math import Pose
 from curobo.types.state import JointState
 
 
-def create_trajectory(robot, joints, path):
-    return Trajectory(Conf(robot, joints, q) for q in path)
-
 def get_motion_fn(problem, collisions=True, teleport=False):
     robot = problem.robot
     motion_planner = problem.motion_planner
+    curobo_controller = problem.curobo_controller
+    articulation_controller = problem.articulation_controller
     tensor_args = get_tensor_device_type()
     plan_cfg = get_motion_gen_plan_cfg()
     obstacles = problem.fixed if collisions else []
@@ -65,7 +65,8 @@ def get_motion_fn(problem, collisions=True, teleport=False):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        mt = create_trajectory(robot, arm_joints, trajectory)
+        mt = create_trajectory(robot, arm_joints, trajectory,
+                               curobo_controller, articulation_controller)
         cmd = Commands(State(attachments=attachments), savers=[BodySaver(robot)], commands=[mt])
         return (cmd,)
 

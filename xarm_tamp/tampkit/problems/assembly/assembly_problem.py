@@ -8,6 +8,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_pose, set_arm_conf,
 )
+from tampkit.sim_tools.isaacsim.curobo_utils import CuroboController
 from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_robot_cfg,
     get_world_cfg,
@@ -16,6 +17,7 @@ from tampkit.sim_tools.isaacsim.curobo_utils import (
     get_robot_world,
     get_ik_solver,
     get_mpc_solver,
+    get_curobo_controller,
 )
 from tampkit.problems.base_problem import Problem
 
@@ -25,7 +27,7 @@ def fmb_momo_problem(sim_cfg):
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
-    stage.DefinePrim("/fmb_momo", "Xform")
+    stage.DefinePrim("/World/fmb_momo", "Xform") # TODO: check
 
     ########################
 
@@ -101,10 +103,10 @@ def fmb_momo_problem(sim_cfg):
     ########################
 
     # define robot_cfg
-    robot_cfg = get_robot_cfg(sim_cfg)
+    robot_cfg = get_robot_cfg(sim_cfg.robot_cfg)
 
     # define world_config
-    world_cfg = get_world_cfg(world_cfg)
+    world_cfg = get_world_cfg(sim_cfg.world_cfg)
 
     ########################
     
@@ -129,6 +131,11 @@ def fmb_momo_problem(sim_cfg):
                       warmup_js_trajopt=sim_cfg.motion_generation.warmup_js_trajopt,
                       parallel_finetune=sim_cfg.motion_generation.parallel_finetune)
     print('cuRobo is Ready!')
+
+    ########################
+    
+    curobo_controller = get_curobo_controller()
+    articulation_controller = xarm.get_articulation_controller()
 
     ########################
 
@@ -160,8 +167,12 @@ def fmb_momo_problem(sim_cfg):
         # Planner
         ik_solver=ik_solver,
         motion_planner=motion_gen,
-        mpc=mpc
+        mpc=mpc,
+        # Controller
+        curobo_controller=curobo_controller,
+        articulation_controller=articulation_controller
     )
+
 
 def fmb_simo_problem(sim_cfg):
     world = create_world()

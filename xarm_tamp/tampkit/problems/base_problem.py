@@ -37,6 +37,9 @@ class Problem:
     ik_solver: object = None
     motion_planner: object = None
     mpc: object = None
+    # Controller
+    curobot_controller: object = None
+    articulation_controller: object = None
 
     def get_gripper(self, gripper_name: str, visual: bool=True):
         if self.gripper is None:

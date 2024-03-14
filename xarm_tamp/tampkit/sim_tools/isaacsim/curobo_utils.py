@@ -13,6 +13,7 @@ from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.sphere_fit import SphereFitType
 from curobo.rollout.rollout_base import Goal
+from curobo.rollout.cost.pose_cost import PoseCostMetric
 from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import (
     get_assets_path,
@@ -54,11 +55,10 @@ def get_world_cfg(world_cfg: dict):
             )
             mesh_cfg.append(world_cfg_mesh.mesh)
 
-    world_cfg = WorldConfig(
+    return WorldConfig(
         cuboid=cuboid_cfg,
         mesh=mesh_cfg,
     )
-    return world_cfg
 
 ########################
     
@@ -164,99 +164,69 @@ def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
 
 ########################
 
+def get_curobo_controller(world, sim_cfg):
+    tensor_args = get_tensor_device_type()
+    robot_cfg = get_robot_cfg(sim_cfg)
+    world_cfg = get_world_cfg(sim_cfg)
+    plan_cfg = get_motion_gen_plan_cfg(sim_cfg)
+    motion_gen_cfg = get_motion_gen_cfg(sim_cfg)
+    motion_gen = get_motion_gen()
+    return CuroboController(tensor_args, robot_cfg, world_cfg,
+                            plan_cfg, motion_gen_cfg, motion_gen)
+
+########################
+
 class CuroboController(BaseController):
     def __init__(
         self,
         my_world: World,
-        my_task: BaseTask,
+        tensor_args,
+        robot_cfg,
+        world_cfg,
+        plan_cfg,
+        motion_gen_cfg,
+        motion_gen,
         name: str = "curobo_controller",
-        constrain_grasp_approach: bool = False,
     ) -> None:
         BaseController.__init__(self, name=name)
-        self._save_log = False
+
         self.my_world = my_world
-        self.my_task = my_task
+        self._save_log = False
         self._step_idx = 0
-        n_obstacle_cuboids = 20
-        n_obstacle_mesh = 2
+
         # warmup curobo instance
-        self.usd_help = UsdHelper()
         self.init_curobo = False
-        self.world_file = "collision_table.yml"
         self.cmd_js_names = [
-            "panda_joint1",
-            "panda_joint2",
-            "panda_joint3",
-            "panda_joint4",
-            "panda_joint5",
-            "panda_joint6",
-            "panda_joint7",
+            "joint1",
+            "joint2",
+            "joint3",
+            "joint4",
+            "joint5",
+            "joint6",
+            "joint7",
         ]
-        self.tensor_args = TensorDeviceType()
-        self.robot_cfg = load_yaml(join_path(get_robot_configs_path(), "franka.yml"))["robot_cfg"]
-        self.robot_cfg["kinematics"][
-            "base_link"
-        ] = "panda_link0"  # controls which frame the controller is controlling
-
-        self.robot_cfg["kinematics"]["ee_link"] = "panda_hand"  # controls which frame the controller is controlling
-        self.robot_cfg["kinematics"]["extra_collision_spheres"] = {"attached_object": 100}
-        self.robot_cfg["kinematics"]["collision_spheres"] = "spheres/franka_collision_mesh.yml"
-
-        world_cfg_table = WorldConfig.from_dict(
-            load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
-        )
-        self._world_cfg_table = world_cfg_table
-
-        world_cfg1 = WorldConfig.from_dict(
-            load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
-        ).get_mesh_world()
-        world_cfg1.mesh[0].pose[2] = -10.5
-
-        self._world_cfg = WorldConfig(cuboid=world_cfg_table.cuboid, mesh=world_cfg1.mesh)
-
-        motion_gen_config = MotionGenConfig.load_from_robot_config(
-            self.robot_cfg,
-            self._world_cfg,
-            self.tensor_args,
-            trajopt_tsteps=32,
-            collision_checker_type=CollisionCheckerType.MESH,
-            use_cuda_graph=True,
-            interpolation_dt=0.01,
-            collision_cache={"obb": n_obstacle_cuboids, "mesh": n_obstacle_mesh},
-            store_ik_debug=self._save_log,
-            store_trajopt_debug=self._save_log,
-            velocity_scale=0.75,
-        )
-        self.motion_gen = MotionGen(motion_gen_config)
-        print("warming up...")
-        self.motion_gen.warmup(parallel_finetune=True)
-        pose_metric = None
-        # if constrain_grasp_approach:
-        #     pose_metric = PoseCostMetric.create_grasp_approach_metric(
-        #         offset_position=0.1, tstep_fraction=0.6
-        #     )
-
-        self.plan_config = MotionGenPlanConfig(
-            enable_graph=False,
-            max_attempts=10,
-            enable_graph_attempt=None,
-            enable_finetune_trajopt=True,
-            partial_ik_opt=False,
-            parallel_finetune=True,
-            pose_cost_metric=pose_metric,
-        )
+        self.usd_help = UsdHelper()
         self.usd_help.load_stage(self.my_world.stage)
         self.cmd_plan = None
         self.cmd_idx = 0
-        self._step_idx = 0
         self.idx_list = None
+        
+        # Tensor args
+        self.tensor_args = tensor_args
+        # Config
+        self.robot_cfg = robot_cfg
+        self.world_cfg = world_cfg
+        self.plan_cfg = plan_cfg
+        self.motion_gen_cfg = motion_gen_cfg
+        # Motion Generator
+        self.motion_gen = motion_gen
 
     def attach_obj(
         self,
         sim_js: JointState,
         js_names: list,
+        body_name: str
     ) -> None:
-        cube_name = self.my_task.get_cube_prim(self.my_task.target_cube)
 
         cu_js = JointState(
             position=self.tensor_args.to_device(sim_js.positions),
@@ -268,7 +238,7 @@ class CuroboController(BaseController):
 
         self.motion_gen.attach_objects_to_robot(
             cu_js,
-            [cube_name],
+            [body_name],
             sphere_fit_type=SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
             world_objects_pose_offset=Pose.from_list([0, 0, 0.01, 1, 0, 0, 0], self.tensor_args),
         )
@@ -296,37 +266,20 @@ class CuroboController(BaseController):
         )
         cu_js = cu_js.get_ordered_joint_state(self.motion_gen.kinematics.joint_names)
         result = self.motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, self.plan_config.clone())
-        if self._save_log:  # and not result.success.item(): # logging for debugging
-            UsdHelper.write_motion_gen_log(
-                result,
-                {"robot_cfg": self.robot_cfg},
-                self._world_cfg,
-                cu_js,
-                ik_goal,
-                join_path("log/usd/", "cube") + "_debug",
-                write_ik=False,
-                write_trajopt=True,
-                visualize_robot_spheres=True,
-                link_spheres=self.motion_gen.kinematics.kinematics_config.link_spheres,
-                grid_space=2,
-                write_robot_usd_path="log/usd/assets",
-            )
         return result
 
     def forward(
         self,
+        ee_translation_goal: np.array,
+        ee_orientation_goal: np.array,
         sim_js: JointState,
         js_names: list,
     ) -> ArticulationAction:
-        assert self.my_task.target_position is not None
-        assert self.my_task.target_cube is not None
 
         if self.cmd_plan is None:
             self.cmd_idx = 0
             self._step_idx = 0
-            # Set EE goals
-            ee_translation_goal = self.my_task.target_position
-            ee_orientation_goal = np.array([0, 0, -1, 0])
+
             # compute curobo solution:
             result = self.plan(ee_translation_goal, ee_orientation_goal, sim_js, js_names)
             succ = result.success.item()
@@ -337,6 +290,7 @@ class CuroboController(BaseController):
             else:
                 carb.log_warn("Plan did not converge to a solution.")
                 return None
+
         if self._step_idx % 3 == 0:
             cmd_state = self.cmd_plan[self.cmd_idx]
             self.cmd_idx += 1
@@ -355,20 +309,9 @@ class CuroboController(BaseController):
         self._step_idx += 1
         return art_action
 
-    def reached_target(self, observations: dict) -> bool:
-        curr_ee_position = observations["my_franka"]["end_effector_position"]
-        if np.linalg.norm(
-            self.my_task.target_position - curr_ee_position
-        ) < 0.04 and (  # This is half gripper width, curobo succ threshold is 0.5 cm
-            self.cmd_plan is None
-        ):
-            if self.my_task.cube_in_hand is None:
-                print("reached picking target: ", self.my_task.target_cube)
-            else:
-                print("reached placing target: ", self.my_task.target_cube)
-            return True
-        else:
-            return False
+    def reached_target(self, curr_ee_pose, target_ee_pose) -> bool:
+        return True if np.linalg.norm(target_ee_pose - curr_ee_pose) < 0.04 \
+            and (self.cmd_plan is None) else False
 
     def reset(
         self,
@@ -386,10 +329,10 @@ class CuroboController(BaseController):
         ignore_substring: str,
         robot_prim_path: str,
     ) -> None:
-        # print("updating world...")
         obstacles = self.usd_help.get_obstacles_from_stage(
             ignore_substring=ignore_substring, reference_prim_path=robot_prim_path
         ).get_collision_check_world()
+
         # add ground plane as it's not readable:
         obstacles.add_obstacle(self._world_cfg_table.cuboid[0])
         self.motion_gen.update_world(obstacles)

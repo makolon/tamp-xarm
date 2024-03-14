@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from typing import Optional, Union
 from tampkit.sim_tools.isaacsim.geometry import Pose
 from tampkit.sim_tools.isaacsim.sim_utils import (
     pairwise_collision,

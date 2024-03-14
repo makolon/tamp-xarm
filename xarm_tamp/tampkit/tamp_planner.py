@@ -4,6 +4,7 @@ import numpy as np
 from collections import namedtuple
 from omegaconf import DictConfig
 
+# Initialize isaac sim
 import tampkit.sim_tools.isaacsim.sim_utils
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
@@ -114,12 +115,6 @@ class TAMPPlanner(object):
             init += [('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
-        
-        # Goal configuration
-        if problem.goal_conf is not None:
-            goal_conf = Pose(robot, problem.goal_conf)
-            init += [('Conf', goal_conf)]
-            goal += [('AtConf', goal_conf)]
 
         # Surface pose
         for body in problem.surfaces:
@@ -142,9 +137,9 @@ class TAMPPlanner(object):
 
         stream_map = {
             # Constrained sampler
+            'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=False)),
             'sample-place': from_gen_fn(get_place_gen(problem, collisions=collisions)),
             'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
-            'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=False)),
             # Planner
             'plan-base-motion': from_fn(plan_base_fn(problem, collisions=True, teleport=teleport)),
             'plan-arm-motion': from_fn(plan_arm_fn(problem, collisions=collisions, teleport=teleport)),
