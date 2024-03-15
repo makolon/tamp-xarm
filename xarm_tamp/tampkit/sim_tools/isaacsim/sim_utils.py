@@ -140,7 +140,7 @@ def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              translation=np.array([0., 0., 0.]),
-             orientation=np.array([1., 0., 0., ])) -> None:
+             orientation=np.array([1., 0., 0., 0.])) -> None:
     body.set_world_pose(translation=translation, orientation=orientation)
 
 def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
@@ -152,6 +152,7 @@ def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
 ### Link Utils
 
 def get_link(robot: Robot, name: str) -> Usd.Prim:
+    # get the prim of the link according to the given name in the robot.
     link_prims = [link_prim for link_prim in robot.GetChildren()]
     for link_prim in link_prims:
         if link_prim.name == name:
@@ -159,43 +160,78 @@ def get_link(robot: Robot, name: str) -> Usd.Prim:
         else:
             return None
 
-def get_links(robot: Robot) -> List[Usd.Prim]:
-    link_prims = [link_prim for link_prim in robot.GetChildren()]
-    return link_prims
-
 def get_tool_link(robot: Robot, tool_name: str) -> Usd.Prim:
     tool_frame = get_link(robot, tool_name)
     return tool_frame
 
+def get_all_links(robot: Robot) -> List[Usd.Prim]:
+    link_prims = [link_prim for link_prim in robot.GetChildren()]
+    return link_prims
+
 def get_moving_links(robot: Robot) -> List[Usd.Prim]:
-    all_links = get_links(robot)
+    all_links = get_all_links(robot)
     return all_links
 
-def get_all_link_parents(robot: Robot):
-    return {link: get_parent(link) for link in get_links(robot)}
+def get_parent(prim: Usd.Prim) -> Optional[Usd.Prim]:
+    """Get the parent of prim if it exists."""
+    parent_prim = prim.GetParent()
+    if not parent_prim.IsValid():
+        return None
+    return parent_prim
 
-def get_all_link_children(body):
+def get_child(prim: Usd.Prim, child_name: str = None) -> Optional[Usd.Prim]:
+    """Get the child of prim if it exists."""
+    children_prim = prim.GetChildren()
+    for child_prim in children_prim:
+        if not child_prim.IsValid():
+            return None
+        if child_prim.name == child_name:
+            return child_prim
+        else:
+            return children_prim[-1]
+
+def get_children(prim: Usd.Prim) -> Optional[List[Usd.Prim]]:
+    """Get the children of prim if it exists."""
+    children_prim = prim.GetChildren()
+    for child_prim in children_prim:
+        if not child_prim.IsValid():
+            return None
+    return children_prim
+
+def get_all_link_parents(robot: Robot) -> Dict[str, Usd.Prim]:
+    """Get all parents link."""
+    parents = {}
+    for link in get_all_links(robot):
+        parents[link.name] = get_parent(link)
+    return parents
+
+def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
+    """Get all children link."""
     children = {}
-    for child, parent in get_all_link_parents(body).items():
-        if parent not in children:
-            children[parent] = []
-        children[parent].append(child)
+    for link in get_all_links(robot):
+        children[link.name] = get_children(link)
     return children    
 
-def get_link_children(body, link):
-    children = get_all_link_children(body)
-    return children.get(link, [])
-    
-def get_link_descendants(body, link, test=lambda l: True):
+def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
+    parents = get_all_link_parents(robot)
+    return parents.get(link.name, None)
+
+def get_link_children(robot: Robot, link: Usd.Prim) -> Optional[List[Usd.Prim]]:
+    children = get_all_link_children(robot)
+    return children.get(link.name, [])
+
+def get_link_descendants(robot: Robot, link: Usd.Prim, test=lambda l: True):
+    """Get the descendants link """
     descendants = []
-    for child in get_link_children(body, link):
+    for child in get_link_children(robot, link):
         if test(child):
             descendants.append(child)
-            descendants.extend(get_link_descendants(body, child, test=test))
+            descendants.extend(get_link_descendants(robot, child, test=test))
     return descendants
 
-def get_link_subtree(body, link, **kwargs):
-    return [link] + get_link_descendants(body, link, **kwargs)
+def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs):
+    """Get subtree of the given link."""
+    return [link] + get_link_descendants(robot, link, **kwargs)
 
 def get_link_pose(robot: Robot, link_name: str):
     link_names = [link_prim.name for link_prim in robot.GetChildren()]
@@ -205,41 +241,22 @@ def get_link_pose(robot: Robot, link_name: str):
         if link_name == link_prim.name:
             return link_prim.get_world_pose()
 
-def flatten_links(robot: Robot, links=None):
-    if links is None:
-        links = [link_prim.name for link_prim in robot.GetChildren()]
-    collision_pair = namedtuple('Collision', ['robot', 'links'])
-    return {collision_pair(robot, frozenset([link])) for link in links}
-
-def get_all_links(robot: Robot):
-    return [link_prim for link_prim in robot.GetChildren()]
-
-def expand_links(body, **kwargs):
-    body, links = parse_body(body, **kwargs)
-    if links is None:
-        links = get_all_links(body)
-    collision_pair = namedtuple('Collision', ['robot', 'links'])
-    return collision_pair(body, links)
-
-def body_from_end_effector(parent_pose, child_pose):
-    return None
-
 ### Joint Utils
 
 def get_arm_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
-    # return arm joint indices
+    """Get arm joint indices."""
     return robot.arm_joints
 
 def get_base_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
-    # return base joint indices
+    """Get base joint indices."""
     return robot.base_joints
 
 def get_gripper_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
-    # return gripper joint indices
+    """Get gripper joint indices."""
     return robot.gripper_joints
 
 def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Union[np.ndarray, torch.Tensor]]:
-    # return movable joint indices
+    """Get movable joint indices."""
     if use_gripper:
         movable_joints = robot.arm_joints + robot.gripper_joints
     else:
@@ -248,6 +265,7 @@ def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Unio
 
 def get_joint_positions(robot: Robot,
                         joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    """Get joint positions."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
     joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
@@ -255,30 +273,23 @@ def get_joint_positions(robot: Robot,
 
 def get_joint_velocities(robot: Robot,
                          joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    """Get joint velocities."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
     joint_velocities = robot.get_joint_velocities(joint_indices=joint_indices)
     return joint_velocities
 
-def set_joint_positions(robot: Robot,
-                        positions: Optional[Union[np.ndarray, torch.Tensor]],
-                        joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+def get_min_limit(robot: Robot,
+                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
-    robot.set_joint_positions(positions, joint_indices)
+    return robot.dof_properties.lower[joint_indices]
 
-def set_arm_conf(robot: Robot,
-                 conf: Optional[Union[np.ndarray, torch.Tensor]],
-                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+def get_max_limit(robot: Robot,
+                  joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
-    robot.set_joint_positions(conf, joint_indices=joint_indices)
-    
-def get_min_limit(robot: Robot) -> np.ndarray:
-    return robot.dof_properties.lower
-
-def get_max_limit(robot: Robot) -> np.ndarray:
-    return robot.dof_properties.upper
+    return robot.dof_properties.upper[joint_indices]
 
 def get_joint_limits(robot: Robot):
     return get_min_limit(robot), get_max_limit(robot)
@@ -286,6 +297,7 @@ def get_joint_limits(robot: Robot):
 def get_custom_limits(robot: Robot,
                       joint_names: Optional[Union[list, np.ndarray, torch.Tensor]],
                       custom_limits: dict = {}):
+    """Get custom limits."""
     joint_limits = []
     for joint in joint_names:
         if joint in custom_limits:
@@ -296,6 +308,7 @@ def get_custom_limits(robot: Robot,
 
 def get_initial_conf(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    """Get joint initial configuration."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
     state = robot.get_joints_default_state()
@@ -306,6 +319,7 @@ def get_initial_conf(robot: Robot,
 
 def get_group_conf(robot: Robot,
                    group: str = 'arm'):
+    """Get joint configuration corresponding to group."""
     if group == 'arm':
         joint_indices = robot.arm_joints
     elif group == 'gripper':
@@ -316,27 +330,48 @@ def get_group_conf(robot: Robot,
         joint_indices = get_movable_joints(robot, use_gripper=True)
     return robot.get_joint_positions(joint_indices=joint_indices)
 
+def set_joint_positions(robot: Robot,
+                        positions: Optional[Union[np.ndarray, torch.Tensor]],
+                        joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+    """Set joint positions."""
+    if joint_indices is None:
+        joint_indices = get_movable_joints(robot)
+    robot.set_joint_positions(positions, joint_indices)
+
+def set_initial_conf(robot: Robot,
+                 conf: Optional[Union[np.ndarray, torch.Tensor]],
+                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+    """Set joint positions to initial configuration."""
+    if joint_indices is None:
+        joint_indices = get_movable_joints(robot)
+    robot.set_joint_positions(conf, joint_indices=joint_indices)
+
 # TODO
 def joint_controller(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
                      configuration: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     pass
 
-# TODO
-def is_circular(body, joint):
-    if not is_a_fixed_joint(joint):
+def is_circular(robot: Robot,
+                joint: Usd.Prim) -> bool:
+    if joint.IsA(UsdPhysics.FixedJoint):
         return False
-    return get_joint_limits(joint)
+    joint_index = robot.get_joint_index(joint.name)
+    upper, lower = robot.dof_properties['upper'][joint_index], robot.dof_properties['lower'][joint_index]
+    return upper < lower
 
-def get_difference_fn(body, joints):
-    circular_joints = [is_circular(body, joint) for joint in joints]
+def get_difference_fn(robot: Robot,
+                      joints: List[Usd.Prim]):
+    circular_joints = [is_circular(robot, joint) for joint in joints]
     def fn(q2, q1):
         return tuple(circular_difference(value2, value1) if circular else (value2 - value1)
                 for circular, value2, value1 in zip(circular_joints, q2, q1))
     return fn
 
-def get_refine_fn(body, joints, num_steps=0):
-    difference_fn = get_difference_fn(body, joints)
+def get_refine_fn(robot: Robot,
+                  joints: List[Usd.Prim],
+                  num_steps: int = 0):
+    difference_fn = get_difference_fn(robot, joints)
     num_steps = num_steps + 1
     def fn(q1, q2):
         q = q1
@@ -346,75 +381,42 @@ def get_refine_fn(body, joints, num_steps=0):
             yield q
     return fn
 
-def refine_path(body, joints, waypoints, num_steps):
-    refine_fn = get_refine_fn(body, joints, num_steps)
+def get_extend_fn(robot: Robot,
+                  joints: List[Usd.Prim],
+                  norm=2):
+    resolutions = math.radians(3) * np.ones(len(joints))
+    difference_fn = get_difference_fn(robot, joints)
+    def fn(q1, q2):
+        steps = int(np.linalg.norm(np.divide(difference_fn(q2, q1), resolutions), ord=norm))
+        refine_fn = get_refine_fn(robot, joints, num_steps=steps)
+        return refine_fn(q1, q2)
+    return fn
+
+def get_distance_fn(robot: Robot,
+                    joints: List[Usd.Prim]):
+    weights = 1 * np.ones(len(joints))
+    difference_fn = get_difference_fn(robot, joints)
+    def fn(q1: torch.Tensor, q2: torch.Tensor):
+        diff = np.array(difference_fn(q2, q1))
+        return np.sqrt(np.dot(weights, diff * diff))
+    return fn
+
+def refine_path(robot: Robot,
+                joints: List[Usd.Prim],
+                waypoints: Sequence,
+                num_steps: int = 0):
+    refine_fn = get_refine_fn(robot, joints, num_steps)
     refined_path = []
     for v1, v2 in get_pairs(waypoints):
         refined_path.extend(refine_fn(v1, v2))
     return refined_path
 
-def get_extend_fn(body, joints, resolutions=None, norm=2):
-    resolutions = math.radians(3) * np.ones(len(joints))
-    difference_fn = get_difference_fn(body, joints)
-    def fn(q1, q2):
-        steps = int(np.linalg.norm(np.divide(difference_fn(q2, q1), resolutions), ord=norm))
-        refine_fn = get_refine_fn(body, joints, num_steps=steps)
-        return refine_fn(q1, q2)
-    return fn
-
-def get_distance_fn(body, joints, weights=None):
-    weights = 1 * np.ones(len(joints))
-    difference_fn = get_difference_fn(body, joints)
-    def fn(q1: torch.Tensor, q2: torch.Tensor):
-        diff = np.array(difference_fn(q2, q1))
-        return np.sqrt(np.dot(weights, diff * diff))
-    return fn
-    
-### Trajectory
-
-def create_trajectory(robot: Robot,
-                      joints: List[str],
-                      path: Optional[Union[List, Tuple]]):
-    trajectory = list(Conf(robot, joints, q) for q in path)
-    return Trajectory(robot, trajectory)
-
-def remove_redundant(path, tolerance=1e-3):
-    assert path
-    new_path = [path[0]]
-    for conf in path[1:]:
-        difference = np.array(new_path[-1]) - np.array(conf)
-        if not np.allclose(np.zeros(len(difference)), difference, atol=tolerance, rtol=0):
-            new_path.append(conf)
-    return new_path
-
-def get_target_path(trajectory: Trajectory):
-    points = []
-    for conf in trajectory.path:
-        robot = conf.body
-        link = get_link(robot, 'torso_lift_link')
-        with BodySaver(conf.body):
-            conf.assign()
-            lower, upper = get_aabb(robot, link)
-            center = np.average([lower, upper], axis=0)
-            point = np.array(get_group_conf(conf.body, 'base'))
-            point[2] = center[2]
-            points.append(point)
-
-    return points
-
-def iterate_approach_path(robot, arm, gripper, pose, grasp, body=None):
-    tool_from_root = get_tool_from_root(robot, arm)
-    grasp_pose = multiply(pose.value, invert(grasp.value))
-    approach_pose = multiply(pose.value, invert(grasp.approach))
-    for tool_pose in interpolate_poses(grasp_pose, approach_pose):
-        set_pose(gripper, multiply(tool_pose, tool_from_root))
-        if body is not None:
-            set_pose(body, multiply(tool_pose, grasp.value))
-        yield
-
 ### Grasp
 
 def get_side_grasps():
+    pass
+
+def get_top_grasps():
     pass
 
 def compute_grasp_width(robot, arm, body, grasp_pose, **kwargs):
@@ -486,7 +488,6 @@ def pairwise_link_collision(body1, link1, body2, link2=None, **kwargs):
     return len(get_closest_points(body1, body2, link1=link1, link2=link2, **kwargs)) != 0
 
 def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
-    # TODO: this likely isn't needed anymore
     if links1 is None:
         links1 = get_all_links(body1)
     if links2 is None:
@@ -514,9 +515,22 @@ def all_between(lower_limits, values, upper_limits):
     return np.less_equal(lower_limits, values).all() and \
            np.less_equal(values, upper_limits).all()
 
-def parse_body(body, link=None):
+def parse_body(robot: Robot, link=None):
     collision_pair = namedtuple('Collision', ['robot', 'links'])
-    return body if isinstance(body, tuple) else collision_pair(body, link)
+    return robot if isinstance(robot, tuple) else collision_pair(robot, link)
+
+def flatten_links(robot: Robot, links=None):
+    if links is None:
+        links = [link_prim.name for link_prim in robot.GetChildren()]
+    collision_pair = namedtuple('Collision', ['robot', 'links'])
+    return {collision_pair(robot, frozenset([link])) for link in links}
+
+def expand_links(robot: Robot, **kwargs):
+    body, links = parse_body(robot, **kwargs)
+    if links is None:
+        links = get_all_links(body)
+    collision_pair = namedtuple('Collision', ['robot', 'links'])
+    return collision_pair(body, links)
 
 ### Mathmatic Utils
 

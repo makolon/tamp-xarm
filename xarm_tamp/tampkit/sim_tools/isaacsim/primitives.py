@@ -5,9 +5,8 @@ from itertools import count
 from typing import List, Optional, Union
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
-    body_from_end_effector, flatten,
-    get_pose, get_joint_positions, get_link_pose, get_movable_joints,
-    joint_controller, refine_path, 
+    flatten, get_pose, get_joint_positions, get_link_pose,
+    get_movable_joints, joint_controller, multiply, refine_path, 
     set_pose, set_joint_positions
 )
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
@@ -67,7 +66,7 @@ class BodyGrasp:
     
     def assign(self):
         parent_link_pose = get_link_pose(self.robot, self.link)
-        child_pose = body_from_end_effector(parent_link_pose, self.grasp_pose)
+        child_pose = multiply(parent_link_pose, self.grasp_pose)
         set_pose(self.body, child_pose)
         return child_pose
     

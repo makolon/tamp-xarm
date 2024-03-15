@@ -6,7 +6,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Getter
     get_initial_conf, get_pose,
     # Setter
-    set_pose, set_arm_conf,
+    set_pose, set_initial_conf,
 )
 from tampkit.sim_tools.isaacsim.curobo_utils import (
     # Config
@@ -40,7 +40,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     # create robot
     xarm = create_robot(sim_cfg.robot)
     initial_conf = get_initial_conf(xarm)
-    set_arm_conf(xarm, initial_conf)
+    set_initial_conf(xarm, initial_conf)
 
     # create table
     table = create_table(sim_cfg.table)
@@ -121,11 +121,12 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # define world model
     robot_world_cfg = get_robot_world_cfg(
-        robot_file='xarm7.yaml',
         cfg=curobo_cfg.robot_world_cfg,
         world_cfg=world_cfg,
     )
     robot_world = get_robot_world(robot_world_cfg)
+    
+    ########################
     
     # define inverse kinematics
     ik_solver_cfg = get_ik_solver_cfg(

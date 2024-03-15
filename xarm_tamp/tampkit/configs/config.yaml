@@ -33,20 +33,21 @@ curobo:
       type: mesh
       yaml: collsion_block4.yaml
   robot_world_cfg:
+    robot_file: xarm7.yaml
     activation_distance: 0.0
     nvblox: friction_correlation_distance
   motion_generation_plan:
     enable_graph: True
-    enable_graph_attempt: True
-    max_attempts: 10
+    enable_graph_attempt: 4
+    max_attempts: 2
     enable_finetune_trajopt: True
     parallel_finetune: True
   inverse_kinematics:
-    position_threshold: 0.1
-    rotation_threshold: 0.1
-    num_seeds: 0
+    position_threshold: 0.05
+    rotation_threshold: 0.005
+    num_seeds: 20
     self_collision_check: True
-    self._collision_opt: True
+    self_collision_opt: True
     use_cuda_graph: True
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
@@ -56,7 +57,7 @@ curobo:
     interpolation_dt: 0.01
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
-    optimize_dt: 0.1
+    optimize_dt: 0.01
     trajopt_dt: 0.01
     trajopt_tsteps: 4
     trim_steps: 3

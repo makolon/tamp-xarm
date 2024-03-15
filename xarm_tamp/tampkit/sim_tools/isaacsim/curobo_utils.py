@@ -36,6 +36,8 @@ def get_tensor_device_type():
     tensor_args = TensorDeviceType()
     return tensor_args
 
+########################
+
 def get_robot_cfg(cfg: dict):
     # load robot config from curobo content/config/robot
     return load_yaml(join_path(get_robot_configs_path(), cfg.robot_cfg.name))["robot_cfg"]
@@ -63,9 +65,9 @@ def get_world_cfg(cfg: dict):
 
 ########################
     
-def get_robot_world_cfg(robot_file: str = 'xarm7.yaml',
-                        cfg: dict = None,
+def get_robot_world_cfg(cfg: dict = None,
                         world_cfg: WorldConfig = None):
+    robot_file = cfg.robot_file
     robot_world_cfg = RobotWorldConfig.load_from_config(
         robot_file,
         world_cfg,
@@ -75,15 +77,7 @@ def get_robot_world_cfg(robot_file: str = 'xarm7.yaml',
     )
     return robot_world_cfg
 
-def get_motion_gen_plan_cfg(cfg: dict):
-    plan_cfg = MotionGenPlanConfig(
-        enable_graph=cfg.motion_generation_plan.enable_graph,
-        enable_graph_attempt=cfg.motion_generation_plan.enable_graph_attempt,
-        max_attempts=cfg.motion_generation_plan.max_attempts,
-        enable_finetune_trajopt=cfg.motion_generation_plan.enable_finetune_trajopt,
-        parallel_finetune=cfg.motion_generation_plan.parallel_finetune,
-    )
-    return plan_cfg
+########################
 
 def get_ik_solver_cfg(cfg: dict,
                       robot_cfg: dict = None,
@@ -112,6 +106,16 @@ def get_ik_solver_cfg(cfg: dict,
             "mesh": cfg.inverse_kinematics.n_obstacle_mesh},
     )
     return ik_config
+
+def get_motion_gen_plan_cfg(cfg: dict):
+    plan_cfg = MotionGenPlanConfig(
+        enable_graph=cfg.motion_generation_plan.enable_graph,
+        enable_graph_attempt=cfg.motion_generation_plan.enable_graph_attempt,
+        max_attempts=cfg.motion_generation_plan.max_attempts,
+        enable_finetune_trajopt=cfg.motion_generation_plan.enable_finetune_trajopt,
+        parallel_finetune=cfg.motion_generation_plan.parallel_finetune,
+    )
+    return plan_cfg
 
 def get_motion_gen_cfg(cfg: dict,
                        robot_cfg: dict = None,
@@ -171,20 +175,22 @@ def get_mpc_solver_cfg(cfg: dict,
 
 ########################
 
-def get_motion_gen(motion_gen_cfg: MotionGenConfig = None):
-    if motion_gen_cfg == None:
-        raise ValueError("motion_gen_cfg is not specified.")
-    return MotionGen(motion_gen_cfg)
-
 def get_robot_world(robot_world_cfg: RobotWorldConfig = None):
     if robot_world_cfg == None:
         raise ValueError("robot_world_cfg is not specified.")
     return RobotWorld(robot_world_cfg)
 
+########################
+
 def get_ik_solver(ik_cfg: IKSolverConfig = None):
     if ik_cfg == None:
         raise ValueError("ik_cfg is not specified.")
     return IKSolver(ik_cfg)
+
+def get_motion_gen(motion_gen_cfg: MotionGenConfig = None):
+    if motion_gen_cfg == None:
+        raise ValueError("motion_gen_cfg is not specified.")
+    return MotionGen(motion_gen_cfg)
 
 def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
     if mpc_cfg == None:
