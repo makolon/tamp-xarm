@@ -104,7 +104,6 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     ########################
 
     # define robot_cfg
-    print('curobo_cfg:', curobo_cfg)
     robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
 
     # define world_cfg
@@ -122,7 +121,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # define world model
     robot_world_cfg = get_robot_world_cfg(
-        cfg=curobo_cfg.robot_world_cfg,
+        cfg=curobo_cfg,
         world_cfg=world_cfg,
     )
     robot_world = get_robot_world(robot_world_cfg)
@@ -131,7 +130,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     
     # define inverse kinematics
     ik_solver_cfg = get_ik_solver_cfg(
-        cfg=curobo_cfg.ik_solver_cfg,
+        cfg=curobo_cfg,
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         tensor_args=tensor_args,
@@ -140,7 +139,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # define model predictive controller
     mpc_cfg = get_mpc_solver_cfg(
-        cfg=curobo_cfg.mpc_cfg,
+        cfg=curobo_cfg,
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         tensor_args=tensor_args,
@@ -149,16 +148,16 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # define motion planner
     motion_gen_cfg = get_motion_gen_cfg(
-        cfg=curobo_cfg.motion_gen_cfg,
+        cfg=curobo_cfg,
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         tensor_args=tensor_args,
     )
     motion_gen = get_motion_gen(motion_gen_cfg)
     print('warming up...')
-    motion_gen.warmup(enable_graph=sim_cfg.motion_generation.enable_graph,
-                      warmup_js_trajopt=sim_cfg.motion_generation.warmup_js_trajopt,
-                      parallel_finetune=sim_cfg.motion_generation.parallel_finetune)
+    motion_gen.warmup(enable_graph=curobo_cfg.motion_gen_cfg.enable_graph,
+                      warmup_js_trajopt=curobo_cfg.motion_gen_cfg.warmup_js_trajopt,
+                      parallel_finetune=curobo_cfg.motion_gen_cfg.parallel_finetune)
     print('cuRobo is Ready!')
 
     ########################

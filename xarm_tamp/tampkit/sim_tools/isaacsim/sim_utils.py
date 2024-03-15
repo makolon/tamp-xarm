@@ -162,13 +162,11 @@ def get_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
 
 def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     pos, rot = body.get_world_pose()
-    print('rot:', rot)
     return pos, rot
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              position=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., 0.])) -> None:
-    print('orientation:', orientation)
     body.set_world_pose(position=position, orientation=orientation)
 
 def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],

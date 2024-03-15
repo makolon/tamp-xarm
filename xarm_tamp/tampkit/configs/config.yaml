@@ -9,40 +9,23 @@ pddlstream:
 
 # cuRobo
 curobo:
-  robot_cfg:
-  # load from curobo content/config/robot
-    robot_name: xarm
-  world_cfg:
-  # load from curobo content/config/world
+  robot_cfg: # load from curobo content/config/robot
+    yaml: xarm7.yml
+  world_cfg: # load from curobo content/config/world
     table:
       type: cuboid
-      yaml: collision_table.yaml
-    base_block:
-      type: mesh
-      yaml: collision_base_block.yaml
-    block1:
-      type: mesh
-      yaml: collision_block1.yaml
-    block2:
-      type: mesh
-      yaml: collision_block2.yaml
-    block3:
-      type: mesh
-      yaml: collision_block3.yaml
-    block4:
-      type: mesh
-      yaml: collsion_block4.yaml
+      yaml: collision_table.yml
   robot_world_cfg:
-    robot_file: xarm7.yaml
+    robot_file: xarm7.yml
     activation_distance: 0.0
     nvblox: friction_correlation_distance
-  motion_generation_plan:
+  motion_generation_plan_cfg:
     enable_graph: True
     enable_graph_attempt: 4
     max_attempts: 2
     enable_finetune_trajopt: True
     parallel_finetune: True
-  inverse_kinematics:
+  ik_solver_cfg:
     position_threshold: 0.05
     rotation_threshold: 0.005
     num_seeds: 20
@@ -51,7 +34,7 @@ curobo:
     use_cuda_graph: True
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
-  motion_generation:
+  motion_gen_cfg:
     num_trajopt_seeds: 0
     num_grarph_seeds: 0
     interpolation_dt: 0.01
@@ -61,7 +44,10 @@ curobo:
     trajopt_dt: 0.01
     trajopt_tsteps: 4
     trim_steps: 3
-  mpc:
+    enable_graph: True
+    warmup_js_trajopt: False
+    parallel_finetune: False
+  mpc_cfg:
     use_cuda_graph: True
     use_cuda_graph_metrics: True
     use_cuda_graph_full_step: True
