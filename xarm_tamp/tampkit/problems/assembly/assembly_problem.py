@@ -163,7 +163,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     ########################
 
     return Problem(
-        # Instance
+        # PDDL
         robot=xarm,
         movable=[block1, block2, block3, block4],
         fixed=[table, base_block],
@@ -199,7 +199,8 @@ def fmb_simo_problem(sim_cfg):
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
-    stage.DefinePrim("/fmb_momo", "Xform")
+
+    ########################
 
     # create plane
     plane = create_floor(world, sim_cfg.floor)
@@ -207,7 +208,7 @@ def fmb_simo_problem(sim_cfg):
     # create robot
     xarm = create_robot(sim_cfg.robot)
     initial_conf = get_initial_conf(xarm)
-    set_arm_conf(xarm, initial_conf)
+    set_initial_conf(xarm, initial_conf)
 
     # create table
     table = create_table(sim_cfg.table)

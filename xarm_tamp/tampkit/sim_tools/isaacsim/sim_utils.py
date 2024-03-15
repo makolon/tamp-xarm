@@ -28,16 +28,15 @@ import numpy as np
 import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.bounds as bounds_utils
 from itertools import count, product
-from typing import Union, Optional, Tuple, List
+from typing import Dict, List, Tuple, Optional, Sequence, Union
+from scipy.spatial.transform import Rotation
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from tampkit.sim_tools.isaacsim.robots import xarm
 from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
-from tampkit.sim_tools.isaacsim.geometry import Attachment
-from tampkit.sim_tools.isaacsim.curobo_utils import CuroboController
-from tampkit.sim_tools.isaacsim.usd_helper import *
 
 ### Simulation API
 
@@ -121,6 +120,29 @@ def create_fmb(fmb_cfg):
             orientation=np.array(fmb_cfg.orientation)
         )
     return block
+
+### Unit API
+
+def unit_point():
+    return np.array([0.0, 0.0, 0.0])
+
+def unit_quat():
+    return np.array([1.0, 0.0, 0.0, 0.0])
+
+def unit_pose():
+    return (unit_point(), unit_quat())
+
+def unit_from_theta(theta):
+    return np.array([np.cos(theta), np.sin(theta)])
+
+def get_point(body):
+    return get_pose(body)[0]
+
+def get_unit_vector(vec, norm=2):
+    norm = np.linalg.norm(vec, ord=norm)
+    if norm == 0:
+        return vec
+    return np.array(vec) / norm
 
 ### Rigid Body API
 
@@ -213,15 +235,17 @@ def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
     return children    
 
 def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
+    """Get parents link."""
     parents = get_all_link_parents(robot)
     return parents.get(link.name, None)
 
 def get_link_children(robot: Robot, link: Usd.Prim) -> Optional[List[Usd.Prim]]:
+    """Get child links."""
     children = get_all_link_children(robot)
     return children.get(link.name, [])
 
 def get_link_descendants(robot: Robot, link: Usd.Prim, test=lambda l: True):
-    """Get the descendants link """
+    """Get descendants link."""
     descendants = []
     for child in get_link_children(robot, link):
         if test(child):
@@ -281,17 +305,20 @@ def get_joint_velocities(robot: Robot,
 
 def get_min_limit(robot: Robot,
                   joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
+    """Get joint lower limit."""
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     return robot.dof_properties.lower[joint_indices]
 
 def get_max_limit(robot: Robot,
                   joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
+    """Get joint upper limit."""
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     return robot.dof_properties.upper[joint_indices]
 
 def get_joint_limits(robot: Robot):
+    """Get joint upper and lower limits."""
     return get_min_limit(robot), get_max_limit(robot)
 
 def get_custom_limits(robot: Robot,
@@ -311,11 +338,9 @@ def get_initial_conf(robot: Robot,
     """Get joint initial configuration."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
-    state = robot.get_joints_default_state()
-    if state is None:
-        default_pos = robot.get_joint_positions(joint_indices=joint_indices)
-        return default_pos
-    return state.position
+    state = robot.get_joints_default_state().positions
+    initial_conf = state[joint_indices]
+    return initial_conf
 
 def get_group_conf(robot: Robot,
                    group: str = 'arm'):
@@ -339,12 +364,15 @@ def set_joint_positions(robot: Robot,
     robot.set_joint_positions(positions, joint_indices)
 
 def set_initial_conf(robot: Robot,
-                 conf: Optional[Union[np.ndarray, torch.Tensor]],
-                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
+                     initial_conf: Optional[Union[np.ndarray, torch.Tensor]],
+                     joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> None:
     """Set joint positions to initial configuration."""
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
-    robot.set_joint_positions(conf, joint_indices=joint_indices)
+    if initial_conf is None:
+        initial_conf = robot.get_joints_default_state().positions
+        initial_conf = initial_conf[joint_indices]
+    robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
 # TODO
 def joint_controller(robot: Robot,
@@ -413,19 +441,56 @@ def refine_path(robot: Robot,
 
 ### Grasp
 
-def get_side_grasps():
-    pass
+def get_side_grasps(body,
+                    under=False,
+                    tool_pose=unit_pose(),
+                    body_pose=unit_pose(),
+                    max_width=np.inf,
+                    grasp_length=0.0,
+                    top_offset=0.03):
+    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
+    translate_center = [body_pose[0]-center, unit_quat()]
+    grasps = []
+    x_offset = h / 2 - top_offset
 
-def get_top_grasps():
-    pass
+    for j in range(1 + under):
+        swap_xz = Pose(euler=[0, -math.pi / 2 + j * math.pi, 0])
+        if w <= max_width:
+            translate_z = Pose(point=[x_offset, 0, l / 2 - grasp_length])
+            for i in range(2):
+                rotate_z = Pose(euler=[math.pi / 2 + i * math.pi, 0, 0])
+                grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                    swap_xz, translate_center, body_pose)]  # , np.array([w])
 
-def compute_grasp_width(robot, arm, body, grasp_pose, **kwargs):
-    tool_link = get_tool_link(robot)
-    tool_pose = get_link_pose(robot, tool_link)
-    body_pose = multiply(tool_pose, grasp_pose)
-    set_pose(body, body_pose)
-    gripper_joints = get_gripper_joints(robot, arm)
-    return close_until_collision(robot, gripper_joints, bodies=[body], **kwargs)
+        if l <= max_width:
+            translate_z = Pose(point=[x_offset, 0, w / 2 - grasp_length])
+            for i in range(2):
+                rotate_z = Pose(euler=[i * math.pi, 0, 0])
+                grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                    swap_xz, translate_center, body_pose)]  # , np.array([l])
+    return grasps
+
+def get_top_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(),
+                   max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH):
+    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
+    reflect_z = Pose(euler=[0, math.pi, 0])
+    translate_z = Pose(point=[0, 0, h / 2 - grasp_length])
+    translate_center = Pose(point=point_from_pose(body_pose)-center)
+    grasps = []
+
+    if w <= max_width:
+        for i in range(1 + under):
+            rotate_z = Pose(euler=[0, 0, math.pi / 2 + i * math.pi])
+            grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                reflect_z, translate_center, body_pose)]
+
+    if l <= max_width:
+        for i in range(1 + under):
+            rotate_z = Pose(euler=[0, 0, i * math.pi])
+            grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                reflect_z, translate_center, body_pose)]
+
+    return grasps
 
 def create_attachment(parent, parent_link, child):
     parent_link_pose = get_link_pose(parent, parent_link)
@@ -435,35 +500,29 @@ def create_attachment(parent, parent_link, child):
 
 ### Collision Geomtry API
 
-def get_aabb(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
-    cache = bounds_utils.create_bbox_cache()
-    body_aabb = bounds_utils.compute_aabb(cache, body.prim_path)
-    return body_aabb
-
-def get_aabb_center(aabb):
-    lower, upper = aabb
-    return (np.array(lower) + np.array(upper)) / 2.
-
-def get_aabb_extent(aabb):
-    lower, upper = aabb
-    return np.array(upper) - np.array(lower)
-
-def get_center_extent(body, **kwargs):
-    aabb = get_aabb(body, **kwargs)
-    return get_aabb_center(aabb), get_aabb_extent(aabb)
-
 def aabb_empty(aabb):
     lower, upper = aabb
     return np.less(upper, lower).any()
+
+def aabb2d_from_aabb(aabb):
+    (lower, upper) = aabb
+    return lower[:2], upper[:2]
 
 def sample_aabb(aabb):
     lower, upper = aabb
     return np.random.uniform(lower, upper)
 
-def aabb2d_from_aabb(aabb):
-    (lower, upper) = aabb
-    AABB = namedtuple('AABB', ['lower', 'upper'])
-    return AABB(lower[:2], upper[:2])
+def get_aabb(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    cache = bounds_utils.create_bbox_cache()
+    body_aabb = bounds_utils.compute_aabb(cache, body.prim_path) # [min x, min y, min z, max x, max y, max z]
+    lower, upper = body_aabb[:3], body_aabb[3:]
+    return lower, upper
+
+def get_center_extent(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
+    lower, upper = get_aabb(body)
+    diff = np.array(upper) - np.array(lower)
+    center = (np.array(upper) + np.array(lower)) / 2.
+    return center, diff
 
 def aabb_contains_aabb(contained, container):
     lower1, upper1 = contained
@@ -473,7 +532,7 @@ def aabb_contains_aabb(contained, container):
 
 def is_placed_on_aabb(body, bottom_aabb, above_epsilon=5e-2, below_epsilon=5e-2):
     assert (0 <= above_epsilon) and (0 <= below_epsilon)
-    top_aabb = get_aabb(body) # TODO: approximate_as_prism
+    top_aabb = get_aabb(body)
     top_z_min = top_aabb[0][2]
     bottom_z_max = bottom_aabb[1][2]
     return ((bottom_z_max - below_epsilon) <= top_z_min <= (bottom_z_max + above_epsilon)) and \
@@ -483,6 +542,24 @@ def is_placement(body, surface, **kwargs):
     if get_aabb(surface) is None:
         return False
     return is_placed_on_aabb(body, get_aabb(surface), **kwargs)
+
+def tform_point(affine, point):
+    return multiply(affine, Pose(point=point))[0]
+
+def apply_affine(affine, points):
+    return [tform_point(affine, p) for p in points]
+
+# TODO
+def approximate_as_prism(body, body_pose=unit_pose(), **kwargs):
+    vertices = apply_affine(body_pose, vertices_from_rigid(body, **kwargs))
+    lower, upper = np.min(vertices, axis=0), np.max(vertices, axis=0) 
+    diff = np.array(upper) - np.array(lower)
+    center = (np.array(upper) + np.array(lower)) / 2.
+    return center, diff
+
+# TODO
+def get_closest_points(body1, body2, link1, link2):
+    pass
 
 def pairwise_link_collision(body1, link1, body2, link2=None, **kwargs):
     return len(get_closest_points(body1, body2, link1=link1, link2=link2, **kwargs)) != 0
@@ -534,6 +611,16 @@ def expand_links(robot: Robot, **kwargs):
 
 ### Mathmatic Utils
 
+def wrap_interval(value, interval=(0., 1.)):
+    lower, upper = interval
+    assert lower <= upper
+    return (value - lower) % (upper - lower) + lower
+
+def circular_difference(theta2, theta1, **kwargs):
+    diff_theta = theta2 - theta1
+    interval = (-np.pi, -np.pi + 2 * np.pi)
+    return wrap_interval(diff_theta, interval=interval)
+
 def flatten(iterable_of_iterables):
     return (item for iterables in iterable_of_iterables for item in iterables)
 
@@ -546,74 +633,46 @@ def get_distance(p1, p2, **kwargs):
     diff = np.array(p2) - np.array(p1)
     return np.linalg.norm(diff, ord=2)
 
-def multiply(*poses):
-    # Initialize Transform3d object at first pose
-    t = Transform3d().translate(*poses[0][0]).rotate_euler(*poses[0][1])
+def multiply(pose1: Optional[Union[list, np.ndarray, torch.Tensor]],
+             pose2: Optional[Union[list, np.ndarray, torch.Tensor]]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+    """Get transformation."""
+    transform1 = np.zeros((4, 4))
+    transform1[3, 3] = 1.0
+    if len(pose1[1]) == 4:
+        transform1[:3, :3] = Rotation.from_quat(pose1[1]).as_matrix()
+    elif len(pose1[1]) == 3:
+        transform1[:3, :3] = Rotation.from_euler('xyz', pose1[1]).as_matrix()
+    transform1[:3, 3] = pose1[0]
 
-    # Composite the remaining poses
-    for next_pose in poses[1:]:
-        next_t = Transform3d().translate(*next_pose[0]).rotate_euler(*next_pose[1])
-        t = t.compose(next_t)
+    transform2 = np.zeros((4, 4))
+    transform2[3, 3] = 1.0
+    if len(pose2[1]) == 4:
+        transform2[:3, :3] = Rotation.from_quat(pose2[1]).as_matrix()
+    elif len(pose2[1]) == 3:
+        transform2[:3, :3] = Rotation.from_euler('xyz', pose2[1]).as_matrix()
+    transform2[:3, 3] = pose2[0]
 
-    # Obtain final position and rotation
-    final_position = t.get_matrix()[:, :3, 3]
-    final_rotation = t.get_euler()
+    result = transform1 @ transform2
+    result_pos = result[:3, 3]
+    result_rot = Rotation.from_matrix(result[:3, :3]).as_matrix()
+    return result_pos, result_rot
 
-    return (final_position, final_rotation)
+def invert(pose: Optional[Union[list, np.ndarray, torch.Tensor]]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+    """Get inverse transformation."""
+    transform = np.zeros((4, 4))
+    transform[3, 3] = 1.0
+    if len(pose[1]) == 4:
+        transform[:3, :3] = Rotation.from_quat(pose[1]).as_matrix()
+    elif len(pose[1]) == 3:
+        transform[:3, :3] = Rotation.from_euler('xyz', pose[1]).as_matrix()
+    transform[:3, 3] = pose[0]
 
-def invert(pose):
-    # Initialize Transform3d object
-    position, quaternion = pose
-    t = Transform3d().translate(*position).rotate_quaternion(quaternion)
-
-    # Compute the inverse transform
-    inverted_t = t.inverse()
-
-    # Compute inverse transform, get position and quaternion of inverse transform
-    inverted_position = inverted_t.get_matrix()[:, :3, 3]
-    inverted_quaternion = quaternion_invert(quaternion)
-
-    return inverted_position.numpy(), inverted_quaternion.numpy()
-
-def base_values_from_pose(pose, tolerance=1e-3):
-    (point, quat) = pose
-    x, y, _ = point
-    roll, pitch, yaw = euler_from_quat(quat)
-    assert (abs(roll) < tolerance) and (abs(pitch) < tolerance)
-    return np.array([x, y, yaw])
-
-def wrap_interval(value, interval=(0., 1.)):
-    lower, upper = interval
-    assert lower <= upper
-    return (value - lower) % (upper - lower) + lower
-
-def circular_difference(theta2, theta1, **kwargs):
-    diff_theta = theta2 - theta1
-    interval = (-np.pi, -np.pi + 2 * np.pi)
-    return wrap_interval(diff_theta, interval=interval)
-
-### Unit API
-
-def unit_point():
-    return np.array([0.0, 0.0, 0.0])
-
-def unit_quat():
-    return np.array([1.0, 0.0, 0.0, 0.0])
-
-def unit_pose():
-    return (unit_point(), unit_quat())
-
-def unit_from_theta(theta):
-    return np.array([np.cos(theta), np.sin(theta)])
-
-def get_point(body):
-    return get_pose(body)[0]
-
-def get_unit_vector(vec, norm=2):
-    norm = np.linalg.norm(vec, ord=norm)
-    if norm == 0:
-        return vec
-    return np.array(vec) / norm
+    result = np.linalg.inv(transform)
+    result_pos = result[:3, 3]
+    result_rot = Rotation.from_matrix(result[:3, :3]).as_matrrix()
+    return result_pos, result_rot
 
 ### Executer
 
@@ -742,10 +801,6 @@ class Pose:
 
     def iterate(self):
         yield self
-
-    def to_base_conf(self):
-        values = base_values_from_pose(self.value)
-        return Conf(self.body, range(len(values)), values)
 
     def __repr__(self):
         index = self.index
