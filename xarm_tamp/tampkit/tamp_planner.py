@@ -9,22 +9,16 @@ import tampkit.sim_tools.isaacsim.sim_utils
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
-    connect, disconnect, \
+    connect, disconnect,
     # Getter
-    get_pose, get_max_limit, get_arm_joints, get_gripper_joints, \
-    get_joint_positions, \
-    # Utility
-    apply_commands, control_commands
+    get_pose, get_max_limit, get_arm_joints, get_gripper_joints,
+    get_joint_positions,
+    Conf, Pose
 )
-from tampkit.sim_tools.isaacsim.geometry import (
-    Pose, Conf, State
-)
-from tampkit.sim_tools.isaacsim.control import (
-    GripperCommand, Attach, Detach
-)
+from tampkit.sim_tools.isaacsim.primitives import Command
+
 from tampkit.problems import PROBLEMS
-from tampkit.streams.plan_base_stream import plan_base_fn
-from tampkit.streams.plan_arm_stream import plan_arm_fn
+from tampkit.streams.plan_motion_stream import plan_motion_fn
 from tampkit.streams.grasp_stream import get_grasp_gen
 from tampkit.streams.place_stream import get_place_gen
 from tampkit.streams.insert_stream import get_insert_gen
@@ -63,14 +57,10 @@ def opt_insert_fn(o, r):
     p2 = CustomValue('p-si', (r,))
     return p2,
 
-def opt_motion_arm_fn(a, o, p, g):
+def opt_motion_fn(o, p, g):
     q = CustomValue('q-ik', (p,))
     t = CustomValue('t-ik', tuple())
     return q, t
-
-def opt_motion_base_fn(q1, q2):
-    t = CustomValue('t-pbm', (q1, q2))
-    return t,
 
 #######################################################
 
@@ -107,8 +97,8 @@ class TAMPPlanner(object):
 
         joints = get_arm_joints(robot)
         conf = Conf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', 'arm'), ('Conf', 'arm', conf), ('HandEmpty', 'arm'), ('AtConf', 'arm', conf)]
-        init += [('Controllable', 'arm')]
+        init += [('Conf', conf), ('HandEmpty',), ('AtConf', conf)]
+        init += [('Controllable',)]
 
         for body in problem.movable:
             pose = Pose(body, get_pose(body))
@@ -137,12 +127,11 @@ class TAMPPlanner(object):
 
         stream_map = {
             # Constrained sampler
-            'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=False)),
+            'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
             'sample-place': from_gen_fn(get_place_gen(problem, collisions=collisions)),
             'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
             # Planner
-            'plan-base-motion': from_fn(plan_base_fn(problem, collisions=True, teleport=teleport)),
-            'plan-arm-motion': from_fn(plan_arm_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-motion': from_fn(plan_motion_fn(problem, collisions=collisions, teleport=teleport)),
             # Test function
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
@@ -156,7 +145,7 @@ class TAMPPlanner(object):
     def post_process(self, problem, plan, teleport=False):
         if plan is None:
             return None
-        commands = []
+        paths = []
         for i, (name, args) in enumerate(plan):
             if name == 'move':
                 q1, q2, c = args
@@ -185,7 +174,7 @@ class TAMPPlanner(object):
                 raise ValueError(name)
             print(i, name, args, new_commands)
             commands += new_commands
-        return commands
+        return Command(commands)
 
     def execute(self, sim_cfg):
         simulation_app = connect()
@@ -204,8 +193,7 @@ class TAMPPlanner(object):
             'sample-grasp': StreamInfo(opt_gen_fn=from_fn(opt_grasp_fn)),
             'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
             'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'plan-arm_motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_arm_fn)),
-            'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_base_fn)),
+            'plan-arm_motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
         }
 
         _, _, _, stream_map, init, goal = pddlstream_problem
@@ -228,13 +216,13 @@ class TAMPPlanner(object):
             return
 
         # Post process
-        commands = self.post_process(tamp_problem, plan)
+        command = self.post_process(tamp_problem, plan)
 
         # Execute commands
         if sim_cfg.simulate:
-            control_commands(State(), commands, time_step=0.03)
+            command.control()
         else:
-            apply_commands(State(), commands, time_step=0.03)
+            command.execute()
 
         # Close simulator
         disconnect()

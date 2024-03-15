@@ -35,6 +35,8 @@ from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
+from omni.isaac.core.utils.torch.rotations import quat_diff_rad, xyzw2wxyz, wxyz2xyzw
+from omni.isaac.core.utils.types import ArticulationAction
 from tampkit.sim_tools.isaacsim.robots import xarm
 from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
 
@@ -146,6 +148,7 @@ def get_unit_vector(vec, norm=2):
 
 ### Rigid Body API
 
+# TODO
 def get_bodies():
     return []
 
@@ -158,11 +161,16 @@ def get_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     return (linear_velocity, angular_velocity)
 
 def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
-    return body.get_world_pose()
+    pos, rot = body.get_world_pose()
+    # NOTE: need to convert.
+    rot = wxyz2xyzw(rot)
+    return pos, rot
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              translation=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., 0.])) -> None:
+    # NOTE: need to convert.
+    orientation = xyzw2wxyz(orientation)
     body.set_world_pose(translation=translation, orientation=orientation)
 
 def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
@@ -374,11 +382,11 @@ def set_initial_conf(robot: Robot,
         initial_conf = initial_conf[joint_indices]
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
-# TODO
 def joint_controller(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
-                     configuration: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
-    pass
+                     configuration: Optional[ArticulationAction] = None):
+    art_controller = robot.get_articulation_controller()
+    art_controller.apply_action(configuration, indices=joint_indices)
 
 def is_circular(robot: Robot,
                 joint: Usd.Prim) -> bool:
@@ -439,64 +447,48 @@ def refine_path(robot: Robot,
         refined_path.extend(refine_fn(v1, v2))
     return refined_path
 
+def get_pose_distance(pose1, pose2):
+    pos1, quat1 = pose1
+    pos2, quat2 = pose2
+    pos_distance = get_distance(pos1, pos2)
+    ori_distance = quat_diff_rad(quat1, quat2)
+    return pos_distance, ori_distance
+
+def interpolate_poses(pose1, pose2, pos_step_size=0.01, ori_step_size=np.pi/16):
+    pos1, quat1 = pose1
+    pos2, quat2 = pose2
+    num_steps = max(2, int(math.ceil(max(
+        np.divide(get_pose_distance(pose1, pose2), [pos_step_size, ori_step_size])))))
+    yield pose1
+    for w in np.linspace(0, 1, num=num_steps, endpoint=True)[1:-1]:
+        pos = convex_combination(pos1, pos2, w=w)
+        quat = quat_combination(quat1, quat2, fraction=w)
+        yield (pos, quat)
+    yield pose2
+
+def iterate_approach_path(robot, gripper, pose, grasp, body=None):
+    tool_from_root = get_tool_link(robot)
+    grasp_pose = multiply(pose.value, invert(grasp.value))
+    approach_pose = multiply(pose.value, invert(grasp.approach))
+    for tool_pose in interpolate_poses(grasp_pose, approach_pose):
+        set_pose(gripper, multiply(tool_pose, tool_from_root))
+        if body is not None:
+            set_pose(body, multiply(tool_pose, grasp.value))
+        yield
+
 ### Grasp
 
-def get_side_grasps(body,
-                    under=False,
-                    tool_pose=unit_pose(),
-                    body_pose=unit_pose(),
-                    max_width=np.inf,
-                    grasp_length=0.0,
-                    top_offset=0.03):
-    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
-    translate_center = [body_pose[0]-center, unit_quat()]
-    grasps = []
-    x_offset = h / 2 - top_offset
+# TODO
+def add_fixed_constraint(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                         robot: Robot,
+                         link: Usd.Prim):
+    pass
 
-    for j in range(1 + under):
-        swap_xz = Pose(euler=[0, -math.pi / 2 + j * math.pi, 0])
-        if w <= max_width:
-            translate_z = Pose(point=[x_offset, 0, l / 2 - grasp_length])
-            for i in range(2):
-                rotate_z = Pose(euler=[math.pi / 2 + i * math.pi, 0, 0])
-                grasps += [multiply(tool_pose, translate_z, rotate_z,
-                                    swap_xz, translate_center, body_pose)]  # , np.array([w])
-
-        if l <= max_width:
-            translate_z = Pose(point=[x_offset, 0, w / 2 - grasp_length])
-            for i in range(2):
-                rotate_z = Pose(euler=[i * math.pi, 0, 0])
-                grasps += [multiply(tool_pose, translate_z, rotate_z,
-                                    swap_xz, translate_center, body_pose)]  # , np.array([l])
-    return grasps
-
-def get_top_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(),
-                   max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH):
-    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
-    reflect_z = Pose(euler=[0, math.pi, 0])
-    translate_z = Pose(point=[0, 0, h / 2 - grasp_length])
-    translate_center = Pose(point=point_from_pose(body_pose)-center)
-    grasps = []
-
-    if w <= max_width:
-        for i in range(1 + under):
-            rotate_z = Pose(euler=[0, 0, math.pi / 2 + i * math.pi])
-            grasps += [multiply(tool_pose, translate_z, rotate_z,
-                                reflect_z, translate_center, body_pose)]
-
-    if l <= max_width:
-        for i in range(1 + under):
-            rotate_z = Pose(euler=[0, 0, i * math.pi])
-            grasps += [multiply(tool_pose, translate_z, rotate_z,
-                                reflect_z, translate_center, body_pose)]
-
-    return grasps
-
-def create_attachment(parent, parent_link, child):
-    parent_link_pose = get_link_pose(parent, parent_link)
-    child_pose = get_pose(child)
-    grasp_pose = multiply(invert(parent_link_pose), child_pose)
-    return Attachment(parent, parent_link, grasp_pose, child)
+# TODO
+def remove_fixed_constraint(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                         robot: Robot,
+                         link: Usd.Prim):
+    pass
 
 ### Collision Geomtry API
 
@@ -543,8 +535,13 @@ def is_placement(body, surface, **kwargs):
         return False
     return is_placed_on_aabb(body, get_aabb(surface), **kwargs)
 
+def is_insertion(body, hoke, **kwargs):
+    if get_aabb(hoke) is None:
+        return False
+    return is_placed_on_aabb(body, get_aabb(hoke), **kwargs)
+
 def tform_point(affine, point):
-    return multiply(affine, Pose(point=point))[0]
+    return multiply(affine, [point, unit_quat()])[0]
 
 def apply_affine(affine, points):
     return [tform_point(affine, p) for p in points]
@@ -624,6 +621,54 @@ def circular_difference(theta2, theta1, **kwargs):
 def flatten(iterable_of_iterables):
     return (item for iterables in iterable_of_iterables for item in iterables)
 
+def convex_combination(x, y, w=0.5):
+    return (1-w)*np.array(x) + w*np.array(y)
+
+def unit_vector(data, axis=None, out=None):
+    """Return ndarray normalized by length, i.e. eucledian norm, along axis."""
+    if out is None:
+        data = np.array(data, dtype=np.float64, copy=True)
+        if data.ndim == 1:
+            data /= math.sqrt(np.dot(data, data))
+            return data
+    else:
+        if out is not data:
+            out[:] = np.array(data, copy=False)
+        data = out
+    length = np.atleast_1d(np.sum(data*data, axis))
+    np.sqrt(length, length)
+    if axis is not None:
+        length = np.expand_dims(length, axis)
+    data /= length
+    if out is None:
+        return data
+
+def quaternion_slerp(quat0, quat1, fraction, spin=0, shortestpath=True):
+    """Return spherical linear interpolation between two quaternions."""
+    q0 = unit_vector(quat0[:4])
+    q1 = unit_vector(quat1[:4])
+    if fraction == 0.0:
+        return q0
+    elif fraction == 1.0:
+        return q1
+    d = np.dot(q0, q1)
+    if abs(abs(d) - 1.0) < np.finfo(float).eps * 4.0:
+        return q0
+    if shortestpath and d < 0.0:
+        d = -d
+        q1 *= -1.0
+    angle = math.acos(d) + spin * math.pi
+    if abs(angle) < np.finfo(float).eps * 4.0:
+        return q0
+    isin = 1.0 / math.sin(angle)
+    q0 *= math.sin((1.0 - fraction) * angle) * isin
+    q1 *= math.sin(fraction * angle) * isin
+    q0 += q1
+    return q0
+
+def quat_combination(quat1, quat2, fraction=0.5):
+    return quaternion_slerp(quat1, quat2, fraction)
+
 def get_pairs(sequence):
     sequence = list(sequence)
     return zip(sequence[:-1], sequence[1:])
@@ -673,25 +718,6 @@ def invert(pose: Optional[Union[list, np.ndarray, torch.Tensor]]
     result_pos = result[:3, 3]
     result_rot = Rotation.from_matrix(result[:3, :3]).as_matrrix()
     return result_pos, result_rot
-
-### Executer
-
-def apply_commands(state, commands, time_step=None, **kwargs):
-    for i, command in enumerate(commands):
-        print(i, command)
-        for j, _ in enumerate(command.apply(state, **kwargs)):
-            state.assign()
-            if j == 0:
-                continue
-            if time_step is None:
-                time.sleep(1e-2)
-            else:
-                time.sleep(time_step)
-
-def control_commands(commands, **kwargs):
-    for i, command in enumerate(commands):
-        print(i, command)
-        command.control(*kwargs)
 
 ### Saver
 
@@ -778,136 +804,3 @@ class WorldSaver(Saver):
     def restore(self):
         for body_saver in self.body_savers:
             body_saver.restore()
-
-### Geometry
-
-class Pose:
-    num = count()
-    def __init__(self,
-                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim, Robot]],
-                 value: Optional[Union[np.ndarray, torch.Tensor]] = None):
-        self.body = body
-        if value is None:
-            value = get_pose(self.body)
-        self.value = tuple(value)
-        self.index = next(self.num)
-
-    @property
-    def bodies(self):
-        return flatten_links(self.body)
-
-    def assign(self):
-        set_pose(self.body, self.value)
-
-    def iterate(self):
-        yield self
-
-    def __repr__(self):
-        index = self.index
-        return '{}'.format(index)
-
-class Grasp:
-    def __init__(self,
-                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                 value: Optional[Union[np.ndarray, torch.Tensor]] = None,
-                 approach: Optional[Union[np.ndarray, torch.Tensor]] = None):
-        self.body = body
-        self.value = tuple(value)
-        self.approach = tuple(approach)
-
-    def get_attachment(self, robot, arm):
-        tool_link = get_link(robot, get_tool_link(robot))
-        return Attachment(robot, tool_link, self.value, self.body)
-
-    def __repr__(self):
-        return 'g{}'.format(id(self) % 1000)
-
-class Attachment:
-    def __init__(self,
-                 parent,
-                 parent_link,
-                 grasp_pose,
-                 child):
-        self.parent = parent
-        self.parent_link = parent_link
-        self.grasp_pose = grasp_pose
-        self.child = child
-
-    @property
-    def bodies(self):
-        return flatten_links(self.child) | flatten_links(self.parent, get_link_subtree(
-            self.parent, self.parent_link))
-
-    def assign(self):
-        parent_link_pose = get_link_pose(self.parent, self.parent_link)
-        child_pose = multiply(parent_link_pose, self.grasp_pose)
-        set_pose(self.child, child_pose)
-        return child_pose
-
-    def apply_mapping(self, mapping):
-        self.parent = mapping.get(self.parent, self.parent)
-        self.child = mapping.get(self.child, self.child)
-
-    def __repr__(self):
-        return '{}({},{})'.format(self.__class__.__name__, self.parent, self.child)
-
-class Conf:
-    def __init__(self,
-                 robot: Robot,
-                 values: Optional[Union[np.ndarray, torch.Tensor]],
-                 joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None,
-                 init=False):
-        self.robot = robot
-        self.joints = joint_indices
-        if values is None:
-            values = get_joint_positions(self.robot, self.joints)
-        self.values = tuple(values)
-        self.init = init
-
-    @property
-    def bodies(self):
-        return flatten_links(self.robot, get_moving_links(self.robot))
-
-    def assign(self):
-        set_joint_positions(self.robot, self.values, self.joints)
-
-    def iterate(self):
-        yield self
-
-    def __repr__(self):
-        return 'q{}'.format(id(self) % 1000)
-
-class State:
-    def __init__(self,
-                 attachments: dict = {},
-                 cleaned: set = set(),
-                 cooked: set = set()):
-        self.poses = {body: Pose(body, get_pose(body))
-                      for body in get_bodies() if body not in attachments}
-        self.grasps = {}
-        self.attachments = attachments
-        self.cleaned = cleaned
-        self.cooked = cooked
-
-    def assign(self):
-        for attachment in self.attachments.values():
-            attachment.assign()
-            
-class Commands:
-    def __init__(self, state, savers=[], commands=[]):
-        self.state = state
-        self.savers = tuple(savers)
-        self.commands = tuple(commands)
-
-    def assign(self):
-        for saver in self.savers:
-            saver.restore()
-        return copy.copy(self.state)
-
-    def apply(self, state, **kwargs):
-        for command in self.commands:
-            for result in command.apply(state, **kwargs):
-                yield result
-
-    def __repr__(self):
-        return 'c{}'.format(id(self) % 1000)

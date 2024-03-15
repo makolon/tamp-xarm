@@ -1,47 +1,44 @@
 import random
 import numpy as np
-from collections import namedtuple
-from tampkit.sim_tools.isaacsim.geometry import Pose
+from tampkit.sim_tools.isaacsim.primitives import BodyPose
 from tampkit.sim_tools.isaacsim.sim_utils import (
-    pairwise_collision,
-    get_aabb,
-    set_pose,
-    multiply,
-    get_center_extent,
     aabb_empty,
-    sample_aabb,
+    get_aabb,
+    get_center_extent,
     get_point,
-    get_pose
+    get_pose,
+    multiply,
+    pairwise_collision,
+    set_pose,
+    sample_aabb,
+    unit_point
 )
 
 CIRCULAR_LIMITS = (10.0, 10.0)
-Euler = None # Pose
-AABB = namedtuple('AABB', ['lower', 'upper'])
 
 def sample_placement(top_body, bottom_body, bottom_link=None, max_attempts=25, **kwargs):
     bottom_aabb = get_aabb(bottom_body, link=bottom_link)
     top_pose = get_pose(top_body)
     for _ in range(max_attempts):
         theta = np.random.uniform(*CIRCULAR_LIMITS)
-        rotation = Euler(yaw=theta)
-        set_pose(top_body, multiply(Pose(euler=rotation), top_pose))
+        rotation = np.array([0., 0., theta])
+        set_pose(top_body, multiply([unit_point(), rotation], top_pose))
         center, extent = get_center_extent(top_body)
         lower = (np.array(bottom_aabb[0]))[:2]
         upper = (np.array(bottom_aabb[1]))[:2]
-        aabb = AABB(lower, upper)
+        aabb = (lower, upper)
         if aabb_empty(aabb):
             continue
         x, y = sample_aabb(aabb)
         z = (bottom_aabb[1])[2]
         point = np.array([x, y, z]) + (get_point(top_body) - center)
-        pose = multiply(Pose(point, rotation), top_pose)
+        pose = multiply([point, rotation], top_pose)
         set_pose(top_body, pose)
     return pose
 
 
 def get_place_gen(problem, collisions=True, **kwargs):
     # Sample place pose
-    robot = problem.robot
     obstacles = problem.fixed if collisions else []
     def gen_fn(body, surface):
         if surface is None:
@@ -51,13 +48,9 @@ def get_place_gen(problem, collisions=True, **kwargs):
 
         while True:
             surface = random.choise(surfaces)
-            body_pose = sample_placement(body, surface, **kwargs)
-            if body_pose is None:
-                break
-            p = Pose(body, body_pose, surface)
-            p.assign()
-
-            # If the obstacles is not included in the surface and body, check pairwise collision between body.
-            if not any(pairwise_collision(body, obst) for obst in obstacles if obst not in {body, surface}):
-                yield (p,)
+            pose = sample_placement(body, surface, **kwargs)
+            if (pose is None) or any(pairwise_collision(body, b) for b in obstacles):
+                continue
+            body_pose = BodyPose(body, pose)
+            yield (body_pose,)
     return gen_fn

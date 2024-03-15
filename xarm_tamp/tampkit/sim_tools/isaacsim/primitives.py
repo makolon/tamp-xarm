@@ -5,12 +5,14 @@ from itertools import count
 from typing import List, Optional, Union
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
-    flatten, get_pose, get_joint_positions, get_link_pose,
-    get_movable_joints, joint_controller, multiply, refine_path, 
-    set_pose, set_joint_positions
+    add_fixed_constraint, flatten, get_pose,
+    get_joint_positions, get_link_pose, get_movable_joints,
+    joint_controller, multiply, refine_path,
+    remove_fixed_constraint, set_pose, set_joint_positions
 )
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.robots import Robot
+from omni.isaac.core.utils.types import ArticulationAction
 from pxr import Usd
 
 
@@ -78,14 +80,14 @@ class BodyConf:
     
     num = count()
     def __init__(self,
-                 body: Robot,
-                 joints: List[Usd.Prim] = None,
+                 robot: Robot,
+                 joints: Optional[Union[np.ndarray, torch.Tensor]] = None,
                  configuration: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
         if joints is None:
-            joints = get_movable_joints(body)
+            joints = get_movable_joints(robot)
         if configuration is None:
-            configuration = get_joint_positions(body, joints)
-        self.body = body
+            configuration = get_joint_positions(robot, joints)
+        self.robot = robot
         self.joints = joints
         self.configuration = configuration
         self.index = next(self.index)
@@ -95,7 +97,7 @@ class BodyConf:
         return self.configuration
     
     def assign(self):
-        set_joint_positions(self.body, self.joints, self.configuration)
+        set_joint_positions(self.robot, self.joints, self.configuration)
         return self.configuration
     
     def __repr__(self):
@@ -105,39 +107,39 @@ class BodyConf:
 class BodyPath:
     
     def __init__(self,
-                 body: Robot,
-                 path: List[int, np.ndarray, torch.Tensor],
-                 joints: List[Usd.Prim] = None,
+                 robot: Robot,
+                 path: List[ArticulationAction],
+                 joints: Optional[Union[np.ndarray, torch.Tensor]] = None,
                  attachments: List[BodyPose] = []):
         if joints is None:
-            joints = get_movable_joints(body)
-        self.body = body
+            joints = get_movable_joints(robot)
+        self.robot = robot
         self.path = path
         self.joints = joints
         self.attachments = attachments
         
     def bodies(self):
-        return set([self.body] + [attachment.body for attachment in self.attachments])
+        return set([self.robot] + [attachment.body for attachment in self.attachments])
     
     def iterator(self):
         for i, configuration in enumerate(self.path):
-            set_joint_positions(self.body, self.joints, configuration)
+            set_joint_positions(self.robot, self.joints, configuration)
             for grasp in self.attachments:
                 grasp.assign()
             yield i
             
     def control(self, dt=0):
         for values in self.path:
-            joint_controller(self.body, self.joints, values)
+            joint_controller(self.robot, self.joints, values)
 
     def refine(self, num_steps=0):
-        return self.__class__(self.body, refine_path(self.body, self.joints, self.path, num_steps), self.joints, self.attachments)
+        return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)
 
     def reverse(self):
-        return self.__class__(self.body, self.path[::-1], self.joints, self.attachments)
+        return self.__class__(self.robot, self.path[::-1], self.joints, self.attachments)
 
     def __repr__(self):
-        return '{}({},{},{},{})'.format(self.__class__.__name__, self.body, len(self.joints), len(self.path), len(self.attachments))
+        return '{}({},{},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path), len(self.attachments))
 
 class Command:
     
@@ -173,3 +175,59 @@ class Command:
     def __repr__(self):
         index = self.index
         return 'c{}'.format(index)
+
+class Attach:
+
+    def __init__(self,
+                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                 robot: Robot,
+                 link: Usd.Prim):
+        self.body = body
+        self.robot = robot
+        self.link = link
+        
+    def bodies(self):
+        return {self.body, self.robot}
+
+    def control(self, **kwargs):
+        add_fixed_constraint(self.body, self.robot, self.link)
+
+    def iterator(self, **kwargs):
+        return []
+
+    def refine(self, **kwargs):
+        return self
+
+    def reverse(self):
+        return Detach(self.body, self.robot, self.link)
+    
+    def __repr__(self):
+        return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
+
+class Detach:
+
+    def __init__(self,
+                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                 robot: Robot,
+                 link: Usd.Prim):
+        self.body = body
+        self.robot = robot
+        self.link = link
+
+    def bodies(self):
+        return {self.body, self.robot}
+
+    def control(self, **kwargs):
+        remove_fixed_constraint(self.body, self.robot, self.link)
+
+    def iterator(self, **kwargs):
+        return []
+
+    def refine(self, **kwargs):
+        return self
+
+    def reverse(self):
+        return Attach(self.body, self.robot, self.link)
+    
+    def __repr__(self):
+        return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
