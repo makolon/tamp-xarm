@@ -5,10 +5,10 @@ from itertools import count
 from typing import List, Optional, Union
 
 from tampkit.sim_tools.isaacsim.sim_utils import (
-    add_fixed_constraint, flatten, get_pose,
-    get_joint_positions, get_link_pose, get_movable_joints,
-    joint_controller, multiply, refine_path,
-    remove_fixed_constraint, set_pose, set_joint_positions
+    add_fixed_constraint, apply_action, flatten,
+    get_pose, get_joint_positions, get_link_pose, get_movable_joints,
+    multiply, refine_path, remove_fixed_constraint,
+    set_pose, set_joint_positions
 )
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.robots import Robot
@@ -130,7 +130,7 @@ class BodyPath:
             
     def control(self, dt=0):
         for values in self.path:
-            joint_controller(self.robot, self.joints, values)
+            apply_action(self.robot, self.joints, values)
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)

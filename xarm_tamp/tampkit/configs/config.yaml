@@ -147,25 +147,25 @@ sim:
     name: block1
     task: momo
     translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
 
   block2:
     name: block2
     task: momo
     translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
 
   block3:
     name: block3
     task: momo
     translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
 
   block4:
     name: block4
     task: momo
     translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface1:
     name: surface1
@@ -173,17 +173,37 @@ sim:
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface2:
-    name: surface1
+    name: surface2
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface3:
-    name: surface1
+    name: surface3
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface4:
+    name: surface4
+    translation: [0.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+  hole1:
     name: surface1
+    translation: [0.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+  hole2:
+    name: hole2
+    translation: [0.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+  hole3:
+    name: hole3
+    translation: [0.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+  hole4:
+    name: hole4
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 

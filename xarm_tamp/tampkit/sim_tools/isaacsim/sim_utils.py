@@ -162,16 +162,14 @@ def get_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
 
 def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     pos, rot = body.get_world_pose()
-    # NOTE: need to convert.
-    rot = wxyz2xyzw(rot)
+    print('rot:', rot)
     return pos, rot
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-             translation=np.array([0., 0., 0.]),
+             position=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., 0.])) -> None:
-    # NOTE: need to convert.
-    orientation = xyzw2wxyz(orientation)
-    body.set_world_pose(translation=translation, orientation=orientation)
+    print('orientation:', orientation)
+    body.set_world_pose(position=position, orientation=orientation)
 
 def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                  translation=np.array([0., 0., 0.]),
@@ -300,7 +298,7 @@ def get_joint_positions(robot: Robot,
     """Get joint positions."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
-    joint_positions = robot.get_jonit_positions(joint_indices=joint_indices)
+    joint_positions = robot.get_joint_positions(joint_indices=joint_indices)
     return joint_positions
 
 def get_joint_velocities(robot: Robot,
@@ -346,9 +344,15 @@ def get_initial_conf(robot: Robot,
     """Get joint initial configuration."""
     if joint_indices == None:
         joint_indices = get_movable_joints(robot)
-    state = robot.get_joints_default_state().positions
-    initial_conf = state[joint_indices]
-    return initial_conf
+    state = robot.get_joints_default_state()
+    if state is None:
+        initial_pos = get_joint_positions(robot, joint_indices)
+        initial_vel = get_joint_velocities(robot, joint_indices)
+        robot.set_joints_default_state(initial_pos, initial_vel)
+    else:
+        initial_pos = state.positions
+        initial_pos = state[joint_indices]
+    return initial_pos
 
 def get_group_conf(robot: Robot,
                    group: str = 'arm'):
@@ -378,13 +382,13 @@ def set_initial_conf(robot: Robot,
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     if initial_conf is None:
-        initial_conf = robot.get_joints_default_state().positions
-        initial_conf = initial_conf[joint_indices]
+        initial_conf = get_joint_positions(robot, joint_indices)
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
-def joint_controller(robot: Robot,
+def apply_action(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
                      configuration: Optional[ArticulationAction] = None):
+    """Apply articulation action."""
     art_controller = robot.get_articulation_controller()
     art_controller.apply_action(configuration, indices=joint_indices)
 
@@ -718,89 +722,3 @@ def invert(pose: Optional[Union[list, np.ndarray, torch.Tensor]]
     result_pos = result[:3, 3]
     result_rot = Rotation.from_matrix(result[:3, :3]).as_matrrix()
     return result_pos, result_rot
-
-### Saver
-
-class Saver(object):
-    def save(self):
-        pass
-
-    def restore(self):
-        raise NotImplementedError()
-
-    def __enter__(self):
-        self.save()
-
-    def __exit__(self, type, value, traceback):
-        self.restore()
-
-class PoseSaver(Saver):
-    def __init__(self, body, pose=None):
-        self.body = body
-        if pose is None:
-            pose = get_pose(self.body)
-        self.pose = pose
-        self.velocity = get_velocity(self.body)
-
-    def apply_mapping(self, mapping):
-        self.body = mapping.get(self.body, self.body)
-
-    def restore(self):
-        set_pose(self.body, self.pose)
-        set_velocity(self.body, *self.velocity)
-
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.body)
-
-class ConfSaver(Saver):
-    def __init__(self, body, joints=None, positions=None):
-        self.body = body
-        if joints is None:
-            joints = get_arm_joints(self.body)
-        self.joints = joints
-        if positions is None:
-            positions = get_joint_positions(self.body, self.joints)
-        self.positions = positions
-        self.velocities = get_joint_velocities(self.body, self.joints)
-
-    @property
-    def conf(self):
-        return self.positions
-
-    def apply_mapping(self, mapping):
-        self.body = mapping.get(self.body, self.body)
-
-    def restore(self):
-        set_joint_positions(self.body, self.joints, self.positions, self.velocities)
-
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.body)
-
-class BodySaver(Saver):
-    def __init__(self, body, **kwargs):
-        self.body = body
-        self.pose_saver = PoseSaver(body)
-        self.conf_saver = ConfSaver(body, **kwargs)
-        self.savers = [self.pose_saver, self.conf_saver]
-
-    def apply_mapping(self, mapping):
-        for saver in self.savers:
-            saver.apply_mapping(mapping)
-
-    def restore(self):
-        for saver in self.savers:
-            saver.restore()
-
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.body)
-
-class WorldSaver(Saver):
-    def __init__(self, bodies=None):
-        if bodies is None:
-            bodies = get_bodies()
-        self.bodies = bodies
-        self.body_savers = [BodySaver(body) for body in self.bodies]
-
-    def restore(self):
-        for body_saver in self.body_savers:
-            body_saver.restore()

@@ -35,10 +35,8 @@ class xArm(Robot):
             if usd_path:
                 add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
             else:
-                assets_root_path = get_usd_path()
-                if assets_root_path is None:
-                    carb.log_error("Could not find Isaac Sim assets folder")
-                usd_path = assets_root_path + "xarm7.usd"
+                # TODO: fix
+                usd_path = f"/root/tamp-xarm/xarm_tamp/models/usd/xarm_with_sphere_collision/{name}.usd"
                 add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
 
             # end effector
@@ -66,16 +64,16 @@ class xArm(Robot):
         self.arm_dof_idxs = []
         self.gripper_dof_idxs = []
 
-        if gripper_dof_names is not None:
-            if deltas is None:
-                deltas = np.array([0.05, 0.05]) / get_stage_units()
-            self._gripper = ParallelGripper(
-                end_effector_prim_path=self._end_effector_prim_path,
-                joint_prim_names=gripper_dof_names,
-                joint_opened_positions=gripper_open_position,
-                joint_closed_positions=gripper_closed_position,
-                action_deltas=deltas,
-            )
+        # if gripper_dof_names is not None:
+        #     if deltas is None:
+        #         deltas = np.array([0.05, 0.05]) / get_stage_units()
+        #     self._gripper = ParallelGripper(
+        #         end_effector_prim_path=self._end_effector_prim_path,
+        #         joint_prim_names=gripper_dof_names,
+        #         joint_opened_positions=gripper_open_position,
+        #         joint_closed_positions=gripper_closed_position,
+        #         action_deltas=deltas,
+        #     )
 
     def set_drive_property(self):
         dof_paths = [
@@ -136,26 +134,15 @@ class xArm(Robot):
 
     @property
     def end_effector(self) -> RigidPrim:
-        """[summary]
-
-        Returns:
-            RigidPrim: [description]
-        """
         return self._end_effector
 
     @property
     def gripper(self) -> ParallelGripper:
-        """[summary]
-
-        Returns:
-            ParallelGripper: [description]
-        """
         return self._gripper
 
     def initialize(self, physics_sim_view=None) -> None:
-        """[summary]"""
         super().initialize(physics_sim_view)
-        self._end_effector = RigidPrim(prim_path=self._end_effector_prim_path, name=self.name + "_end_effector")
+        self._end_effector = RigidPrim(prim_path=self._end_effector_prim_path, name="fingertip_centered")
         self._end_effector.initialize(physics_sim_view)
         self._gripper.initialize(
             physics_sim_view=physics_sim_view,
@@ -164,10 +151,8 @@ class xArm(Robot):
             set_joint_positions_func=self.set_joint_positions,
             dof_names=self.dof_names,
         )
-        return
 
     def post_reset(self) -> None:
-        """[summary]"""
         super().post_reset()
         self._gripper.post_reset()
         self._articulation_controller.switch_dof_control_mode(
@@ -176,4 +161,3 @@ class xArm(Robot):
         self._articulation_controller.switch_dof_control_mode(
             dof_index=self.gripper.joint_dof_indicies[1], mode="position"
         )
-        return

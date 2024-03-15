@@ -67,43 +67,44 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     block1_pose = get_pose(block1)
     surf1 = create_surface(sim_cfg.surface1.name, *block1_pose)
     surf1_pose = calc_surf_pose(block1_pose, "surface1")
-    set_pose(surf1, surf1_pose)
+    set_pose(surf1, *surf1_pose)
     
     block2_pose = get_pose(block2)
     surf2 = create_surface(sim_cfg.surface2.name, *block2_pose)
     surf2_pose = calc_surf_pose(block2_pose, "surface2")
-    set_pose(surf2, surf2_pose)
+    set_pose(surf2, *surf2_pose)
     
     block3_pose = get_pose(block3)
     surf3 = create_surface(sim_cfg.surface3.name, *block3_pose)
     surf3_pose = calc_surf_pose(block3_pose, "surface3")
-    set_pose(surf3, surf3_pose)
+    set_pose(surf3, *surf3_pose)
     
     block4_pose = get_pose(block4)
     surf4 = create_surface(sim_cfg.surface4.name, *block4_pose)
     surf4_pose = calc_surf_pose(block4_pose, "surface4")
-    set_pose(surf4, surf4_pose)
+    set_pose(surf4, *surf4_pose)
  
     # define holes
     hole1 = create_hole(sim_cfg.hole1.name, *block1_pose)
     hole1_pose = calc_hole_pose(block1_pose, "hole1")
-    set_pose(hole1, hole1_pose)
+    set_pose(hole1, *hole1_pose)
 
     hole2 = create_hole(sim_cfg.hole2.name, *block2_pose)
     hole2_pose = calc_hole_pose(block2_pose, "hole2")
-    set_pose(hole2, hole2_pose)
+    set_pose(hole2, *hole2_pose)
 
     hole3 = create_hole(sim_cfg.hole3.name, *block3_pose)
     hole3_pose = calc_hole_pose(block3_pose, "hole3")
-    set_pose(hole3, hole3_pose)
+    set_pose(hole3, *hole3_pose)
 
     hole4 = create_hole(sim_cfg.hole4.name, *block4_pose)
     hole4_pose = calc_hole_pose(block4_pose, "hole4")
-    set_pose(hole4, hole4_pose)
+    set_pose(hole4, *hole4_pose)
 
     ########################
 
     # define robot_cfg
+    print('curobo_cfg:', curobo_cfg)
     robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
 
     # define world_cfg

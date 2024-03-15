@@ -7,15 +7,14 @@ from omegaconf import DictConfig
 # Initialize isaac sim
 import tampkit.sim_tools.isaacsim.sim_utils
 
+from tampkit.sim_tools.isaacsim.primitives import BodyPose, BodyConf, Command
 from tampkit.sim_tools.isaacsim.sim_utils import (
     # Simulation utility
     connect, disconnect,
     # Getter
     get_pose, get_max_limit, get_arm_joints, get_gripper_joints,
     get_joint_positions,
-    Conf, Pose
 )
-from tampkit.sim_tools.isaacsim.primitives import Command
 
 from tampkit.problems import PROBLEMS
 from tampkit.streams.plan_motion_stream import plan_motion_fn
@@ -27,7 +26,7 @@ from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_appr
 
 # PDDLStream functions
 from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test
 from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
 from pddlstream.language.external import defer_shared, never_defer
 from pddlstream.language.function import FunctionInfo
@@ -96,24 +95,24 @@ class TAMPPlanner(object):
         ]
 
         joints = get_arm_joints(robot)
-        conf = Conf(robot, joints, get_joint_positions(robot, joints))
+        conf = BodyConf(robot, joints, get_joint_positions(robot, joints))
         init += [('Conf', conf), ('HandEmpty',), ('AtConf', conf)]
         init += [('Controllable',)]
 
         for body in problem.movable:
-            pose = Pose(body, get_pose(body))
+            pose = BodyPose(body, get_pose(body))
             init += [('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
 
         # Surface pose
         for body in problem.surfaces:
-            pose = Pose(body, get_pose(body))
+            pose = BodyPose(body, get_pose(body))
             init += [('RegionPose', body, pose)]
 
         # Hole pose
         for body in problem.holes:
-            pose = Pose(body, get_pose(body))
+            pose = BodyPose(body, get_pose(body))
             init += [('HolePose', body, pose)]
 
         init += [('Inserted', b1) for b1 in problem.holes]
@@ -151,32 +150,21 @@ class TAMPPlanner(object):
                 q1, q2, c = args
                 new_commands = c.commands
             elif name == 'pick':
-                a, b, p, g, _, c = args
-                [traj_pick] = c.commands
-                close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
-                attach = Attach(problem.robot, a, g, b)
-                new_commands = [traj_pick, close_gripper, attach, traj_pick.reverse()]
+                b, p, g, _, c = args
+                new_commands = c.commands
             elif name == 'place':
-                a, b1, b2, p, g, _, c = args
-                [traj_place] = c.commands
-                gripper_joint = get_gripper_joints(problem.robot, a)[0]
-                position = get_max_limit(problem.robot, gripper_joint)
-                new_commands = [traj_place,]
+                b1, b2, p, g, _, c = args
+                new_commands = c.commands
             elif name == 'insert':
-                a, b1, b2, p1, p2, g, _, _, c = args
-                [traj_insert, traj_depart, traj_return] = c.commands
-                gripper_joint = get_gripper_joints(problem.robot, a)[0]
-                position = get_max_limit(problem.robot, gripper_joint)
-                open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
-                detach = Detach(problem.robot, a, b1)
-                new_commands = [traj_insert, detach, open_gripper, traj_depart, traj_return.reverse()]
+                b1, b2, p1, p2, g, _, _, c = args
+                new_commands = c.commands
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
-            commands += new_commands
-        return Command(commands)
+            paths += new_commands
+        return Command(paths)
 
-    def execute(self, sim_cfg):
+    def execute(self, sim_cfg, curobo_cfg):
         simulation_app = connect()
 
         # Instanciate problem 
@@ -185,7 +173,7 @@ class TAMPPlanner(object):
             raise ValueError(self._problem)
         print('Problem:', self._problem)
         problem_fn = problem_from_name[self._problem]
-        tamp_problem = problem_fn(sim_cfg)
+        tamp_problem = problem_fn(sim_cfg, curobo_cfg)
 
         pddlstream_problem = self.pddlstream_from_problem(tamp_problem, collisions=not self._cfree, teleport=self._teleport)
 
@@ -193,7 +181,7 @@ class TAMPPlanner(object):
             'sample-grasp': StreamInfo(opt_gen_fn=from_fn(opt_grasp_fn)),
             'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
             'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'plan-arm_motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
+            'plan-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
         }
 
         _, _, _, stream_map, init, goal = pddlstream_problem

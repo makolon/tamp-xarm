@@ -40,12 +40,12 @@ def get_tensor_device_type():
 
 def get_robot_cfg(cfg: dict):
     # load robot config from curobo content/config/robot
-    return load_yaml(join_path(get_robot_configs_path(), cfg.robot_cfg.name))["robot_cfg"]
+    return load_yaml(join_path(get_robot_configs_path(), cfg.robot_name))["robot_cfg"]
 
 def get_world_cfg(cfg: dict):
     # load world config from curobo content/config/world
     cuboid_cfg, mesh_cfg = [], []
-    for _, val in cfg.world_cfg.items():
+    for _, val in cfg.items():
         if val.type == 'cuboid':
             world_cfg_cuboid = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), val.yaml))
