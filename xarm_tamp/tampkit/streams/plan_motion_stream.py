@@ -1,7 +1,7 @@
 import carb
 import numpy as np
-from tampkit.sim_tools.isaacsim.primitives import BodyConf, BodyPath, Command
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.primitives import BodyConf, BodyPath, Command
+from tampkit.sim_tools.sim_utils import (
     get_arm_joints,
     get_initial_conf,
 )

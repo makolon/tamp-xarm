@@ -1,4 +1,4 @@
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
     create_table, create_fmb, create_surface,
@@ -8,7 +8,7 @@ from tampkit.sim_tools.isaacsim.sim_utils import (
     # Setter
     set_pose, set_initial_conf,
 )
-from tampkit.sim_tools.isaacsim.curobo_utils import (
+from tampkit.sim_tools.curobo_utils import (
     # Config
     get_robot_cfg,
     get_world_cfg,

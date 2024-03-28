@@ -1,7 +1,7 @@
 import random
 import numpy as np
-from tampkit.sim_tools.isaacsim.primitives import BodyPose
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.primitives import BodyPose
+from tampkit.sim_tools.sim_utils import (
     get_center_extent,
     get_point,
     multiply,

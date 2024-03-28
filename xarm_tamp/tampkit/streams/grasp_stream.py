@@ -5,8 +5,8 @@ import carb
 import random
 import torch
 import numpy as np
-from tampkit.sim_tools.isaacsim.primitives import BodyGrasp
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.primitives import BodyGrasp
+from tampkit.sim_tools.sim_utils import (
     approximate_as_prism,
     get_link_pose,
     get_tool_link,

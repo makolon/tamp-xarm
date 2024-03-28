@@ -4,7 +4,7 @@ import numpy as np
 from itertools import count
 from typing import List, Optional, Union
 
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.sim_utils import (
     add_fixed_constraint, apply_action, flatten,
     get_pose, get_joint_positions, get_link_pose, get_movable_joints,
     multiply, refine_path, remove_fixed_constraint,

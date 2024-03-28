@@ -5,10 +5,10 @@ from collections import namedtuple
 from omegaconf import DictConfig
 
 # Initialize isaac sim
-import tampkit.sim_tools.isaacsim.sim_utils
+import tampkit.sim_tools.sim_utils
 
-from tampkit.sim_tools.isaacsim.primitives import BodyPose, BodyConf, Command
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
+from tampkit.sim_tools.sim_utils import (
     # Simulation utility
     connect, disconnect,
     # Getter

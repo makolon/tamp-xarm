@@ -40,8 +40,8 @@ from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.utils.torch.rotations import quat_diff_rad, xyzw2wxyz, wxyz2xyzw
 from omni.isaac.core.utils.types import ArticulationAction
-from tampkit.sim_tools.isaacsim.robots import xarm
-from tampkit.sim_tools.isaacsim.objects import fmb_momo, fmb_simo
+from tampkit.sim_tools.robots import xarm
+from tampkit.sim_tools.objects import fmb_momo, fmb_simo
 
 ### Simulation API
 
