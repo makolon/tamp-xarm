@@ -20,13 +20,16 @@ simulation_app = SimulationApp(
 )
 
 # Third party
+import os
 import carb
 import copy
 import math
 import time
 import numpy as np
-import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.bounds as bounds_utils
+import omni.isaac.core.utils.mesh as mesh_utils
+import omni.isaac.core.utils.prims as prims_utils
+import omni.isaac.core.utils.stage as stage_utils
 from itertools import count, product
 from typing import Dict, List, Tuple, Optional, Sequence, Union
 from scipy.spatial.transform import Rotation
@@ -262,6 +265,7 @@ def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs):
     return [link] + get_link_descendants(robot, link, **kwargs)
 
 def get_link_pose(robot: Robot, link_name: str):
+    """Get specified link pose."""
     link_names = [link_prim.name for link_prim in robot.GetChildren()]
     if link_name not in link_names:
         raise ValueError("Specified link does not exist.")
@@ -392,6 +396,7 @@ def apply_action(robot: Robot,
 
 def is_circular(robot: Robot,
                 joint: Usd.Prim) -> bool:
+    """Check specified joint circular."""
     if joint.IsA(UsdPhysics.FixedJoint):
         return False
     joint_index = robot.get_joint_index(joint.name)
@@ -400,6 +405,7 @@ def is_circular(robot: Robot,
 
 def get_difference_fn(robot: Robot,
                       joints: List[Usd.Prim]):
+    """Get difference between joint configuraitons."""
     circular_joints = [is_circular(robot, joint) for joint in joints]
     def fn(q2, q1):
         return tuple(circular_difference(value2, value1) if circular else (value2 - value1)
@@ -409,6 +415,7 @@ def get_difference_fn(robot: Robot,
 def get_refine_fn(robot: Robot,
                   joints: List[Usd.Prim],
                   num_steps: int = 0):
+    """Refine given joint configuration."""
     difference_fn = get_difference_fn(robot, joints)
     num_steps = num_steps + 1
     def fn(q1, q2):
@@ -421,7 +428,8 @@ def get_refine_fn(robot: Robot,
 
 def get_extend_fn(robot: Robot,
                   joints: List[Usd.Prim],
-                  norm=2):
+                  norm: int = 2):
+    """Extend given joint configuration."""
     resolutions = math.radians(3) * np.ones(len(joints))
     difference_fn = get_difference_fn(robot, joints)
     def fn(q1, q2):
@@ -432,6 +440,7 @@ def get_extend_fn(robot: Robot,
 
 def get_distance_fn(robot: Robot,
                     joints: List[Usd.Prim]):
+    """Get distance between two configurations."""
     weights = 1 * np.ones(len(joints))
     difference_fn = get_difference_fn(robot, joints)
     def fn(q1: torch.Tensor, q2: torch.Tensor):
@@ -443,20 +452,26 @@ def refine_path(robot: Robot,
                 joints: List[Usd.Prim],
                 waypoints: Sequence,
                 num_steps: int = 0):
+    """Refine path."""
     refine_fn = get_refine_fn(robot, joints, num_steps)
     refined_path = []
     for v1, v2 in get_pairs(waypoints):
         refined_path.extend(refine_fn(v1, v2))
     return refined_path
 
-def get_pose_distance(pose1, pose2):
+def get_pose_distance(pose1: Optional[Union[list, np.ndarray, torch.Tensor]],
+                      pose2: Optional[Union[list, np.ndarray, torch.Tensor]]):
+    """Get pose distance."""
     pos1, quat1 = pose1
     pos2, quat2 = pose2
     pos_distance = get_distance(pos1, pos2)
     ori_distance = quat_diff_rad(quat1, quat2)
     return pos_distance, ori_distance
 
-def interpolate_poses(pose1, pose2, pos_step_size=0.01, ori_step_size=np.pi/16):
+def interpolate_poses(pose1: Optional[Union[list, np.ndarray, torch.Tensor]],
+                      pose2: Optional[Union[list, np.ndarray, torch.Tensor]],
+                      pos_step_size: float = 0.01,
+                      ori_step_size: float = np.pi/16):
     pos1, quat1 = pose1
     pos2, quat2 = pose2
     num_steps = max(2, int(math.ceil(max(
@@ -468,7 +483,11 @@ def interpolate_poses(pose1, pose2, pos_step_size=0.01, ori_step_size=np.pi/16):
         yield (pos, quat)
     yield pose2
 
-def iterate_approach_path(robot, gripper, pose, grasp, body=None):
+def iterate_approach_path(robot: Robot,
+                          gripper: Usd.Prim,
+                          pose: Optional[Union[list, np.ndarray, torch.Tensor]],
+                          grasp: Optional[Union[list, np.ndarray, torch.Tensor]],
+                          body: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     tool_from_root = get_tool_link(robot)
     grasp_pose = multiply(pose.value, invert(grasp.value))
     approach_pose = multiply(pose.value, invert(grasp.approach))
@@ -477,20 +496,6 @@ def iterate_approach_path(robot, gripper, pose, grasp, body=None):
         if body is not None:
             set_pose(body, multiply(tool_pose, grasp.value))
         yield
-
-### Grasp
-
-# TODO
-def add_fixed_constraint(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                         robot: Robot,
-                         link: Usd.Prim):
-    pass
-
-# TODO
-def remove_fixed_constraint(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                         robot: Robot,
-                         link: Usd.Prim):
-    pass
 
 ### Collision Geomtry API
 
@@ -548,8 +553,21 @@ def tform_point(affine, point):
 def apply_affine(affine, points):
     return [tform_point(affine, p) for p in points]
 
-# TODO
-def approximate_as_prism(body, body_pose=unit_pose(), **kwargs):
+def vertices_from_rigid(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                        link: Usd.Prim
+    ) -> Optional[np.narray]:
+    """Get verticies from rigid body."""
+    try:
+        coord_prim = stage_utils.get_current_stage().GetPrimAtPath(link.prim_path)
+        vertices = mesh_utils.get_mesh_vertices_relative_to(body, coord_prim)
+        return vertices
+    except:
+        raise NotImplementedError("Please add vertices_from_link")
+
+def approximate_as_prism(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+                         body_pose = unit_pose(),
+                         **kwargs):
+    """Approximate rigid body as prism."""
     vertices = apply_affine(body_pose, vertices_from_rigid(body, **kwargs))
     lower, upper = np.min(vertices, axis=0), np.max(vertices, axis=0) 
     diff = np.array(upper) - np.array(lower)
