@@ -124,7 +124,7 @@ RUN mkdir /pkgs
 RUN cd /pkgs && \
     git clone https://github.com/makolon/curobo.git
 RUN $omni_python -m pip install ninja wheel tomli
-RUN cd /pkgs/curobo && $omni_python -m pip install .[dev] --no-build-isolation
+RUN cd /pkgs/curobo && $omni_python -m pip install -e .[isaacsim] --no-build-isolation
 
 # Install gflags and glog statically, instructions from: https://github.com/nvidia-isaac/nvblox/blob/public/docs/redistributable.md
 RUN cd /pkgs && wget https://cmake.org/files/v3.27/cmake-3.27.1.tar.gz && \

@@ -9,10 +9,8 @@ from curobo.types.math import Pose
 from curobo.types.state import JointState
 from curobo.types.base import TensorDeviceType
 from curobo.geom.types import WorldConfig
-from curobo.geom.sdf.world import CollisionCheckerType, WorldCollisionConfig, WorldPrimitiveCollision
-from curobo.geom.sdf.world_mesh import WorldMeshCollision
-from curobo.geom.sdf.world_blox import WorldBloxCollision
-from curobo.geom.sdf.world_voxel import WorldVoxelCollision
+from curobo.geom.sdf.world import CollisionCheckerType, WorldCollisionConfig
+from curobo.geom.sdf.utils import create_collision_checker
 from curobo.geom.sphere_fit import SphereFitType
 from curobo.rollout.rollout_base import Goal
 from curobo.util.usd_helper import UsdHelper
@@ -78,7 +76,7 @@ def get_motion_gen_plan_cfg(cfg: dict):
 
 ########################
     
-def get_robot_world_cfg(cfg: dict = None,
+def get_robot_world_cfg(cfg: dict,
                         world_cfg: WorldConfig = None):
     robot_file = cfg.robot_world_cfg.robot_file
     robot_world_cfg = RobotWorldConfig.load_from_config(
@@ -89,6 +87,18 @@ def get_robot_world_cfg(cfg: dict = None,
             if cfg.robot_world_cfg.nvblox else CollisionCheckerType.MESH
     )
     return robot_world_cfg
+
+########################
+
+def get_world_collision_cfg(cfg: dict,
+                            world_cfg: WorldConfig = None,
+                            tensor_args: TensorDeviceType = None):
+    world_collision_cfg = WorldCollisionConfig.load_from_dict(
+        world_coll_checker_dict=cfg.world_collision_cfg,
+        world_model_dict=world_cfg,
+        tensor_args=tensor_args,
+    )
+    return world_collision_cfg
 
 ########################
 
@@ -183,30 +193,12 @@ def get_robot_world(robot_world_cfg: RobotWorldConfig = None):
         raise ValueError("robot_world_cfg is not specified.")
     return RobotWorld(robot_world_cfg)
 
-def get_collision_checker(world_cfg: WorldConfig = None,
-                          collision_type: str = 'mesh'):
-    tensor_args = get_tensor_device_type()
+########################
 
-    if world_cfg == None:
-        raise ValueError("world_cfg is not specified.")
-    world_collision_cfg = WorldCollisionConfig(
-        tensor_args=tensor_args,
-        world_model=world_cfg
-    )
-    if collision_type == 'mesh':
-        collision_checker = WorldMeshCollision(world_collision_cfg)
-        collision_checker.create_collision_cache(1)
-    elif collision_type == 'blox':
-        collision_checker = WorldBloxCollision(world_collision_cfg)
-        collision_checker.create_collision_cache(1)
-    elif collision_type == 'primitive':
-        collision_checker = WorldPrimitiveCollision(world_collision_cfg)
-        collision_checker.create_collision_cache(1)
-    elif collision_type == 'voxel':
-        collision_checker = WorldVoxelCollision(world_collision_cfg)
-        collision_checker.create_collision_cache(1)
-
-    return collision_checker
+def get_collision_checker(world_collision_cfg: WorldCollisionConfig = None):
+    if world_collision_cfg == None:
+        raise ValueError("world_collision_cfg is not specified.")
+    return create_collision_checker(world_collision_cfg)
 
 ########################
 

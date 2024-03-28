@@ -13,6 +13,7 @@ from tampkit.sim_tools.curobo_utils import (
     get_robot_cfg,
     get_world_cfg,
     get_robot_world_cfg,
+    get_world_collision_cfg,
     get_motion_gen_plan_cfg,
     get_ik_solver_cfg,
     get_motion_gen_cfg,
@@ -20,6 +21,7 @@ from tampkit.sim_tools.curobo_utils import (
     get_tensor_device_type,
     get_motion_gen,
     get_robot_world,
+    get_collision_checker,
     get_ik_solver,
     get_mpc_solver,
 )
@@ -125,6 +127,16 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
         world_cfg=world_cfg,
     )
     robot_world = get_robot_world(robot_world_cfg)
+
+    ########################
+
+    # define collision checker
+    world_collision_cfg = get_world_collision_cfg(
+        cfg=curobo_cfg,
+        world_cfg=world_cfg,
+        tensor_args=tensor_args,
+    )
+    world_collision = get_collision_checker(world_collision_cfg)
     
     ########################
     
@@ -187,6 +199,8 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
         tensor_args=tensor_args,
         # World
         robot_world=robot_world,
+        # Collision
+        world_collision=world_collision,
         # Planner
         ik_solver=ik_solver,
         motion_planner=motion_gen,
