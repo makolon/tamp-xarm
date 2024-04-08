@@ -1,7 +1,6 @@
 #!/bin/bash
 
 docker run -it \
-  -v ~/tamp-xarm:/root/tamp-xarm \
   -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
   -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
   -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
@@ -15,4 +14,6 @@ docker run -it \
   -e NVIDIA_VISIBLE_DEVICES=all \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   --net=host \
-  --gpus all --rm --name "xarm_isaac" xarm_isaac:2023.1.1
+  --volume /dev:/dev \
+  --mount type=bind,src=/home/$USER/Codes,target=/home/$USER/Codes \
+  --gpus all --rm --privileged --name "xarm_isaac" xarm_isaac:dev

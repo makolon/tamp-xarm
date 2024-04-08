@@ -1,0 +1,1 @@
+docker build -t xarm_isaac:beta -f beta.dockerfile .
