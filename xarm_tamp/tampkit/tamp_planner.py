@@ -5,10 +5,10 @@ from collections import namedtuple
 from omegaconf import DictConfig
 
 # Initialize isaac sim
-import tampkit.sim_tools.sim_utils
+import xarm_tamp.tampkit.sim_tools.sim_utils
 
-from tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
-from tampkit.sim_tools.sim_utils import (
+from xarm_tamp.tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
+from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
     connect, disconnect,
     # Getter
@@ -16,12 +16,12 @@ from tampkit.sim_tools.sim_utils import (
     get_joint_positions,
 )
 
-from tampkit.problems import PROBLEMS
-from tampkit.streams.plan_motion_stream import plan_motion_fn
-from tampkit.streams.grasp_stream import get_grasp_gen
-from tampkit.streams.place_stream import get_place_gen
-from tampkit.streams.insert_stream import get_insert_gen
-from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
+from xarm_tamp.tampkit.problems import PROBLEMS
+from xarm_tamp.tampkit.streams.plan_motion_stream import plan_motion_fn
+from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
+from xarm_tamp.tampkit.streams.place_stream import get_place_gen
+from xarm_tamp.tampkit.streams.insert_stream import get_insert_gen
+from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
 
 # PDDLStream functions

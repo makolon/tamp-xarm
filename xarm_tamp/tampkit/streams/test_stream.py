@@ -1,4 +1,4 @@
-from tampkit.sim_tools.sim_utils import (
+from xarm_tamp.tampkit.sim_tools.sim_utils import (
     pairwise_collision,
     iterate_approach_path,
     is_placement,

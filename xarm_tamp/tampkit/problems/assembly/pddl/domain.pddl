@@ -1,4 +1,4 @@
-(define (domain hsr-assemble-tamp)
+(define (domain assembly-tamp)
   (:requirements :strips :equality)
   (:predicates
     ; Static predicates

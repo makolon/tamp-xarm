@@ -174,7 +174,7 @@ sim:
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole1:
-    name: surface1
+    name: hole1
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 

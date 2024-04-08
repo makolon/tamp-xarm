@@ -4,11 +4,13 @@ import numpy as np
 from itertools import count
 from typing import List, Optional, Union
 
-from tampkit.sim_tools.sim_utils import (
-    add_fixed_constraint, apply_action, flatten,
-    get_pose, get_joint_positions, get_link_pose, get_movable_joints,
-    multiply, refine_path, remove_fixed_constraint,
+from xarm_tamp.tampkit.sim_tools.sim_utils import (
+    apply_action, flatten, get_pose, get_joint_positions,
+    get_link_pose, get_movable_joints, multiply, refine_path,
     set_pose, set_joint_positions
+)
+from xarm_tamp.tampkit.sim_tools.curobo_utils import (
+    add_fixed_constraint, remove_fixed_constraint
 )
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.robots import Robot

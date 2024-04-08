@@ -40,8 +40,7 @@ from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.utils.torch.rotations import quat_diff_rad, xyzw2wxyz, wxyz2xyzw
 from omni.isaac.core.utils.types import ArticulationAction
-from tampkit.sim_tools.robots import xarm
-from tampkit.sim_tools.objects import fmb_momo, fmb_simo
+
 
 ### Simulation API
 
@@ -70,9 +69,21 @@ def create_floor(world, plane_cfg):
     )
     return plane
 
+def create_block(block_name, translation, orientation):
+    block = cuboid.DynamicCuboid(
+        f"/World/{block_name}",
+        f"{block_name}",
+        translation=translation,
+        orientation=orientation,
+        color=np.array([0., 0., 0.]),
+        size=0.01,
+    )
+    return block
+
 def create_surface(surface_name, translation, orientation):
     surface = cuboid.VisualCuboid(
         f"/World/{surface_name}",
+        f"{surface_name}",
         translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
@@ -83,6 +94,7 @@ def create_surface(surface_name, translation, orientation):
 def create_hole(hole_name, translation, orientation):
     hole = cuboid.VisualCuboid(
         f"/World/{hole_name}",
+        f"{hole_name}",
         translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
@@ -93,6 +105,7 @@ def create_hole(hole_name, translation, orientation):
 def create_table(table_cfg):
     table = cuboid.VisualCuboid(
         "/World/table",
+        "table",
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),
@@ -102,6 +115,7 @@ def create_table(table_cfg):
 
 def create_robot(robot_cfg):
     if "xarm" in robot_cfg.name:
+        from xarm_tamp.tampkit.sim_tools.robots import xarm
         robot = xarm.xArm(
             "/World/xarm7",
             translation=np.array(robot_cfg.translation),
@@ -113,12 +127,14 @@ def create_robot(robot_cfg):
 
 def create_fmb(fmb_cfg):
     if fmb_cfg.task == 'momo':
+        from xarm_tamp.tampkit.sim_tools.objects import fmb_momo
         block = fmb_momo.Block(
             f"/World/{fmb_cfg.name}",
             translation=np.array(fmb_cfg.translation),
             orientation=np.array(fmb_cfg.orientation)
         )
     elif fmb_cfg.task == 'simo':
+        from xarm_tamp.tampkit.sim_tools.objects import fmb_simo
         block = fmb_simo.Block(
             f"/World/{fmb_cfg.name}",
             translation=np.array(fmb_cfg.translation),
@@ -151,28 +167,60 @@ def get_unit_vector(vec, norm=2):
 
 ### Rigid Body API
 
-# TODO
-def get_bodies():
-    return []
+# def get_bodies():
+#     bodies = []
+#     prim_paths = [prims_utils.get_prim_path(prim) \
+#         for prim in stage_utils.traverse_stage(fabric=False)]
+#     for prim_path in prim_paths:
+#         prim_type = prims_utils.get_prim_object_type(prim_path)
+#         if prim_type == 'xform':
+#             bodies.append(prims_utils.get_prim_at_path(prim_path))
+#     return bodies
+
+def get_bodies(world, body_types=['all']) -> Optional[List[XFormPrim]]:
+    all_objects = world.scene._scene_registry._all_object_dicts
+
+    bodies = []
+    if 'all' in body_types:
+        for object_dict in all_objects:
+            for name, usd_obj in object_dict.items():
+                if 'plane' in name:  # remove plane
+                    continue
+                bodies.append(usd_obj)
+    if 'rigid' in body_types:
+        for name, usd_obj in all_objects[0]:  # index 0 is rigid_objects
+            bodies.append(usd_obj)
+    if 'geom' in body_types:
+        for name, usd_obj in all_objects[1]:  # index 1 is geometry_objects
+            if 'plane' in name:
+                continue
+            bodies.append(usd_obj)
+    if 'robot' in body_types:
+        for name, usd_obj in all_objects[3]:  # index 3 is robots
+            bodies.append(usd_obj)
+    if 'xform' in body_types:
+        for name, usd_obj in all_objects[4]:  # index 4 is xforms
+            bodies.append(usd_obj)
+    return bodies
 
 def get_body_name(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     return body.name
 
-def get_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
-    linear_velocity = body.linear_velocity
-    angular_velocity = body.angular_velocity
-    return (linear_velocity, angular_velocity)
-
 def get_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]):
     pos, rot = body.get_world_pose()
     return pos, rot
+
+def get_velocity(body: Optional[RigidPrim]):
+    linear_velocity = body.linear_velocity
+    angular_velocity = body.angular_velocity
+    return (linear_velocity, angular_velocity)
 
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              position=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., 0.])) -> None:
     body.set_world_pose(position=position, orientation=orientation)
 
-def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
+def set_velocity(body: Optional[RigidPrim],
                  translation=np.array([0., 0., 0.]),
                  rotation=np.array([0., 0., 0.])) -> None:
     body.set_linear_velocity(velocity=translation)
@@ -182,7 +230,7 @@ def set_velocity(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
 
 def get_link(robot: Robot, name: str) -> Usd.Prim:
     # get the prim of the link according to the given name in the robot.
-    link_prims = [link_prim for link_prim in robot.GetChildren()]
+    link_prims = [link_prim for link_prim in robot.prim.GetChildren()]
     for link_prim in link_prims:
         if link_prim.name == name:
             return link_prim
@@ -194,8 +242,24 @@ def get_tool_link(robot: Robot, tool_name: str) -> Usd.Prim:
     return tool_frame
 
 def get_all_links(robot: Robot) -> List[Usd.Prim]:
-    link_prims = [link_prim for link_prim in robot.GetChildren()]
-    return link_prims
+    _num_dof = robot._articulation_view._num_dof
+    _dof_paths = robot._articulation_view._dof_paths
+    _dofs_infos = robot._articulation_view._dofs_infos
+    _dof_names = robot._articulation_view._dof_names
+    _body_names = robot._articulation_view._body_names
+    _body_indices = robot._articulation_view._body_indices
+    _dof_indices = robot._articulation_view._dof_indices
+    _dof_types = robot._articulation_view._dof_types
+    print('num_dof:', _num_dof)
+    print('dof_paths:', _dof_paths)
+    print('dofs_infos:', _dofs_infos)
+    print('dof_names:', _dof_names)
+    print('body_names:', _body_names)
+    print('body_indices:', _body_indices)
+    print('dof_indices:', _dof_indices)
+    print('dof_types:', _dof_types)
+    print('###############################')
+    return None # link_prims
 
 def get_moving_links(robot: Robot) -> List[Usd.Prim]:
     all_links = get_all_links(robot)
@@ -275,19 +339,19 @@ def get_link_pose(robot: Robot, link_name: str):
 
 ### Joint Utils
 
-def get_arm_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+def get_arm_joints(robot: Robot) -> Optional[Union[list, np.ndarray, torch.Tensor]]:
     """Get arm joint indices."""
     return robot.arm_joints
 
-def get_base_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+def get_base_joints(robot: Robot) -> Optional[Union[list, np.ndarray, torch.Tensor]]:
     """Get base joint indices."""
     return robot.base_joints
 
-def get_gripper_joints(robot: Robot) -> Optional[Union[np.ndarray, torch.Tensor]]:
+def get_gripper_joints(robot: Robot) -> Optional[Union[list, np.ndarray, torch.Tensor]]:
     """Get gripper joint indices."""
     return robot.gripper_joints
 
-def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Union[np.ndarray, torch.Tensor]]:
+def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Union[list, np.ndarray, torch.Tensor]]:
     """Get movable joint indices."""
     if use_gripper:
         movable_joints = robot.arm_joints + robot.gripper_joints
@@ -388,8 +452,8 @@ def set_initial_conf(robot: Robot,
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
 def apply_action(robot: Robot,
-                     joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
-                     configuration: Optional[ArticulationAction] = None):
+                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
+                 configuration: Optional[ArticulationAction] = None):
     """Apply articulation action."""
     art_controller = robot.get_articulation_controller()
     art_controller.apply_action(configuration, indices=joint_indices)
@@ -472,6 +536,7 @@ def interpolate_poses(pose1: Optional[Union[list, np.ndarray, torch.Tensor]],
                       pose2: Optional[Union[list, np.ndarray, torch.Tensor]],
                       pos_step_size: float = 0.01,
                       ori_step_size: float = np.pi/16):
+    """Interpolate two different poses."""
     pos1, quat1 = pose1
     pos2, quat2 = pose2
     num_steps = max(2, int(math.ceil(max(
@@ -488,6 +553,7 @@ def iterate_approach_path(robot: Robot,
                           pose: Optional[Union[list, np.ndarray, torch.Tensor]],
                           grasp: Optional[Union[list, np.ndarray, torch.Tensor]],
                           body: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+    """Interpolate approach path."""
     tool_from_root = get_tool_link(robot)
     grasp_pose = multiply(pose.value, invert(grasp.value))
     approach_pose = multiply(pose.value, invert(grasp.approach))
@@ -555,7 +621,7 @@ def apply_affine(affine, points):
 
 def vertices_from_rigid(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                         link: Usd.Prim
-    ) -> Optional[np.narray]:
+    ) -> Optional[np.ndarray]:
     """Get verticies from rigid body."""
     try:
         coord_prim = stage_utils.get_current_stage().GetPrimAtPath(link.prim_path)
@@ -642,7 +708,7 @@ def flatten(iterable_of_iterables):
     return (item for iterables in iterable_of_iterables for item in iterables)
 
 def convex_combination(x, y, w=0.5):
-    return (1-w)*np.array(x) + w*np.array(y)
+    return (1 - w) * np.array(x) + w * np.array(y)
 
 def unit_vector(data, axis=None, out=None):
     """Return ndarray normalized by length, i.e. eucledian norm, along axis."""

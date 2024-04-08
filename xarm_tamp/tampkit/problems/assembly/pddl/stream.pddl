@@ -1,4 +1,4 @@
-(define (stream hsr-assemble-tamp)
+(define (stream assembly-tamp)
   (:stream sample-grasp
     ; sample grasp pose
     ; object ?o must be graspable and output ?g mush satisfy grasp condition
