@@ -32,12 +32,9 @@ class xArm(Robot):
         self._end_effector_prim_name = end_effector_prim_name
 
         if not prim.IsValid():
-            if usd_path:
-                add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
-            else:
-                # TODO: fix
-                usd_path = f"/root/tamp-xarm/xarm_tamp/models/usd/xarm_with_sphere_collision/{name}.usd"
-                add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
+            # TODO: fix
+            usd_path = "/home/makolon/Codes/tamp-xarm/xarm_tamp/tampkit/models/usd/xarm_with_sphere_collision/xarm7.usd"
+            add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
 
             # end effector
             if self._end_effector_prim_name is None:

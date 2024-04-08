@@ -7,16 +7,15 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import *
 def sim_api_test():
     # connect to isaac sim
     sim_app = connect()
-    
+
     # disconnect isaac sim app; disconnect()
-    
+
     # step simulation
     world = create_world()
-    world.reset()
     for _ in range(10):
         print('step simulation')
         step_simulation(world)
-    
+
     return world
 
 
@@ -93,9 +92,6 @@ def rigid_body_api_test(world):
 
 ### Link Utils
 def link_api_test(robot):
-    robot._articulation_view.initialize()
-    print('Robot Initialized!')
-
     # get all links
     link_prims = get_all_links(robot)
     print('link_prims:', link_prims)
@@ -324,7 +320,7 @@ def math_api_test():
     print('invert:', invert)
 
 
-@hydra.main(version_base=None, config_name="config", config_path="../configs")
+@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
 def main(cfg: DictConfig):
     world = sim_api_test()
     print('Simulation API Ready!')

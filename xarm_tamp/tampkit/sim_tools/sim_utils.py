@@ -55,6 +55,12 @@ def disconnect():
 def step_simulation(world):
     world.step(render=True)
 
+def loop_simulation(world):
+    sim_app = connect()
+    while sim_app.is_running():
+        world.step(render=True)
+        print('Loop Simulation')
+
 ### Create Simulation Environment API
 
 def create_world():
@@ -117,7 +123,7 @@ def create_robot(robot_cfg):
     if "xarm" in robot_cfg.name:
         from xarm_tamp.tampkit.sim_tools.robots import xarm
         robot = xarm.xArm(
-            "/World/xarm7",
+            prim_path="/World/xarm7",
             translation=np.array(robot_cfg.translation),
             orientation=np.array(robot_cfg.orientation),
         )
@@ -166,16 +172,6 @@ def get_unit_vector(vec, norm=2):
     return np.array(vec) / norm
 
 ### Rigid Body API
-
-# def get_bodies():
-#     bodies = []
-#     prim_paths = [prims_utils.get_prim_path(prim) \
-#         for prim in stage_utils.traverse_stage(fabric=False)]
-#     for prim_path in prim_paths:
-#         prim_type = prims_utils.get_prim_object_type(prim_path)
-#         if prim_type == 'xform':
-#             bodies.append(prims_utils.get_prim_at_path(prim_path))
-#     return bodies
 
 def get_bodies(world, body_types=['all']) -> Optional[List[XFormPrim]]:
     all_objects = world.scene._scene_registry._all_object_dicts
@@ -242,24 +238,8 @@ def get_tool_link(robot: Robot, tool_name: str) -> Usd.Prim:
     return tool_frame
 
 def get_all_links(robot: Robot) -> List[Usd.Prim]:
-    _num_dof = robot._articulation_view._num_dof
-    _dof_paths = robot._articulation_view._dof_paths
-    _dofs_infos = robot._articulation_view._dofs_infos
-    _dof_names = robot._articulation_view._dof_names
-    _body_names = robot._articulation_view._body_names
-    _body_indices = robot._articulation_view._body_indices
-    _dof_indices = robot._articulation_view._dof_indices
-    _dof_types = robot._articulation_view._dof_types
-    print('num_dof:', _num_dof)
-    print('dof_paths:', _dof_paths)
-    print('dofs_infos:', _dofs_infos)
-    print('dof_names:', _dof_names)
-    print('body_names:', _body_names)
-    print('body_indices:', _body_indices)
-    print('dof_indices:', _dof_indices)
-    print('dof_types:', _dof_types)
-    print('###############################')
-    return None # link_prims
+    link_prims = [link_prim for link_prim in robot.prim.GetChildren()]
+    return link_prims
 
 def get_moving_links(robot: Robot) -> List[Usd.Prim]:
     all_links = get_all_links(robot)
