@@ -19,6 +19,10 @@ curobo:
     robot_file: xarm7.yml
     activation_distance: 0.0
     nvblox: friction_correlation_distance
+  world_collision_cfg:
+    cache: null
+    checker_type: "PRIMITIVE" # ["PRIMITIVE", "BLOX", "MESH"]
+    max_distance: 0.1
   motion_generation_plan_cfg:
     enable_graph: True
     enable_graph_attempt: 4

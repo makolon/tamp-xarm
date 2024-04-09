@@ -216,7 +216,7 @@ class TAMPPlanner(object):
         disconnect()
 
 
-@hydra.main(version_base=None, config_name="config", config_path="./configs")
+@hydra.main(version_base=None, config_name="assembly_config", config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(
         algorithm=cfg.pddlstream.algorithm,

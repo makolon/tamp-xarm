@@ -80,7 +80,7 @@ def sample_grasps(body, grasp_length=1.0, max_width=0.5):
     grasps = []
 
     under = 0
-    tool_pose = get_link_pose(get_tool_link(body))
+    tool_pose = get_link_pose(body, get_tool_link(body))
     if w <= max_width:
         for i in range(1 + under):
             rotate_z = np.array([0, 0, np.pi / 2 + i * np.pi])

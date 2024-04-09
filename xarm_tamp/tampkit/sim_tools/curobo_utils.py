@@ -59,7 +59,7 @@ def get_world_cfg(cfg: dict):
             mesh_cfg.append(world_cfg_mesh.mesh)
 
     world_cfg = WorldConfig(
-        cuboid=cuboid_cfg,
+        cuboid=cuboid_cfg[0],  # TODO
         mesh=mesh_cfg,
     )
     return world_cfg
@@ -113,7 +113,7 @@ def get_ik_solver_cfg(cfg: dict,
     if tensor_args is None:
         tensor_args = get_tensor_device_type()
 
-    ik_config = IKSolverConfig.load_from_robot_config(
+    ik_cfg = IKSolverConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
         tensor_args,
@@ -128,7 +128,7 @@ def get_ik_solver_cfg(cfg: dict,
             "obb": cfg.ik_solver_cfg.n_obstacle_cuboids,
             "mesh": cfg.ik_solver_cfg.n_obstacle_mesh},
     )
-    return ik_config
+    return ik_cfg
 
 def get_motion_gen_cfg(cfg: dict,
                        robot_cfg: dict = None,
@@ -167,7 +167,7 @@ def get_mpc_solver_cfg(cfg: dict,
     if world_cfg is None:
         world_cfg = get_world_cfg(cfg.world_cfg)
 
-    mpc_config = MpcSolverConfig.load_from_robot_config(
+    mpc_cfg = MpcSolverConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
         use_cuda_graph=cfg.mpc_cfg.use_cuda_graph,
@@ -176,15 +176,15 @@ def get_mpc_solver_cfg(cfg: dict,
         self_collision_check=cfg.mpc_cfg.self_collision_check,
         collision_checker_type=CollisionCheckerType.MESH,
         collision_cache={
-            "obb": cfg.mpc_cfg.n_obstackle_cuboids,
-            "mesh": cfg.mpc_cfg.n_obstackle_mesh,
+            "obb": cfg.mpc_cfg.n_obstacle_cuboids,
+            "mesh": cfg.mpc_cfg.n_obstacle_mesh,
         },
         use_mppi=cfg.mpc_cfg.use_mppi,
         use_lbfgs=cfg.mpc_cfg.use_lbfgs,
         store_rollouts=cfg.mpc_cfg.store_rollouts,
         step_dt=cfg.mpc_cfg.step_dt
     )
-    return mpc_config
+    return mpc_cfg
 
 ########################
 

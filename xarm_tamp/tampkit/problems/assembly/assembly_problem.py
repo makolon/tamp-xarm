@@ -154,7 +154,6 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
         cfg=curobo_cfg,
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
-        tensor_args=tensor_args,
     )
     mpc = get_mpc_solver(mpc_cfg)
 
