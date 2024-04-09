@@ -1,1 +1,1 @@
-docker build -t xarm_isaac:dev -f dev.dockerfile .
+docker build -t xarm_isaac:dev -f dev.dockerfile --no-cache .

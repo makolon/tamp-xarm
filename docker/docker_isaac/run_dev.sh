@@ -16,4 +16,4 @@ docker run -it \
   --net=host \
   --volume /dev:/dev \
   --mount type=bind,src=/home/$USER/Codes,target=/home/$USER/Codes \
-  --gpus all --rm --privileged --name "xarm_isaac" xarm_isaac:dev
+  --gpus all --rm --privileged --name "xarm_isaac_dev" xarm_isaac:dev

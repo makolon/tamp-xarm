@@ -1,7 +1,7 @@
 #!/bin/bash
 
 docker run -it \
-  -v ~/tamp-xarm:/root/tamp-xarm \
+  -v ~/Codes/tamp-xarm:/root/tamp-xarm \
   -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
   -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
   -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
@@ -15,4 +15,4 @@ docker run -it \
   -e NVIDIA_VISIBLE_DEVICES=all \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   --net=host \
-  --gpus all --rm --name "xarm_isaac" xarm_isaac:beta
+  --gpus all --rm --name "xarm_isaac_beta" xarm_isaac:beta
