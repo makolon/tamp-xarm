@@ -8,7 +8,7 @@ from omni.isaac.core.robots.robot import Robot
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
 from omni.isaac.manipulators.grippers.parallel_gripper import ParallelGripper
-from xarm_rl.tasks.utils.usd_utils import set_drive # TODO: fix this
+from xarm_rl.tasks.utils.usd_utils import set_drive  # TODO: fix this
 from pxr import PhysxSchema
 
 
@@ -21,6 +21,7 @@ class xArm(Robot):
         translation: Optional[np.ndarray] = None,
         orientation: Optional[np.ndarray] = None,
         end_effector_prim_name: Optional[str] = None,
+        arm_dof_names: Optional[List[str]] = None,
         gripper_dof_names: Optional[List[str]] = None,
         gripper_open_position: Optional[np.ndarray] = None,
         gripper_closed_position: Optional[np.ndarray] = None,
@@ -42,9 +43,14 @@ class xArm(Robot):
             else:
                 self._end_effector_prim_path = prim_path + "/" + end_effector_prim_name
 
+            # arm
+            if arm_dof_names is None:
+                self._arm_dof_names = ["joint1", "joint2", "joint3",
+                                       "joint4", "joint5", "joint6", "joint7"]
+
             # gripper
             if gripper_dof_names is None:
-                gripper_dof_names = ["left_drive_joint", "right_drive_joint"]
+                self._gripper_dof_names = ["left_drive_joint", "right_drive_joint"]
             if gripper_open_position is None:
                 gripper_open_position = np.array([0.05, 0.05]) / get_stage_units()
             if gripper_closed_position is None:
@@ -61,16 +67,16 @@ class xArm(Robot):
         self.arm_dof_idxs = []
         self.gripper_dof_idxs = []
 
-        # if gripper_dof_names is not None:
-        #     if deltas is None:
-        #         deltas = np.array([0.05, 0.05]) / get_stage_units()
-        #     self._gripper = ParallelGripper(
-        #         end_effector_prim_path=self._end_effector_prim_path,
-        #         joint_prim_names=gripper_dof_names,
-        #         joint_opened_positions=gripper_open_position,
-        #         joint_closed_positions=gripper_closed_position,
-        #         action_deltas=deltas,
-        #     )
+        if self._gripper_dof_names is not None:
+            if deltas is None:
+                deltas = np.array([0.05, 0.05]) / get_stage_units()
+            self._gripper = ParallelGripper(
+                end_effector_prim_path=self._end_effector_prim_path,
+                joint_prim_names=self._gripper_dof_names,
+                joint_opened_positions=gripper_open_position,
+                joint_closed_positions=gripper_closed_position,
+                action_deltas=deltas,
+            )
 
     def set_drive_property(self):
         dof_paths = [
@@ -114,20 +120,34 @@ class xArm(Robot):
                 rb.GetDisableGravityAttr().Set(True)
 
     def set_dof_idxs(self):
-        [self.arm_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._arm_names]
-        [self.gripper_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._gripper_proximal_names]
+        [self.arm_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._arm_dof_names]
+        [self.gripper_dof_idxs.append(self._articulation_view.get_dof_index(name)) for name in self._gripper_dof_names]
 
         # Movable joints
         self.actuated_dof_indices = torch.LongTensor(self.arm_dof_idxs+self.gripper_dof_idxs)
         self.movable_dof_indices = torch.LongTensor(self.arm_dof_idxs)
 
+    def set_dof_limits(self): # dof position limits
+        # (num_envs, num_dofs, 2)
+        dof_limits = self._articulation_view.get_dof_limits()
+        dof_limits_lower = dof_limits[0, :, 0]
+        dof_limits_upper = dof_limits[0, :, 1]
+
+        # Set relevant joint position limit values
+        self.arm_dof_lower = dof_limits_lower[self.arm_dof_idxs]
+        self.arm_dof_upper = dof_limits_upper[self.arm_dof_idxs]
+        self.gripper_dof_lower = dof_limits_lower[self.gripper_dof_idxs]
+        self.gripper_dof_upper = dof_limits_upper[self.gripper_dof_idxs]
+
+        self.robot_dof_lower_limits, self.robot_dof_upper_limits = dof_limits[0].T
+
     @property
     def arm_joints(self):
-        self.arm_dof_idxs
+        return self.arm_dof_idxs
 
     @property
     def gripper_joints(self):
-        self.gripper_dof_idxs
+        return self.gripper_dof_idxs
 
     @property
     def end_effector(self) -> RigidPrim:
@@ -148,6 +168,8 @@ class xArm(Robot):
             set_joint_positions_func=self.set_joint_positions,
             dof_names=self.dof_names,
         )
+        self.set_dof_idxs()
+        self.set_dof_limits()
 
     def post_reset(self) -> None:
         super().post_reset()

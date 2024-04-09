@@ -31,7 +31,7 @@ import omni.isaac.core.utils.mesh as mesh_utils
 import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.stage as stage_utils
 from itertools import count, product
-from typing import Dict, List, Tuple, Optional, Sequence, Union
+from typing import Dict, List, Tuple, Optional, Sequence, Union, Callable, Iterable
 from scipy.spatial.transform import Rotation
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from omni.isaac.core import World
@@ -211,6 +211,47 @@ def get_velocity(body: Optional[RigidPrim]):
     angular_velocity = body.angular_velocity
     return (linear_velocity, angular_velocity)
 
+def get_transform_local(
+    prim: Usd.Prim, time_code: Optional[Usd.TimeCode] = None
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Get the transform of the given prim relative to the parent prim."""
+    if time_code is None:
+        time_code = Usd.TimeCode.Default()
+
+    xform = UsdGeom.Xformable(prim)
+    local_transformation = xform.GetLocalTransformation(time_code)
+    local_pos = local_transformation.ExtractTranslation()
+    local_quat = local_transformation.ExtractRotationQuat()
+    # transform = np.array(local_transformation).T
+    return np.array(local_pos), np.array(local_quat)
+
+def get_transform_world(
+    prim: Usd.Prim, time_code: Optional[Usd.TimeCode] = None
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Get the transform of the given prim relative to the world frame."""
+    if time_code is None:
+        time_code = Usd.TimeCode.Default()
+
+    xform = UsdGeom.Xformable(prim)
+    world_transformation = xform.ComputeLocalToWorldTransform(time_code)
+    world_pos = world_transformation.ExtractTranslation()
+    world_quat = world_transformation.ExtractRotationQuat()
+    return np.array(world_pos), np.array(world_quat)
+
+def get_transform_relative(
+    prim: Usd.Prim, other_prim: Usd.Prim, time_code: Optional[Usd.TimeCode] = None
+) -> np.ndarray:
+    """Get the transform of the given prim relative to the other prim."""
+    if time_code is None:
+        time_code = Usd.TimeCode.Default()
+
+    world2prim = get_transform_world(prim, time_code)
+    world2other = get_transform_world(other_prim, time_code)
+    other2world = np.linalg.inv(world2other)
+    other2prim = other2world @ world2prim
+
+    return other2prim
+
 def set_pose(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
              position=np.array([0., 0., 0.]),
              orientation=np.array([1., 0., 0., 0.])) -> None:
@@ -222,16 +263,102 @@ def set_velocity(body: Optional[RigidPrim],
     body.set_linear_velocity(velocity=translation)
     body.set_angular_velocity(velocity=rotation)
 
+def set_transform_local(
+    prim: Usd.Prim, transform: np.ndarray, time_code: Optional[Usd.TimeCode] = None
+) -> None:
+    """Set the transform for the given prim relative to the parent prim."""
+    animation_mode = time_code is not None
+    if time_code is None:
+        time_code = Usd.TimeCode.Default()
+
+    if prim.GetAttribute("xformOp:transform").IsValid():
+        prim.GetAttribute("xformOp:transform").Set(Gf.Matrix4d(transform.T), time_code)
+    else:
+        translation = transform[:3, 3].tolist()  # TODO
+        rot = Rotation.from_matrix(transform[:3, :3])  # TODO
+        rot_quat = rot.as_quat()
+        rot_quat_real = rot_quat[-1]
+        rot_quat_imag = Gf.Vec3f(rot_quat[0:3].tolist())
+        orientation = Gf.Quatf(rot_quat_real, rot_quat_imag)
+
+        if prim.GetAttribute("xformOp:translate").IsValid():
+            prim.GetAttribute("xformOp:translate").Set(Gf.Vec3f(translation), time_code)
+        else:
+            UsdGeom.Xformable(prim).AddTranslateOp()
+            UsdGeom.XformCommonAPI(prim).SetTranslate(Gf.Vec3d(translation), time_code)
+
+        if prim.GetAttribute("xformOp:orient").IsValid():
+            attribute = prim.GetAttribute("xformOp:orient")
+            attribute.SetTypeName(Sdf.ValueTypeNames.Quatf)
+            attribute.Set(orientation, time_code)
+        else:
+            orient_attr = UsdGeom.Xformable(prim).AddOrientOp()
+            orient_attr.Set(orientation, time_code)
+
+    if animation_mode:
+        kinematics_enable_attr = prim.GetAttribute("physics:kinematicEnabled")
+        if not kinematics_enable_attr.IsValid():
+            kinematics_enable_attr = prim.CreateAttribute(
+                "physics:kinematicEnabled", Sdf.ValueTypeNames.Bool
+            )
+        kinematics_enable_attr.Set(True)
+
+        rigid_body_enable_attr = prim.GetAttribute("physics:rigidBodyEnabled")
+        if not rigid_body_enable_attr.IsValid():
+            rigid_body_enable_attr = prim.CreateAttribute(
+                "physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool
+            )
+        rigid_body_enable_attr.Set(False)
+
+def set_transform_world(
+    prim: Usd.Prim, transform: np.ndarray, time_code: Optional[Usd.TimeCode] = None
+) -> None:
+    """Set the transform for the given prim relative to the world frame."""
+    if not prim.GetParent().IsValid():
+        msg = (
+            f"The given prim's ('{prim.GetPath()}') parent is not a valid prim, thus its world"
+            " transform cannot be set."
+        )
+        raise RuntimeError(msg)
+
+    world2prim = transform
+    world2parent = get_transform_world(prim.GetParent(), time_code)
+    parent2world = np.linalg.inv(world2parent)
+    parent2prim = parent2world @ world2prim
+
+    set_transform_local(prim, parent2prim, time_code)
+
+def set_transform_relative(
+    prim: Usd.Prim,
+    other_prim: Usd.Prim,
+    transform: np.ndarray,
+    time_code: Optional[Usd.TimeCode] = None,
+) -> None:
+    """Set the transform for the given prim relative to the other prim."""
+    if not prim.GetParent().IsValid():
+        msg = (
+            f"The given prim's ('{prim.GetPath()}') parent is not a valid prim, thus its relative"
+            " transform cannot be set."
+        )
+        raise RuntimeError(msg)
+
+    other2prim = transform
+    parent2other = get_transform_relative(other_prim, prim.GetParent(), time_code)
+    parent2prim = parent2other @ other2prim
+
+    set_transform_local(prim, parent2prim, time_code)
+
 ### Link Utils
 
 def get_link(robot: Robot, name: str) -> Usd.Prim:
     # get the prim of the link according to the given name in the robot.
     link_prims = [link_prim for link_prim in robot.prim.GetChildren()]
     for link_prim in link_prims:
-        if link_prim.name == name:
+        if link_prim.GetName() == name:
             return link_prim
         else:
-            return None
+            continue
+    return None
 
 def get_tool_link(robot: Robot, tool_name: str) -> Usd.Prim:
     tool_frame = get_link(robot, tool_name)
@@ -258,7 +385,7 @@ def get_child(prim: Usd.Prim, child_name: str = None) -> Optional[Usd.Prim]:
     for child_prim in children_prim:
         if not child_prim.IsValid():
             return None
-        if child_prim.name == child_name:
+        if child_prim.GetName() == child_name:
             return child_prim
         else:
             return children_prim[-1]
@@ -275,25 +402,25 @@ def get_all_link_parents(robot: Robot) -> Dict[str, Usd.Prim]:
     """Get all parents link."""
     parents = {}
     for link in get_all_links(robot):
-        parents[link.name] = get_parent(link)
+        parents[link.GetName()] = get_parent(link)
     return parents
 
 def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
     """Get all children link."""
     children = {}
     for link in get_all_links(robot):
-        children[link.name] = get_children(link)
+        children[link.GetName()] = get_children(link)
     return children    
 
 def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
     """Get parents link."""
     parents = get_all_link_parents(robot)
-    return parents.get(link.name, None)
+    return parents.get(link.GetName(), None)
 
 def get_link_children(robot: Robot, link: Usd.Prim) -> Optional[List[Usd.Prim]]:
     """Get child links."""
     children = get_all_link_children(robot)
-    return children.get(link.name, [])
+    return children.get(link.GetName(), [])
 
 def get_link_descendants(robot: Robot, link: Usd.Prim, test=lambda l: True):
     """Get descendants link."""
@@ -310,14 +437,77 @@ def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs):
 
 def get_link_pose(robot: Robot, link_name: str):
     """Get specified link pose."""
-    link_names = [link_prim.name for link_prim in robot.GetChildren()]
+    link_names = [link_prim.GetName() for link_prim in robot.prim.GetChildren()]
     if link_name not in link_names:
         raise ValueError("Specified link does not exist.")
-    for link_prim in robot.GetChildren():
-        if link_name == link_prim.name:
-            return link_prim.get_world_pose()
+    for link_prim in robot.prim.GetChildren():
+        if link_name == link_prim.GetName():
+            return get_transform_local(link_prim)
 
 ### Joint Utils
+
+def get_ancestor_prims(prim: Usd.Prim) -> Iterable[Usd.Prim]:
+    """Get the ancestors of a prim."""
+    parent_prim = prim.GetParent()
+    if parent_prim.IsValid():
+        yield parent_prim
+        yield from get_ancestor_prims(parent_prim)
+
+def get_links_for_joint(prim: Usd.Prim) -> Tuple[Optional[Usd.Prim], Optional[Usd.Prim]]:
+    """Get all link prims from the given joint prim."""
+    stage = prim.GetStage()
+    joint_api = UsdPhysics.Joint(prim)
+
+    rel0_targets = joint_api.GetBody0Rel().GetTargets()
+    if len(rel0_targets) > 1:
+        raise NotImplementedError(
+            "`get_links_for_joint` does not currently handle more than one relative"
+            f" body target in the joint. joint_prim: {prim}, body0_rel_targets:"
+            f" {rel0_targets}"
+        )
+    link0_prim = None
+    if len(rel0_targets) != 0:
+        link0_prim = stage.GetPrimAtPath(rel0_targets[0])
+
+    rel1_targets = joint_api.GetBody1Rel().GetTargets()
+    if len(rel1_targets) > 1:
+        raise NotImplementedError(
+            "`get_links_for_joint` does not currently handle more than one relative"
+            f" body target in the joint. joint_prim: {prim}, body1_rel_targets:"
+            f" {rel0_targets}"
+        )
+    link1_prim = None
+    if len(rel1_targets) != 0:
+        link1_prim = stage.GetPrimAtPath(rel1_targets[0])
+
+    return (link0_prim, link1_prim)
+
+def get_joints_for_articulated_root(
+    prim: Usd.Prim, joint_selector_func: Optional[Callable] = None
+) -> List[Usd.Prim]:
+    """Get all the child joint prims from the given articulated root prim."""
+    if joint_selector_func is None:
+        joint_selector_func = lambda prim: prim.IsA(UsdPhysics.Joint)
+    stage = prim.GetStage()
+    joint_prims = []
+    for joint in filter(joint_selector_func, stage.Traverse()):
+        if any(link is not None and is_ancestor(prim, link) for link in get_links_for_joint(joint)):
+            joint_prims.append(joint)
+    return joint_prims
+
+def get_joints(robot: Robot, group: str = 'arm') -> Tuple[Usd.Prim]:
+    """Get joint prims from the given group."""
+    joint_prims = list(filter(is_a_movable_joint, get_joints_for_articulated_root(robot.prim)))
+    if group == 'arm':
+        arm_joint_prims = [joint_prim for joint_prim in joint_prims \
+            if joint_prim.GetName() in robot._arm_dof_names]
+        return tuple(arm_joint_prims)
+    elif group == 'whole_body':
+        arm_joint_prims = [joint_prim for joint_prim in joint_prims \
+            if joint_prim.GetName() in robot._arm_dof_names]
+        gripper_joint_prims = [joint_prim for joint_prim in joint_prims \
+            if joint_prim.GetName() in robot._gripper_dof_names]
+        return tuple(arm_joint_prims+gripper_joint_prims)
 
 def get_arm_joints(robot: Robot) -> Optional[Union[list, np.ndarray, torch.Tensor]]:
     """Get arm joint indices."""
@@ -360,14 +550,15 @@ def get_min_limit(robot: Robot,
     """Get joint lower limit."""
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
-    return robot.dof_properties.lower[joint_indices]
+    print('dof_properties:', robot.dof_properties)
+    return robot.dof_properties["lower"][joint_indices]
 
 def get_max_limit(robot: Robot,
                   joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
     """Get joint upper limit."""
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
-    return robot.dof_properties.upper[joint_indices]
+    return robot.dof_properties["upper"][joint_indices]
 
 def get_joint_limits(robot: Robot):
     """Get joint upper and lower limits."""
@@ -397,7 +588,7 @@ def get_initial_conf(robot: Robot,
         robot.set_joints_default_state(initial_pos, initial_vel)
     else:
         initial_pos = state.positions
-        initial_pos = state[joint_indices]
+        initial_pos = initial_pos[joint_indices]
     return initial_pos
 
 def get_group_conf(robot: Robot,
@@ -432,18 +623,34 @@ def set_initial_conf(robot: Robot,
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
 def apply_action(robot: Robot,
-                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
-                 configuration: Optional[ArticulationAction] = None):
+                 configuration: Optional[ArticulationAction] = None,
+                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     """Apply articulation action."""
     art_controller = robot.get_articulation_controller()
-    art_controller.apply_action(configuration, indices=joint_indices)
+    art_controller.apply_action(configuration)
+    # art_controller.apply_action(configuration, indices=joint_indices)
+
+def is_ancestor(prim: Usd.Prim, other_prim: Usd.Prim) -> bool:
+    """Check if `prim` is an ancestor prim of `other_prim`."""
+    return prim in set(get_ancestor_prims(other_prim))
+
+def is_a_movable_joint(prim: Usd.Prim) -> bool:
+    """Check if the given prim is a movable joint prim."""
+    supported_joint_types = [
+        UsdPhysics.RevoluteJoint,
+        UsdPhysics.PrismaticJoint,
+    ]
+    return any(map(prim.IsA, supported_joint_types))
 
 def is_circular(robot: Robot,
                 joint: Usd.Prim) -> bool:
     """Check specified joint circular."""
     if joint.IsA(UsdPhysics.FixedJoint):
         return False
-    joint_index = robot.get_joint_index(joint.name)
+    try:
+        joint_index = robot.get_dof_index(joint.GetName())
+    except:
+        return False
     upper, lower = robot.dof_properties['upper'][joint_index], robot.dof_properties['lower'][joint_index]
     return upper < lower
 
@@ -487,7 +694,7 @@ def get_distance_fn(robot: Robot,
     """Get distance between two configurations."""
     weights = 1 * np.ones(len(joints))
     difference_fn = get_difference_fn(robot, joints)
-    def fn(q1: torch.Tensor, q2: torch.Tensor):
+    def fn(q1, q2):
         diff = np.array(difference_fn(q2, q1))
         return np.sqrt(np.dot(weights, diff * diff))
     return fn
@@ -661,7 +868,7 @@ def parse_body(robot: Robot, link=None):
 
 def flatten_links(robot: Robot, links=None):
     if links is None:
-        links = [link_prim.name for link_prim in robot.GetChildren()]
+        links = [link_prim.GetName() for link_prim in robot.prim.GetChildren()]
     collision_pair = namedtuple('Collision', ['robot', 'links'])
     return {collision_pair(robot, frozenset([link])) for link in links}
 
@@ -782,5 +989,5 @@ def invert(pose: Optional[Union[list, np.ndarray, torch.Tensor]]
 
     result = np.linalg.inv(transform)
     result_pos = result[:3, 3]
-    result_rot = Rotation.from_matrix(result[:3, :3]).as_matrrix()
+    result_rot = Rotation.from_matrix(result[:3, :3]).as_matrix()
     return result_pos, result_rot

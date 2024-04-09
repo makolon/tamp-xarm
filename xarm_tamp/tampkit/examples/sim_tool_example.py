@@ -49,6 +49,8 @@ def env_api_test(cfg, world):
     surf = create_surface(cfg.sim.surface1.name, *pose) # TODO: fix, remove collision & visual
     print('surf:', surf.name)
     world.scene.add(surf)
+    
+    world.reset()
 
     return floor, table, robot, hole, surf
 
@@ -97,7 +99,7 @@ def link_api_test(robot):
     print('link_prims:', link_prims)
 
     # get specified link
-    link_names = [link_prim.name for link_prim in link_prims]
+    link_names = [link_prim.GetName() for link_prim in link_prims]
     print('link_names:', link_names)
     for link_name in link_names:
         link_prim = get_link(robot, link_name)
@@ -140,9 +142,8 @@ def link_api_test(robot):
         print('subtree:', subtree)
 
     # get link pose
-    for link_name in link_names:
-        link_pose = get_link_pose(robot, link_name)
-        print('link_pose:', link_pose)
+    link_pose = get_link_pose(robot, link_name)
+    print('link_pose:', link_pose)
 
     # get all link parents
     all_parents = get_all_link_parents(robot)
@@ -155,16 +156,16 @@ def link_api_test(robot):
 
 ### Joint Utils
 def joint_api_test(robot):
-    # get arm joints
-    arm_joints = get_arm_joints(robot)
-    print('arm_joints:', arm_joints)
-    
     # get base joints
     try:
         base_joints = get_base_joints(robot)
         print('base_joints:', base_joints)
     except:
         print('Base joint does not exist.')
+
+    # get arm joints
+    arm_joints = get_arm_joints(robot)
+    print('arm_joints:', arm_joints)
 
     # get gripper joints
     gripper_joints = get_gripper_joints(robot)
@@ -196,7 +197,8 @@ def joint_api_test(robot):
     print('max_limit:', max_limit)
     
     # get custom limits
-    custom_limits = get_custom_limits(robot)
+    joint_names = robot._arm_dof_names
+    custom_limits = get_custom_limits(robot, joint_names)
     print('custom_limits:', custom_limits)
     
     # get initial conf
@@ -208,27 +210,46 @@ def joint_api_test(robot):
     print('arm_conf:', arm_conf)
     
     # set joint positions
-    positions = np.array()  # TODO
+    positions = np.random.randn(7)
     set_joint_positions(robot, positions)
 
     # set initial conf
-    positions = np.array()  # TODO
+    positions = np.random.randn(7)
     set_initial_conf(robot, positions)
     
     # apply action
-    configuration = np.array()  # TODO
-    apply_action(robot, configuration)
+    arm_pos, arm_vel = np.random.randn(7), np.random.randn(7)
+    from omni.isaac.core.utils.types import ArticulationAction
+    art_action = ArticulationAction(
+        arm_pos, arm_vel, joint_indices=get_movable_joints(robot),
+    )
+    apply_action(robot, art_action)
 
     # check is_circular
-    result = is_circular(robot, joint)
-    print('is_circular:', is_circular)
-    
-    get_difference_fn(robot, joints)
-    get_refine_fn(robot, joints)
-    get_extend_fn(robot, joints)
-    get_distance_fn(robot, joints)
-    refine_path(robot)
+    joint_prims = get_joints(robot)
+    for joint_prim in joint_prims:
+        result = is_circular(robot, joint_prim)
+        print('is_circular:', result)
 
+    # check get_difference_fn    
+    fn = get_difference_fn(robot, joint_prims)
+    diff = fn(np.random.randn(7), np.random.randn(7))
+    print('difference_fn:', diff)
+
+    # check get_refine_fn
+    fn = get_refine_fn(robot, joint_prims)
+    refine = fn(np.random.randn(7), np.random.randn(7))
+    print('refine_fn:', refine)
+
+    # check get_extend_fn
+    fn = get_extend_fn(robot, joint_prims)
+    extend = fn(np.random.randn(7), np.random.randn(7))
+    print('extend_fn:', extend)
+
+    # check get_distance_fn
+    fn = get_distance_fn(robot, joint_prims)
+    distance = fn(np.random.randn(7), np.random.randn(7))
+    print('distance_fn:', distance)
 
 ### Collision Utils
 def collision_api_test(world):
@@ -293,7 +314,8 @@ def math_api_test():
 
     # check quaternion_slerp
     result = quaternion_slerp(quat0=np.array([0., 0., 0., 1.]),
-                              quat1=np.array([1., 0., 0., 0.]))
+                              quat1=np.array([1., 0., 0., 0.]),
+                              fraction=0.0)
     print('quaternion_slerp:', result)
 
     # check quat_combination
@@ -322,26 +344,40 @@ def math_api_test():
 
 @hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
 def main(cfg: DictConfig):
+    print('###########################')
     world = sim_api_test()
     print('Simulation API Ready!')
+    print('###########################')
 
+    print('###########################')
     floor, table, robot, hole, surf = env_api_test(cfg, world)
     print('Environment API Ready!')
+    print('###########################')
 
+    print('###########################')
     rigid_body_api_test(world)
     print('Rigid Body API Ready!')
-    
+    print('###########################')
+
+    print('###########################')
     link_api_test(robot)
     print('Link API Ready!')
+    print('###########################')
 
+    print('###########################')
     joint_api_test(robot)
     print('Joint API Ready!')
+    print('###########################')
 
-    collision_api_test()
+    print('###########################')
+    collision_api_test(world)
     print('Collision API Ready!')
+    print('###########################')
 
+    print('###########################')
     math_api_test()
     print('Math API Ready!')
+    print('###########################')
 
 
 if __name__ == "__main__":
