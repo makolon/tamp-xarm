@@ -146,16 +146,17 @@ def get_motion_gen_cfg(cfg: dict,
         world_cfg,
         tensor_args,
         collision_checker_type=CollisionCheckerType.MESH,
-        num_trajopt_seeds=cfg.motion_gen_cfg.num_trajopt_seeds,
-        num_graph_seeds=cfg.motion_gen_cfg.num_graph_seeds,
-        interpolation_dt=cfg.motion_gen_cfg.interpolation_dt,
-        collision_cache={
-            "obb": cfg.motion_gen_cfg.n_obstacle_cuboids,
-            "mesh": cfg.motion_gen_cfg.n_obstacle_mesh},
-        optimize_dt=cfg.motion_gen_cfg.optimize_dt,
-        trajopt_dt=cfg.motion_gen_cfg.trajopt_dt,
-        trajopt_tsteps=cfg.motion_gen_cfg.trajopt_tsteps,
-        trim_steps=cfg.motion_gen_cfg.trim_steps,
+        use_cuda_graph=cfg.motion_gen_cfg.use_cuda_graph,
+        # num_trajopt_seeds=cfg.motion_gen_cfg.num_trajopt_seeds,
+        # num_graph_seeds=cfg.motion_gen_cfg.num_graph_seeds,
+        # interpolation_dt=cfg.motion_gen_cfg.interpolation_dt,
+        # collision_cache={
+        #     "obb": cfg.motion_gen_cfg.n_obstacle_cuboids,
+        #     "mesh": cfg.motion_gen_cfg.n_obstacle_mesh},
+        # optimize_dt=cfg.motion_gen_cfg.optimize_dt,
+        # trajopt_dt=cfg.motion_gen_cfg.trajopt_dt,
+        # trajopt_tsteps=cfg.motion_gen_cfg.trajopt_tsteps,
+        # trim_steps=cfg.motion_gen_cfg.trim_steps,
     )
     return motion_gen_cfg
 

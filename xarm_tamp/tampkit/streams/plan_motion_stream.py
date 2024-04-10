@@ -60,7 +60,7 @@ def get_motion_fn(problem, collisions=True, teleport=False):
     return fn
 
 def plan_motion_fn(problem, max_attempts=25, teleport=False, **kwargs):
-    ik_fn = get_motion_fn(problem, teleport=teleport, **kwargs)
+    motion_fn = get_motion_fn(problem, teleport=teleport, **kwargs)
 
     def gen_fn(*inputs):
         b, p, g = inputs
@@ -72,10 +72,10 @@ def plan_motion_fn(problem, max_attempts=25, teleport=False, **kwargs):
                 attempts = 0
                 yield None
             attempts += 1
-            ik_outputs = ik_fn(*(inputs))
-            if ik_outputs is None:
+            plan = motion_fn(*(inputs))
+            if plan is None:
                 continue
-            print('IK attempts:', attempts)
-            yield ik_outputs
+            print('Planning attempts:', attempts)
+            yield plan
             return
     return gen_fn

@@ -92,7 +92,7 @@ class BodyConf:
         self.robot = robot
         self.joints = joints
         self.configuration = configuration
-        self.index = next(self.index)
+        self.index = next(self.num)
         
     @property
     def value(self):

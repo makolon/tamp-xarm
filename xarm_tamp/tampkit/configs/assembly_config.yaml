@@ -39,28 +39,30 @@ curobo:
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
   motion_gen_cfg:
-    num_trajopt_seeds: 0
-    num_grarph_seeds: 0
+    num_trajopt_seeds: 10
+    num_grarph_seeds: 10
     interpolation_dt: 0.01
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
+    num_graph_seeds: 2
     optimize_dt: 0.01
     trajopt_dt: 0.01
     trajopt_tsteps: 4
     trim_steps: 3
-    enable_graph: True
+    use_cuda_graph: False
+    enable_graph: False
     warmup_js_trajopt: False
     parallel_finetune: False
   mpc_cfg:
-    use_cuda_graph: True
-    use_cuda_graph_metrics: True
-    use_cuda_graph_full_step: True
+    use_cuda_graph: False
+    use_cuda_graph_metrics: False
+    use_cuda_graph_full_step: False
     self_collision_check: True
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
-    use_mppi: True
-    use_lbfgs: True
-    store_rollouts: True
+    use_mppi: False
+    use_lbfgs: False
+    store_rollouts: False
     step_dt: 0.01
 
 # Simulation environment
@@ -117,44 +119,47 @@ sim:
     restitution: 0.0
 
   table:
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]
+    width: 1.0
+    depth: 1.0
+    height: 0.1
     size: 1.0
 
   robot:
     name: xarm7
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.0, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   base_block:
     name: base_block
     task: momo
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, -0.2, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   block1:
     name: block1
     task: momo
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   block2:
     name: block2
     task: momo
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.4, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   block3:
     name: block3
     task: momo
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.4, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   block4:
     name: block4
     task: momo
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface1:
@@ -164,17 +169,17 @@ sim:
 
   surface2:
     name: surface2
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.0, 0.0, 0.11]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface3:
     name: surface3
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.0, 0.0, 0.11]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface4:
     name: surface4
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.0, 0.0, 0.11]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole1:

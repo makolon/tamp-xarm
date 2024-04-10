@@ -16,7 +16,7 @@ def get_cfree_pose_pose_test(collisions=True, **kwargs):
     return test
 
 def get_cfree_approach_pose_test(problem, collisions=True):
-    gripper = problem.get_gripper()
+    gripper = problem.robot.gripper.prim
     def test(b1, p1, g1, b2, p2):
         if not collisions or (b1 == b2):
             return True

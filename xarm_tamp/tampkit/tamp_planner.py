@@ -80,8 +80,8 @@ class TAMPPlanner(object):
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
 
-        domain_pddl = read(get_file_path(__file__, 'problems/assemble/domain.pddl'))
-        stream_pddl = read(get_file_path(__file__, 'problems/assemble/stream.pddl'))
+        domain_pddl = read(get_file_path(__file__, 'problems/assembly/pddl/domain.pddl'))
+        stream_pddl = read(get_file_path(__file__, 'problems/assembly/pddl/stream.pddl'))
         constant_map = {}
 
         # Initlaize init & goal

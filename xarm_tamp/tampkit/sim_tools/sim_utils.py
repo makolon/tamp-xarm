@@ -115,6 +115,7 @@ def create_table(table_cfg):
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),
+        scale=np.array(table_cfg.width, table_cfg.depth, table_cfg.height),
         size=table_cfg.size,
     )
     return table
@@ -222,7 +223,6 @@ def get_transform_local(
     local_transformation = xform.GetLocalTransformation(time_code)
     local_pos = local_transformation.ExtractTranslation()
     local_quat = local_transformation.ExtractRotationQuat()
-    # transform = np.array(local_transformation).T
     return np.array(local_pos), np.array(local_quat)
 
 def get_transform_world(

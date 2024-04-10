@@ -31,6 +31,12 @@ class Problem:
     robot_cfg: dict = field(default_factory=dict)
     world_cfg: dict = field(default_factory=dict)
     plan_cfg: dict = field(default_factory=dict)
+    # Tensor args
+    tensor_args: object = None
+    # World
+    robot_world: object = None
+    # Collision
+    world_collision: object = None
     # Planner
     ik_solver: object = None
     motion_planner: object = None

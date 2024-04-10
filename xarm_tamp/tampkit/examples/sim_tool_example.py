@@ -251,6 +251,7 @@ def joint_api_test(robot):
     distance = fn(np.random.randn(7), np.random.randn(7))
     print('distance_fn:', distance)
 
+
 ### Collision Utils
 def collision_api_test(world):
     bodies = get_bodies(world)
@@ -378,6 +379,8 @@ def main(cfg: DictConfig):
     math_api_test()
     print('Math API Ready!')
     print('###########################')
+
+    input('Finish!')
 
 
 if __name__ == "__main__":
