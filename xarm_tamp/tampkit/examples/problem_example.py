@@ -25,9 +25,17 @@ from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_
     get_cfree_traj_pose_test, get_supported, get_inserted
 
 
-@hydra.main(version_base=None, config_name="config", config_path="../configs")
+@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
 def main(cfg: DictConfig):
-    pass
+    tamp_planner = TAMPPlanner(
+        algorithm=cfg.pddlstream.algorithm,
+        unit=cfg.pddlstream.unit,
+        deterministic=cfg.pddlstream.deternimistic,
+        problem=cfg.pddlstream.problem,
+        cfree=cfg.pddlstream.cfree,
+        teleport=cfg.pddlstream.teleport
+    )
+    tamp_planner.execute(cfg.sim, cfg.curobo)
 
 
 if __name__ == '__main__':

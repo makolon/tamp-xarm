@@ -7,8 +7,9 @@ from omni.isaac.core.materials import OmniPBR
 from omni.isaac.core.objects import sphere
 from omni.isaac.debug_draw import _debug_draw
 from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
-from curobo.utils.logger import setup_curobo_logger
-from curobo.utils.usd_helper import UsdHelper
+from curobo.rollout.cost.pose_cost import PoseCostMetric
+from curobo.util.logger import setup_curobo_logger, log_error, log_warn
+from curobo.util.usd_helper import UsdHelper
 
 
 ### cuRobo Utils Test
@@ -17,7 +18,7 @@ def curobo_utils_example(curobo_cfg):
     print('tensor_args')
 
     ### Config Test
-    robot_cfg = get_robot_cfg(curobo_cfg)
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
     print('robot_cfg:', robot_cfg)
 
     world_cfg = get_world_cfg(curobo_cfg)
@@ -70,6 +71,13 @@ def collision_check_example(sim_cfg, curobo_cfg):
     # add usd_helper
     usd_help = UsdHelper()
 
+    stage = world.stage
+    usd_help.load_stage(stage)
+    xform = stage.DefinePrim("/World", "Xform")
+    stage.SetDefaultPrim(xform)
+    stage.DefinePrim("/curobo", "Xform")
+
+    # create target
     radius = 0.1
     target_material = OmniPBR("/World/looks/t", color=np.array([0, 1, 0]))
     target = sphere.VisualSphere(
@@ -84,12 +92,12 @@ def collision_check_example(sim_cfg, curobo_cfg):
     setup_curobo_logger("warn")
 
     tensor_args = get_tensor_device_type()
-    world_cfg = get_world_cfg(curobo_cfg.world_cfg)  # TODO: add
+    world_cfg = get_world_cfg(curobo_cfg.world_cfg)
+    robot_world_cfg = get_robot_world_cfg(curobo_cfg, world_cfg)
+    robot_world = get_robot_world(robot_world_cfg)
+    ignore_list = ["/World/target", "/World/defaultGroundPlane"]
 
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
-
-    robot_world = get_robot_world(curobo_cfg.robot_cfg)  # TODO: add
-    ignore_list = ["/World/target", "/World/defaultGroundPlane"]
 
     i = 0
     x_sph = torch.zeros((1, 1, 1, 4), device=tensor_args.device, dtype=tensor_args.dtype)
@@ -101,7 +109,7 @@ def collision_check_example(sim_cfg, curobo_cfg):
             if i % 100 == 0:
                 print("**** Click Play to start simulation **** ")
 
-        step_index = world.current_tim_step_index
+        step_index = world.current_time_step_index
         if step_index == 0:
             world.reset()
 
@@ -140,19 +148,24 @@ def ik_example(sim_cfg, curobo_cfg):
     world = create_world()
     floor = create_floor(world, sim_cfg.floor)
     robot = create_robot(sim_cfg.robot)
+    world.scene.add(robot)
 
     # add usd_helper
     usd_help = UsdHelper()
 
-    # create target
-    radius = 0.1
-    target_material = OmniPBR("/World/looks/t", color=np.array([0, 1, 0]))
-    target = sphere.VisualSphere(
+    stage = world.stage
+    usd_help.load_stage(stage)
+    xform = stage.DefinePrim("/World", "Xform")
+    stage.SetDefaultPrim(xform)
+    stage.DefinePrim("/curobo", "Xform")
+
+    # Make a target to follow
+    target = cuboid.VisualCuboid(
         "/World/target",
-        position=np.array([0.5, 0.0, 1.0]),
-        orientation=np.array([1.0, 0.0, 0.0, 0.0]),
-        radius=radius,
-        visual_material=target_material
+        position=np.array([0.5, 0, 0.5]),
+        orientation=np.array([0, 1, 0, 0]),
+        color=np.array([1.0, 0, 0]),
+        size=0.05,
     )
 
     # set up logger
@@ -160,14 +173,18 @@ def ik_example(sim_cfg, curobo_cfg):
 
     tensor_args = get_tensor_device_type()
     world_cfg = get_world_cfg(curobo_cfg.world_cfg)
-    robot_cfg = get_robot_cfg()
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
     j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
     default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
 
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
+    past_pose = None
+    target_pose = None
+
     # ik solver
-    ik_solver = get_ik_solver()
+    ik_solver_cfg = get_ik_solver_cfg(curobo_cfg, robot_cfg, world_cfg, tensor_args)
+    ik_solver = get_ik_solver(ik_solver_cfg)
 
     def get_pose_grid(n_x, n_y, n_z, max_x, max_y, max_z):
         x = np.linspace(-max_x, max_x, n_x)
@@ -183,7 +200,7 @@ def ik_example(sim_cfg, curobo_cfg):
 
     # warm up ik solver
     position_grid_offset = tensor_args.to_device(get_pose_grid(10, 10, 5, 0.5, 0.5, 0.5))
-    fk_state = ik_solver.fk(ik_solver.get_regract_config().view(1, -1))
+    fk_state = ik_solver.fk(ik_solver.get_retract_config().view(1, -1))
     goal_pose = fk_state.ee_pose
     goal_pose = goal_pose.repeat(position_grid_offset.shape[0])
     goal_pose.position += position_grid_offset
@@ -204,13 +221,15 @@ def ik_example(sim_cfg, curobo_cfg):
             continue
 
         step_index = world.current_time_step_index
-        if step_index == 0:
+        if step_index <= 2:
             world.reset()
             idx_list = [robot.get_dof_index(x) for x in j_names]
             robot.set_joint_positions(default_config, idx_list)
             robot._articulation_view.set_max_efforts(
                 values=np.array([5000 for i in range(len(idx_list))]), joint_indices=idx_list
             )
+        if step_index < 20:
+            continue
         if step_index % 500 == 0:
             print("Updating world, reading w.r.t.", robot.prim_path)
             obstacles = usd_help.get_obstacles_from_stage(
@@ -238,7 +257,7 @@ def ik_example(sim_cfg, curobo_cfg):
             position=tensor_args.to_device(sim_js.positions),
             velocity=tensor_args.to_device(sim_js.velocities) * 0.0,
             acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
-            jerk=tensor_args.to_device(sim_js.veloities) * 0.0,
+            jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
             joint_names=robot.dof_names,
         )
 
@@ -314,10 +333,10 @@ def ik_example(sim_cfg, curobo_cfg):
 
 
 ### Kinematics Test
-def kinematics_example():
+def kinematics_example(curobo_cfg):
     tensor_args = get_tensor_device_type()
 
-    robot_cfg = get_robot_cfg()
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
     kin_model = CudaRobotModel(robot_cfg.kinematics)
 
     # compute forward kinematics
@@ -327,11 +346,24 @@ def kinematics_example():
 
 
 ### Motion Planner Test
-def motion_gen_example():
-    # create a curobo motion gen instance:
-    num_targets = 0
-    # assuming obstacles are in objects_path:
+def motion_gen_example(sim_cfg, curobo_cfg):
+    # connect
     sim_app = connect()
+
+    # create world
+    world = create_world()
+    floor = create_floor(world, sim_cfg.floor)
+    robot = create_robot(sim_cfg.robot)
+    world.scene.add(robot)
+
+    # add usd_helper
+    usd_help = UsdHelper()
+
+    stage = world.stage
+    usd_help.load_stage(stage)
+    xform = stage.DefinePrim("/World", "Xform")
+    stage.SetDefaultPrim(xform)
+    stage.DefinePrim("/curobo", "Xform")
 
     # Make a target to follow
     target = cuboid.VisualCuboid(
@@ -342,48 +374,31 @@ def motion_gen_example():
         size=0.05,
     )
 
+    # set up logger
     setup_curobo_logger("warn")
-    past_pose = None
-    n_obstacle_cuboids = 30
-    n_obstacle_mesh = 100
 
-    # warmup curobo instance
-    usd_help = UsdHelper()
-    target_pose = None
-
-    tensor_args = TensorDeviceType()
-    robot_cfg_path = get_robot_configs_path()
-    if args.external_robot_configs_path is not None:
-        robot_cfg_path = args.external_robot_configs_path
-    robot_cfg = load_yaml(join_path(robot_cfg_path, args.robot))["robot_cfg"]
-
-    if args.external_asset_path is not None:
-        robot_cfg["kinematics"]["external_asset_path"] = args.external_asset_path
-    if args.external_robot_configs_path is not None:
-        robot_cfg["kinematics"]["external_robot_configs_path"] = args.external_robot_configs_path
+    tensor_args = get_tensor_device_type()
+    world_cfg = get_world_cfg(curobo_cfg.world_cfg)
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
     j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
     default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
 
-    robot = create_robot(sim_cfg.robot_cfg)
+    usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
-    world_cfg_table = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
-    )
-    world_cfg_table.cuboid[0].pose[2] -= 0.02
-    world_cfg1 = WorldConfig.from_dict(
-        load_yaml(join_path(get_world_configs_path(), "collision_table.yml"))
-    ).get_mesh_world()
-    world_cfg1.mesh[0].name += "_mesh"
-    world_cfg1.mesh[0].pose[2] = -10.5
-
-    world_cfg = WorldConfig(cuboid=world_cfg_table.cuboid, mesh=world_cfg1.mesh)
-
+    # warmup curobo instance
+    target_pose = None
+    past_pose = None
     trajopt_dt = None
     optimize_dt = True
-    trajopt_tsteps = 32
     trim_steps = None
+
+    num_targets = 0
+    n_obstacle_cuboids = 30
+    n_obstacle_mesh = 100
+    trajopt_tsteps = 32
     max_attempts = 4
     interpolation_dt = 0.05
+
     if args.reactive:
         trajopt_tsteps = 40
         trajopt_dt = 0.05
@@ -391,6 +406,7 @@ def motion_gen_example():
         max_attempts = 1
         trim_steps = [1, None]
         interpolation_dt = trajopt_dt
+
     motion_gen_config = MotionGenConfig.load_from_robot_config(
         robot_cfg,
         world_cfg,
@@ -411,8 +427,6 @@ def motion_gen_example():
 
     print("Curobo is Ready")
 
-    add_extensions(simulation_app, args.headless_mode)
-
     plan_config = MotionGenPlanConfig(
         enable_graph=False,
         enable_graph_attempt=2,
@@ -421,52 +435,45 @@ def motion_gen_example():
         parallel_finetune=True,
     )
 
-    usd_help.load_stage(my_world.stage)
-    usd_help.add_world_to_stage(world_cfg, base_frame="/World")
-
     cmd_plan = None
-    cmd_idx = 0
-    my_world.scene.add_default_ground_plane()
-    i = 0
     spheres = None
     past_cmd = None
     target_orientation = None
     past_orientation = None
     pose_metric = None
+
+    cmd_idx = 0
+    i = 0
     while simulation_app.is_running():
-        my_world.step(render=True)
-        if not my_world.is_playing():
+        world.step(render=True)
+        if not world.is_playing():
             if i % 100 == 0:
                 print("**** Click Play to start simulation *****")
             i += 1
-            # if step_index == 0:
-            #    my_world.play()
             continue
 
-        step_index = my_world.current_time_step_index
-        # print(step_index)
+        step_index = world.current_time_step_index
         if articulation_controller is None:
-            # robot.initialize()
             articulation_controller = robot.get_articulation_controller()
+
         if step_index < 2:
-            my_world.reset()
+            world.reset()
             robot._articulation_view.initialize()
             idx_list = [robot.get_dof_index(x) for x in j_names]
             robot.set_joint_positions(default_config, idx_list)
-
             robot._articulation_view.set_max_efforts(
                 values=np.array([5000 for i in range(len(idx_list))]), joint_indices=idx_list
             )
+
         if step_index < 20:
             continue
 
         if step_index == 50 or step_index % 1000 == 0.0:
-            print("Updating world, reading w.r.t.", robot_prim_path)
+            print("Updating world, reading w.r.t.", robot.prim_path)
             obstacles = usd_help.get_obstacles_from_stage(
-                # only_paths=[obstacles_path],
-                reference_prim_path=robot_prim_path,
+                reference_prim_path=robot.prim_path,
                 ignore_substring=[
-                    robot_prim_path,
+                    robot.prim_path,
                     "/World/target",
                     "/World/defaultGroundPlane",
                     "/curobo",
@@ -494,6 +501,7 @@ def motion_gen_example():
         sim_js_names = robot.dof_names
         if np.any(np.isnan(sim_js.positions)):
             log_error("isaac sim has returned NAN joint position values.")
+
         cu_js = JointState(
             position=tensor_args.to_device(sim_js.positions),
             velocity=tensor_args.to_device(sim_js.velocities),  # * 0.0,
@@ -510,6 +518,7 @@ def motion_gen_example():
             cu_js.position[:] = past_cmd.position
             cu_js.velocity[:] = past_cmd.velocity
             cu_js.acceleration[:] = past_cmd.acceleration
+
         cu_js = cu_js.get_ordered_joint_state(motion_gen.kinematics.joint_names)
 
         if args.visualize_spheres and step_index % 2 == 0:
@@ -517,8 +526,6 @@ def motion_gen_example():
 
             if spheres is None:
                 spheres = []
-                # create spheres:
-
                 for si, s in enumerate(sph_list[0]):
                     sp = sphere.VisualSphere(
                         prim_path="/curobo/robot_sphere_" + str(si),
@@ -536,6 +543,7 @@ def motion_gen_example():
         robot_static = False
         if (np.max(np.abs(sim_js.velocities)) < 0.2) or args.reactive:
             robot_static = True
+
         if (
             (
                 np.linalg.norm(cube_position - target_pose) > 1e-3
@@ -556,9 +564,8 @@ def motion_gen_example():
             )
             plan_config.pose_cost_metric = pose_metric
             result = motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, plan_config)
-            # ik_result = ik_solver.solve_single(ik_goal, cu_js.position.view(1,-1), cu_js.position.view(1,1,-1))
 
-            succ = result.success.item()  # ik_result.success.item()
+            succ = result.success.item()
             if num_targets == 1:
                 if args.constrain_grasp_approach:
                     pose_metric = PoseCostMetric.create_grasp_approach_metric()
@@ -574,6 +581,7 @@ def motion_gen_example():
                 num_targets += 1
                 cmd_plan = result.get_interpolated_plan()
                 cmd_plan = motion_gen.get_full_js(cmd_plan)
+
                 # get only joint names that are in both:
                 idx_list = []
                 common_js_names = []
@@ -581,21 +589,21 @@ def motion_gen_example():
                     if x in cmd_plan.joint_names:
                         idx_list.append(robot.get_dof_index(x))
                         common_js_names.append(x)
-                # idx_list = [robot.get_dof_index(x) for x in sim_js_names]
 
                 cmd_plan = cmd_plan.get_ordered_joint_state(common_js_names)
-
                 cmd_idx = 0
 
             else:
                 carb.log_warn("Plan did not converge to a solution.  No action is being taken.")
             target_pose = cube_position
             target_orientation = cube_orientation
+
         past_pose = cube_position
         past_orientation = cube_orientation
         if cmd_plan is not None:
             cmd_state = cmd_plan[cmd_idx]
             past_cmd = cmd_state.clone()
+
             # get full dof state
             art_action = ArticulationAction(
                 cmd_state.position.cpu().numpy(),
@@ -606,7 +614,7 @@ def motion_gen_example():
             articulation_controller.apply_action(art_action)
             cmd_idx += 1
             for _ in range(2):
-                my_world.step(render=False)
+                world.step(render=False)
             if cmd_idx >= len(cmd_plan.position):
                 cmd_idx = 0
                 cmd_plan = None
@@ -615,32 +623,220 @@ def motion_gen_example():
 
 
 ### MPC Test
-def mpc_example():
-    pass
+def mpc_example(sim_cfg, curobo_cfg):
+    # connect
+    sim_app = connect()
 
+    # create world
+    world = create_world()
+    floor = create_floor(world, sim_cfg.floor)
+    robot = create_robot(sim_cfg.robot)
+    world.scene.add(robot)
 
-### TrajOpt Test
-def trajopt_example():
-    pass
+    # add usd_helper
+    usd_help = UsdHelper()
 
+    stage = world.stage
+    usd_help.load_stage(stage)
+    xform = stage.DefinePrim("/World", "Xform")
+    stage.SetDefaultPrim(xform)
+    stage.DefinePrim("/curobo", "Xform")
 
-### World Representation Test
-def world_representation_example():
-    pass
+    # Make a target to follow
+    target = cuboid.VisualCuboid(
+        "/World/target",
+        position=np.array([0.5, 0, 0.5]),
+        orientation=np.array([0, 1, 0, 0]),
+        color=np.array([1.0, 0, 0]),
+        size=0.05,
+    )
+
+    setup_curobo_logger("warn")
+
+    tensor_args = get_tensor_device_type()
+    world_cfg = get_world_cfg(curobo_cfg.world_cfg)
+    robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
+    j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
+    default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
+
+    usd_help.add_world_to_stage(world_cfg, base_frame="/World")
+
+    # warmup curobo instance
+    init_curobo = False
+    target_pose = None
+    past_pose = None
+    n_obstacle_cuboids = 30
+    n_obstacle_mesh = 10
+
+    mpc_config = MpcSolverConfig.load_from_robot_config(
+        robot_cfg,
+        world_cfg,
+        use_cuda_graph=True,
+        use_cuda_graph_metrics=True,
+        use_cuda_graph_full_step=False,
+        self_collision_check=True,
+        collision_checker_type=CollisionCheckerType.MESH,
+        collision_cache={"obb": n_obstacle_cuboids, "mesh": n_obstacle_mesh},
+        use_mppi=True,
+        use_lbfgs=False,
+        use_es=False,
+        store_rollouts=True,
+        step_dt=0.02,
+    )
+
+    mpc = MpcSolver(mpc_config)
+
+    retract_cfg = mpc.rollout_fn.dynamics_model.retract_config.clone().unsqueeze(0)
+    joint_names = mpc.rollout_fn.joint_names
+
+    state = mpc.rollout_fn.compute_kinematics(
+        JointState.from_position(retract_cfg, joint_names=joint_names)
+    )
+    current_state = JointState.from_position(retract_cfg, joint_names=joint_names)
+    retract_pose = Pose(state.ee_pos_seq, quaternion=state.ee_quat_seq)
+    goal = Goal(
+        current_state=current_state,
+        goal_state=JointState.from_position(retract_cfg, joint_names=joint_names),
+        goal_pose=retract_pose,
+    )
+
+    goal_buffer = mpc.setup_solve_single(goal, 1)
+    mpc.update_goal(goal_buffer)
+    mpc_result = mpc.step(current_state, max_attempts=2)
+
+    init_world = False
+    cmd_state_full = None
+    step = 0
+    while simulation_app.is_running():
+        if not init_world:
+            for _ in range(10):
+                world.step(render=True)
+            init_world = True
+
+        world.step(render=True)
+        if not world.is_playing():
+            continue
+
+        step_index = world.current_time_step_index
+        if step_index <= 2:
+            world.reset()
+            idx_list = [robot.get_dof_index(x) for x in j_names]
+            robot.set_joint_positions(default_config, idx_list)
+
+            robot._articulation_view.set_max_efforts(
+                values=np.array([5000 for i in range(len(idx_list))]), joint_indices=idx_list
+            )
+
+        if not init_curobo:
+            init_curobo = True
+        step += 1
+        step_index = step
+        if step_index % 1000 == 0:
+            print("Updating world")
+            obstacles = usd_help.get_obstacles_from_stage(
+                # only_paths=[obstacles_path],
+                ignore_substring=[
+                    robot.prim_path,
+                    "/World/target",
+                    "/World/defaultGroundPlane",
+                    "/curobo",
+                ],
+                reference_prim_path=robot.prim_path,
+            )
+            obstacles.add_obstacle(world_cfg.cuboid[0])
+            mpc.world_coll_checker.load_collision_model(obstacles)
+
+        # position and orientation of target virtual cube:
+        cube_position, cube_orientation = target.get_world_pose()
+
+        if past_pose is None:
+            past_pose = cube_position + 1.0
+
+        if np.linalg.norm(cube_position - past_pose) > 1e-3:
+            # Set EE teleop goals, use cube for simple non-vr init:
+            ee_translation_goal = cube_position
+            ee_orientation_teleop_goal = cube_orientation
+            ik_goal = Pose(
+                position=tensor_args.to_device(ee_translation_goal),
+                quaternion=tensor_args.to_device(ee_orientation_teleop_goal),
+            )
+            goal_buffer.goal_pose.copy_(ik_goal)
+            mpc.update_goal(goal_buffer)
+            past_pose = cube_position
+
+        # get robot current state:
+        sim_js = robot.get_joints_state()
+        js_names = robot.dof_names
+        sim_js_names = robot.dof_names
+
+        cu_js = JointState(
+            position=tensor_args.to_device(sim_js.positions),
+            velocity=tensor_args.to_device(sim_js.velocities) * 0.0,
+            acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
+            jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
+            joint_names=sim_js_names,
+        )
+        cu_js = cu_js.get_ordered_joint_state(mpc.rollout_fn.joint_names)
+        if cmd_state_full is None:
+            current_state.copy_(cu_js)
+        else:
+            current_state_partial = cmd_state_full.get_ordered_joint_state(
+                mpc.rollout_fn.joint_names
+            )
+            current_state.copy_(current_state_partial)
+            current_state.joint_names = current_state_partial.joint_names
+            # current_state = current_state.get_ordered_joint_state(mpc.rollout_fn.joint_names)
+        common_js_names = []
+        current_state.copy_(cu_js)
+
+        mpc_result = mpc.step(current_state, max_attempts=2)
+
+        succ = True
+        cmd_state_full = mpc_result.js_action
+        common_js_names = []
+        idx_list = []
+        for x in sim_js_names:
+            if x in cmd_state_full.joint_names:
+                idx_list.append(robot.get_dof_index(x))
+                common_js_names.append(x)
+
+        cmd_state = cmd_state_full.get_ordered_joint_state(common_js_names)
+        cmd_state_full = cmd_state
+
+        art_action = ArticulationAction(
+            cmd_state.position.cpu().numpy(),
+            joint_indices=idx_list,
+        )
+        if step_index % 1000 == 0:
+            print(mpc_result.metrics.feasible.item(), mpc_result.metrics.pose_error.item())
+
+        if succ:
+            # set desired joint angles obtained from IK:
+            for _ in range(3):
+                articulation_controller.apply_action(art_action)
+
+        else:
+            carb.log_warn("No action is being taken.")
 
 
 @hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
 def main(cfg: DictConfig):
-    curobo_cfg = cfg.curobo
 
-    curobo_utils_example(curobo_cfg)
-    collision_check_example()
-    ik_example()
-    kinematics_example()
-    motion_gen_example()
-    mpc_example()
-    trajopt_example()
-    world_representation_example()
+    case = input('Input the number for test: ')
+    if case == '1':
+        curobo_utils_example(cfg.curobo)
+    elif case == '2':
+        collision_check_example(cfg.sim, cfg.curobo)
+    elif case == '3':
+        ik_example(cfg.sim, cfg.curobo)
+    elif case == '4':
+        kinematics_example(cfg.curobo)
+    elif case == '5':
+        motion_gen_example(cfg.sim, cfg.curobo)
+    elif case == '6':
+        mpc_example()
+    else:
+        raise ValueError("The specified number does not test number.")
 
 
 if __name__ == "__main__":
