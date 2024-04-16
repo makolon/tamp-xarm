@@ -23,9 +23,10 @@ from xarm_tamp.tampkit.streams.place_stream import get_place_gen
 from xarm_tamp.tampkit.streams.insert_stream import get_insert_gen
 from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
+from ..tamp_planner import TAMPPlanner
 
-
-@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
+config_name = input("Please input config from (assembly_config, stacking_config, ...)")
+@hydra.main(version_base=None, config_name=config_name, config_path="../configs")
 def main(cfg: DictConfig):
     tamp_planner = TAMPPlanner(
         algorithm=cfg.pddlstream.algorithm,

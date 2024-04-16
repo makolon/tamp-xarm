@@ -45,17 +45,17 @@ curobo:
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
     num_graph_seeds: 2
-    optimize_dt: 0.01
+    optimize_dt: True
     trajopt_dt: 0.01
     trajopt_tsteps: 4
     trim_steps: 3
-    use_cuda_graph: False
+    use_cuda_graph: True
     enable_graph: False
     warmup_js_trajopt: False
     parallel_finetune: False
   mpc_cfg:
-    use_cuda_graph: False
-    use_cuda_graph_metrics: False
+    use_cuda_graph: True
+    use_cuda_graph_metrics: True
     use_cuda_graph_full_step: False
     self_collision_check: True
     n_obstacle_cuboids: 1
@@ -129,7 +129,8 @@ sim:
 
   robot:
     name: xarm7
-    translation: [0.0, 0.0, 0.1]
+    position: [0.0, 0.0, 0.0]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   base_block:
@@ -215,4 +216,3 @@ sim:
     static_friction: 1.0
     dynamic_friction: 1.0
     restitution: 0.0
-

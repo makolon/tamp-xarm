@@ -230,7 +230,7 @@ def ik_example(sim_cfg, curobo_cfg):
             )
         if step_index < 20:
             continue
-        if step_index % 500 == 0:
+        if step_index == 50 or step_index % 500 == 0:
             print("Updating world, reading w.r.t.", robot.prim_path)
             obstacles = usd_help.get_obstacles_from_stage(
                 reference_prim_path=robot.prim_path,
@@ -241,11 +241,14 @@ def ik_example(sim_cfg, curobo_cfg):
                     "/curobo",
                 ],
             ).get_collision_check_world()
+            print([x.name for x in obstacles.objects])
             ik_solver.update_world(obstacles)
             print("Updated World")
 
         # position and orientation of target virtual cube:
         cube_position, cube_orientation = target.get_world_pose()
+        print('cube_position:', cube_position)
+        print('cube_orientation:', cube_orientation)
 
         if past_pose is None:
             past_pose = cube_position
@@ -263,7 +266,8 @@ def ik_example(sim_cfg, curobo_cfg):
 
         cu_js = cu_js.get_ordered_joint_state(ik_solver.kinematics.joint_names)
 
-        if step_index % 2 == 0:
+        visualize_spheres = False
+        if step_index % 2 == 0 and visualize_spheres:
             sph_list = ik_solver.kinematics.get_robot_as_spheres(cu_js.position)
             if spheres is None:
                 spheres = []
@@ -380,8 +384,8 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     tensor_args = get_tensor_device_type()
     world_cfg = get_world_cfg(curobo_cfg.world_cfg)
     robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
-    j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
-    default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
+    j_names = robot_cfg.kinematics.cspace.joint_names
+    default_config = robot_cfg.kinematics.cspace.retract_config
 
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
@@ -393,17 +397,18 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     trim_steps = None
 
     num_targets = 0
-    n_obstacle_cuboids = 30
-    n_obstacle_mesh = 100
+    n_obstacle_cuboids = 1
+    n_obstacle_mesh = 4
     trajopt_tsteps = 32
     max_attempts = 4
     interpolation_dt = 0.05
 
-    if args.reactive:
-        trajopt_tsteps = 40
+    reactive = True
+    if reactive:
+        trajopt_tsteps = 32
         trajopt_dt = 0.05
         optimize_dt = False
-        max_attempts = 1
+        max_attempts = 4
         trim_steps = [1, None]
         interpolation_dt = trajopt_dt
 
@@ -412,8 +417,8 @@ def motion_gen_example(sim_cfg, curobo_cfg):
         world_cfg,
         tensor_args,
         collision_checker_type=CollisionCheckerType.MESH,
-        num_trajopt_seeds=12,
-        num_graph_seeds=12,
+        num_trajopt_seeds=10,
+        num_graph_seeds=10,
         interpolation_dt=interpolation_dt,
         collision_cache={"obb": n_obstacle_cuboids, "mesh": n_obstacle_mesh},
         optimize_dt=optimize_dt,
@@ -441,6 +446,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     target_orientation = None
     past_orientation = None
     pose_metric = None
+    articulation_controller = None
 
     cmd_idx = 0
     i = 0
@@ -460,7 +466,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             world.reset()
             robot._articulation_view.initialize()
             idx_list = [robot.get_dof_index(x) for x in j_names]
-            robot.set_joint_positions(default_config, idx_list)
+            robot.set_joint_positions(default_config.cpu(), idx_list)
             robot._articulation_view.set_max_efforts(
                 values=np.array([5000 for i in range(len(idx_list))]), joint_indices=idx_list
             )
@@ -504,24 +510,25 @@ def motion_gen_example(sim_cfg, curobo_cfg):
 
         cu_js = JointState(
             position=tensor_args.to_device(sim_js.positions),
-            velocity=tensor_args.to_device(sim_js.velocities),  # * 0.0,
+            velocity=tensor_args.to_device(sim_js.velocities),
             acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
             jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
             joint_names=sim_js_names,
         )
 
-        if not args.reactive:
+        if not reactive:
             cu_js.velocity *= 0.0
             cu_js.acceleration *= 0.0
 
-        if args.reactive and past_cmd is not None:
+        if reactive and past_cmd is not None:
             cu_js.position[:] = past_cmd.position
             cu_js.velocity[:] = past_cmd.velocity
             cu_js.acceleration[:] = past_cmd.acceleration
 
         cu_js = cu_js.get_ordered_joint_state(motion_gen.kinematics.joint_names)
 
-        if args.visualize_spheres and step_index % 2 == 0:
+        visualize_spheres = False
+        if visualize_spheres and step_index % 2 == 0:
             sph_list = motion_gen.kinematics.get_robot_as_spheres(cu_js.position)
 
             if spheres is None:
@@ -541,7 +548,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
                         spheres[si].set_radius(float(s.radius))
 
         robot_static = False
-        if (np.max(np.abs(sim_js.velocities)) < 0.2) or args.reactive:
+        if (np.max(np.abs(sim_js.velocities)) < 0.2) or reactive:
             robot_static = True
 
         if (
@@ -566,16 +573,19 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             result = motion_gen.plan_single(cu_js.unsqueeze(0), ik_goal, plan_config)
 
             succ = result.success.item()
+            constrain_grasp_approach = True
+            reach_partial_pose = None
+            hold_partial_pose = None
             if num_targets == 1:
-                if args.constrain_grasp_approach:
+                if constrain_grasp_approach:
                     pose_metric = PoseCostMetric.create_grasp_approach_metric()
-                if args.reach_partial_pose is not None:
-                    reach_vec = motion_gen.tensor_args.to_device(args.reach_partial_pose)
+                if reach_partial_pose is not None:
+                    reach_vec = motion_gen.tensor_args.to_device(reach_partial_pose)
                     pose_metric = PoseCostMetric(
                         reach_partial_pose=True, reach_vec_weight=reach_vec
                     )
-                if args.hold_partial_pose is not None:
-                    hold_vec = motion_gen.tensor_args.to_device(args.hold_partial_pose)
+                if hold_partial_pose is not None:
+                    hold_vec = motion_gen.tensor_args.to_device(hold_partial_pose)
                     pose_metric = PoseCostMetric(hold_partial_pose=True, hold_vec_weight=hold_vec)
             if succ:
                 num_targets += 1
@@ -619,6 +629,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
                 cmd_idx = 0
                 cmd_plan = None
                 past_cmd = None
+
     simulation_app.close()
 
 
@@ -656,8 +667,8 @@ def mpc_example(sim_cfg, curobo_cfg):
     tensor_args = get_tensor_device_type()
     world_cfg = get_world_cfg(curobo_cfg.world_cfg)
     robot_cfg = get_robot_cfg(curobo_cfg.robot_cfg)
-    j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
-    default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
+    j_names = robot_cfg.kinematics.cspace.joint_names
+    default_config = robot_cfg.kinematics.cspace.retract_config
 
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
@@ -706,6 +717,7 @@ def mpc_example(sim_cfg, curobo_cfg):
 
     init_world = False
     cmd_state_full = None
+    articulation_controller = None
     step = 0
     while simulation_app.is_running():
         if not init_world:
@@ -718,10 +730,13 @@ def mpc_example(sim_cfg, curobo_cfg):
             continue
 
         step_index = world.current_time_step_index
+        if articulation_controller is None:
+            articulation_controller = robot.get_articulation_controller()
+
         if step_index <= 2:
             world.reset()
             idx_list = [robot.get_dof_index(x) for x in j_names]
-            robot.set_joint_positions(default_config, idx_list)
+            robot.set_joint_positions(default_config.cpu(), idx_list)
 
             robot._articulation_view.set_max_efforts(
                 values=np.array([5000 for i in range(len(idx_list))]), joint_indices=idx_list
@@ -734,7 +749,6 @@ def mpc_example(sim_cfg, curobo_cfg):
         if step_index % 1000 == 0:
             print("Updating world")
             obstacles = usd_help.get_obstacles_from_stage(
-                # only_paths=[obstacles_path],
                 ignore_substring=[
                     robot.prim_path,
                     "/World/target",
@@ -785,10 +799,9 @@ def mpc_example(sim_cfg, curobo_cfg):
             )
             current_state.copy_(current_state_partial)
             current_state.joint_names = current_state_partial.joint_names
-            # current_state = current_state.get_ordered_joint_state(mpc.rollout_fn.joint_names)
+
         common_js_names = []
         current_state.copy_(cu_js)
-
         mpc_result = mpc.step(current_state, max_attempts=2)
 
         succ = True
@@ -834,7 +847,7 @@ def main(cfg: DictConfig):
     elif case == '5':
         motion_gen_example(cfg.sim, cfg.curobo)
     elif case == '6':
-        mpc_example()
+        mpc_example(cfg.sim, cfg.curobo)
     else:
         raise ValueError("The specified number does not test number.")
 

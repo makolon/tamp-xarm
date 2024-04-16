@@ -8,6 +8,7 @@ from omni.isaac.core.utils.types import ArticulationAction
 from curobo.types.math import Pose
 from curobo.types.state import JointState
 from curobo.types.base import TensorDeviceType
+from curobo.types.robot import RobotConfig
 from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType, WorldCollisionConfig
 from curobo.geom.sdf.utils import create_collision_checker
@@ -41,7 +42,9 @@ def get_tensor_device_type():
 
 def get_robot_cfg(cfg: dict):
     # load robot config from curobo content/config/robot
-    return load_yaml(join_path(get_robot_configs_path(), cfg.yaml))["robot_cfg"]
+    cfg_file = load_yaml(join_path(get_robot_configs_path(), cfg.yaml))["robot_cfg"]
+    tensor_args = get_tensor_device_type()
+    return RobotConfig.from_dict(cfg_file, tensor_args)
 
 def get_world_cfg(cfg: dict):
     # load world config from curobo content/config/world

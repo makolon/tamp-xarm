@@ -115,7 +115,7 @@ def create_table(table_cfg):
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),
-        scale=np.array(table_cfg.width, table_cfg.depth, table_cfg.height),
+        scale=np.array([table_cfg.width, table_cfg.depth, table_cfg.height]),
         size=table_cfg.size,
     )
     return table
