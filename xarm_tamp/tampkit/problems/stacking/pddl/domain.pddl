@@ -14,7 +14,6 @@
     (Kin ?a ?b ?p ?g ?q ?t)
     (BaseMotion ?q1 ?t ?q2)
     (ArmMotion ?a ?q1 ?t ?q2)
-    (Controllable ?a)
     (Graspable ?b)
     (Placeable ?b ?r)
     (Insertable ?b ?r)

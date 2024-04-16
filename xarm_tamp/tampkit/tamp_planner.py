@@ -94,10 +94,11 @@ class TAMPPlanner(object):
             Equal(('InsertCost',), 1),
         ]
 
+        # Robot
         joints = get_arm_joints(robot)
         conf = BodyConf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Conf', conf), ('HandEmpty',), ('AtConf', conf)]
-        init += [('Controllable',)]
+        init += [('Arm', robot), ('HandEmpty', robot),
+                 ('Conf', conf), ('AtConf', robot, conf)]
 
         for body in problem.movable:
             pose = BodyPose(body, get_pose(body))
@@ -147,16 +148,16 @@ class TAMPPlanner(object):
         paths = []
         for i, (name, args) in enumerate(plan):
             if name == 'move':
-                q1, q2, c = args
+                a, q1, q2, c = args
                 new_commands = c.commands
             elif name == 'pick':
-                b, p, g, _, c = args
+                a, o, p, g, q, c = args
                 new_commands = c.commands
             elif name == 'place':
-                b1, b2, p, g, _, c = args
+                a, o1, o2, p, g, q, c = args
                 new_commands = c.commands
             elif name == 'insert':
-                b1, b2, p1, p2, g, _, _, c = args
+                a, o1, o2, p, g, q, c = args
                 new_commands = c.commands
             else:
                 raise ValueError(name)

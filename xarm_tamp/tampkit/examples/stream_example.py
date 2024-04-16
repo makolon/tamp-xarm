@@ -16,7 +16,7 @@ from xarm_tamp.tampkit.streams.test_stream import *
 def grasp_stream_test(problem, world):
     grasp_gen = get_grasp_gen(problem)
 
-    bodies = get_bodies(world, body_types=['rigid'])
+    bodies = problem.bodies
     print('bodies:', bodies)
     for _ in range(100):
         body = random.choise(bodies)
@@ -32,7 +32,7 @@ def grasp_stream_test(problem, world):
 def insert_stream_test(problem, world):
     insert_gen = get_insert_gen(problem)
 
-    bodies = get_bodies(world, body_types=['rigid'])
+    bodies = problem.bodies
     for _ in range(100):
         body = random.choise(bodies)
         insert = insert_gen(body)
@@ -46,7 +46,7 @@ def insert_stream_test(problem, world):
 def place_stream_test(problem, world):
     place_gen = get_place_gen(problem)
 
-    bodies = get_bodies(world, body_types=['rigid'])
+    bodies = problem.bodies
     for _ in range(100):
         body = random.choise(bodies)
         place = place_gen(body)
