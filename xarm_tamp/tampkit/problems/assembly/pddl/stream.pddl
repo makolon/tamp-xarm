@@ -2,6 +2,7 @@
   (:stream sample-grasp
     ; sample grasp pose
     ; object ?o must be graspable and output ?g mush satisfy grasp condition
+
     :inputs (?o)
     :domain (Graspable ?o)
     :outputs (?g)
@@ -11,68 +12,63 @@
   (:stream sample-place
     ; sample place pose
     ; object ?o mush be placeable on the surface ?r and output mush be stable on the surface ?r at pose ?p
-    :inputs (?b1 ?b2)
-    :domain (Placeable ?b1 ?b2)
+
+    :inputs (?o1 ?o2)
+    :domain (Placeable ?o1 ?o2)
     :outputs (?p)
-    :certified (and (Pose ?b1 ?p) (RegionPose ?b2 ?p))
+    :certified (and (Pose ?o1 ?p) (RegionPose ?o2 ?p))
   )
 
   (:stream sample-insert
     ; sample insert pose
     ; object ?o mush be placeable on the surface ?r and output mush be stable on the surface ?r at pose ?p
-    :inputs (?b1 ?b2)
-    :domain (Insertable ?b1 ?b2)
+
+    :inputs (?o1 ?o2)
+    :domain (Insertable ?o1 ?o2)
     :outputs (?p)
-    :certified (and (Pose ?b1 ?p) (HolePose ?b2 ?p))
+    :certified (and (Pose ?o1 ?p) (HolePose ?o2 ?p))
   )
 
-  (:stream inverse-kinematics
-    ; sample IK pose
-    ; arm ?a mush be controllable and object ?o must be in hand ?g at pose ?p
-    :inputs (?a ?b ?p ?g)
-    :domain (and (Controllable ?a) (Pose ?b ?p) (Grasp ?b ?g))
-    :outputs (?q ?t)
-    :certified (and (BConf ?q) (ATraj ?t) (Kin ?a ?b ?p ?g ?q ?t))
-  )
+  (:stream plan-motion
+    ; plan arm trajectory
 
-  (:stream plan-base-motion
     :inputs (?q1 ?q2)
-    :domain (and (BConf ?q1) (BConf ?q2))
+    :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
-    :certified (and (BTraj ?t) (BaseMotion ?q1 ?t ?q2))
+    :certified (and (Traj ?t) (Motion ?a ?q1 ?t ?q2))
   )
 
   (:stream test-cfree-pose-pose
-    :inputs (?b1 ?p1 ?b2 ?p2)
-    :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-    :certified (CFreePosePose ?b1 ?p1 ?b2 ?p2)
+    :inputs (?o1 ?p1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
+    :certified (CFreePosePose ?o1 ?p1 ?o2 ?p2)
   )
 
   (:stream test-cfree-approach-pose
-    :inputs (?b1 ?p1 ?g1 ?b2 ?p2)
-    :domain (and (Pose ?b1 ?p1) (Grasp ?b1 ?g1) (Pose ?b2 ?p2))
-    :certified (CFreeApproachPose ?b1 ?p1 ?g1 ?b2 ?p2)
+    :inputs (?o1 ?p1 ?g1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
+    :certified (CFreeApproachPose ?o1 ?p1 ?g1 ?o2 ?p2)
   )
 
   (:stream test-cfree-traj-pose
-    :inputs (?t ?b2 ?p2)
-    :domain (and (ATraj ?t) (Pose ?b2 ?p2))
-    :certified (CFreeTrajPose ?t ?b2 ?p2)
+    :inputs (?t ?o ?p)
+    :domain (and (ATraj ?t) (Pose ?o ?p))
+    :certified (CFreeTrajPose ?t ?o ?p)
   )
 
   (:stream test-supported
-    :inputs (?b1 ?p1 ?b2 ?p2)
-    :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-    :certified (Supported ?b1 ?p1)
+    :inputs (?o1 ?p1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
+    :certified (Supported ?o1 ?p1)
   )
 
   (:stream test-inserted
-    :inputs (?b1 ?p1 ?b2 ?p2)
-    :domain (and (Pose ?b1 ?p1) (Pose ?b2 ?p2))
-    :certified (Assembled ?b1 ?p1)
+    :inputs (?o1 ?p1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
+    :certified (Assembled ?o1 ?p1)
   )
 
   (:function (MoveCost ?t)
-    (and (BTraj ?t))
+    (and (Traj ?t))
   )
 )
