@@ -390,56 +390,15 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
     # warmup curobo instance
-    target_pose = None
-    past_pose = None
-    trajopt_dt = None
-    optimize_dt = True
-    trim_steps = None
-
-    num_targets = 0
-    n_obstacle_cuboids = 1
-    n_obstacle_mesh = 4
-    trajopt_tsteps = 32
-    max_attempts = 4
-    interpolation_dt = 0.05
-
-    reactive = True
-    if reactive:
-        trajopt_tsteps = 32
-        trajopt_dt = 0.05
-        optimize_dt = False
-        max_attempts = 4
-        trim_steps = [1, None]
-        interpolation_dt = trajopt_dt
-
-    motion_gen_config = MotionGenConfig.load_from_robot_config(
-        robot_cfg,
-        world_cfg,
-        tensor_args,
-        collision_checker_type=CollisionCheckerType.MESH,
-        num_trajopt_seeds=10,
-        num_graph_seeds=10,
-        interpolation_dt=interpolation_dt,
-        collision_cache={"obb": n_obstacle_cuboids, "mesh": n_obstacle_mesh},
-        optimize_dt=optimize_dt,
-        trajopt_dt=trajopt_dt,
-        trajopt_tsteps=trajopt_tsteps,
-        trim_steps=trim_steps,
-    )
-    motion_gen = MotionGen(motion_gen_config)
     print("warming up...")
+    motion_gen_config = get_motion_gen_cfg(curobo_cfg, robot_cfg, world_cfg, tensor_args)
+    motion_gen = get_motion_gen(motion_gen_config)
     motion_gen.warmup(enable_graph=True, warmup_js_trajopt=False, parallel_finetune=True)
-
+    plan_config = get_motion_gen_plan_cfg(curobo_cfg.motion_generation_plan_cfg)
     print("Curobo is Ready")
 
-    plan_config = MotionGenPlanConfig(
-        enable_graph=False,
-        enable_graph_attempt=2,
-        max_attempts=max_attempts,
-        enable_finetune_trajopt=True,
-        parallel_finetune=True,
-    )
-
+    target_pose = None
+    past_pose = None
     cmd_plan = None
     spheres = None
     past_cmd = None
@@ -448,6 +407,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     pose_metric = None
     articulation_controller = None
 
+    num_targets = 0
     cmd_idx = 0
     i = 0
     while simulation_app.is_running():
@@ -516,11 +476,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             joint_names=sim_js_names,
         )
 
-        if not reactive:
-            cu_js.velocity *= 0.0
-            cu_js.acceleration *= 0.0
-
-        if reactive and past_cmd is not None:
+        if past_cmd is not None:
             cu_js.position[:] = past_cmd.position
             cu_js.velocity[:] = past_cmd.velocity
             cu_js.acceleration[:] = past_cmd.acceleration
@@ -547,10 +503,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
                         spheres[si].set_world_pose(position=np.ravel(s.position))
                         spheres[si].set_radius(float(s.radius))
 
-        robot_static = False
-        if (np.max(np.abs(sim_js.velocities)) < 0.2) or reactive:
-            robot_static = True
-
         if (
             (
                 np.linalg.norm(cube_position - target_pose) > 1e-3
@@ -558,7 +510,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             )
             and np.linalg.norm(past_pose - cube_position) == 0.0
             and np.linalg.norm(past_orientation - cube_orientation) == 0.0
-            and robot_static
         ):
             # Set EE teleop goals, use cube for simple non-vr init:
             ee_translation_goal = cube_position
@@ -673,36 +624,15 @@ def mpc_example(sim_cfg, curobo_cfg):
     usd_help.add_world_to_stage(world_cfg, base_frame="/World")
 
     # warmup curobo instance
-    init_curobo = False
-    target_pose = None
-    past_pose = None
-    n_obstacle_cuboids = 30
-    n_obstacle_mesh = 10
-
-    mpc_config = MpcSolverConfig.load_from_robot_config(
-        robot_cfg,
-        world_cfg,
-        use_cuda_graph=True,
-        use_cuda_graph_metrics=True,
-        use_cuda_graph_full_step=False,
-        self_collision_check=True,
-        collision_checker_type=CollisionCheckerType.MESH,
-        collision_cache={"obb": n_obstacle_cuboids, "mesh": n_obstacle_mesh},
-        use_mppi=True,
-        use_lbfgs=False,
-        use_es=False,
-        store_rollouts=True,
-        step_dt=0.02,
-    )
-
-    mpc = MpcSolver(mpc_config)
+    mpc_config = get_mpc_solver_cfg(curobo_cfg, robot_cfg, world_cfg)
+    mpc = get_mpc_solver(mpc_config)
 
     retract_cfg = mpc.rollout_fn.dynamics_model.retract_config.clone().unsqueeze(0)
     joint_names = mpc.rollout_fn.joint_names
-
     state = mpc.rollout_fn.compute_kinematics(
         JointState.from_position(retract_cfg, joint_names=joint_names)
     )
+
     current_state = JointState.from_position(retract_cfg, joint_names=joint_names)
     retract_pose = Pose(state.ee_pos_seq, quaternion=state.ee_quat_seq)
     goal = Goal(
@@ -716,6 +646,8 @@ def mpc_example(sim_cfg, curobo_cfg):
     mpc_result = mpc.step(current_state, max_attempts=2)
 
     init_world = False
+    init_curobo = False
+    past_pose = None
     cmd_state_full = None
     articulation_controller = None
     step = 0
@@ -744,6 +676,7 @@ def mpc_example(sim_cfg, curobo_cfg):
 
         if not init_curobo:
             init_curobo = True
+
         step += 1
         step_index = step
         if step_index % 1000 == 0:
@@ -780,7 +713,6 @@ def mpc_example(sim_cfg, curobo_cfg):
 
         # get robot current state:
         sim_js = robot.get_joints_state()
-        js_names = robot.dof_names
         sim_js_names = robot.dof_names
 
         cu_js = JointState(
@@ -827,7 +759,6 @@ def mpc_example(sim_cfg, curobo_cfg):
             # set desired joint angles obtained from IK:
             for _ in range(3):
                 articulation_controller.apply_action(art_action)
-
         else:
             carb.log_warn("No action is being taken.")
 

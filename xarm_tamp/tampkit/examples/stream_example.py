@@ -58,9 +58,11 @@ def place_stream_test(problem, world):
 
 ### Plan Motion Stream Test
 def plan_motion_stream_test(problem):
-    plan_motion_fn = plan_motion_fn(problem)
+    plan_motion_fn = get_motion_fn(problem)
 
+    bodies = problem.bodies
     for _ in range(100):
+        body = random.choise(bodies)
         plan = plan_motion_fn(body, pose, grasp)
         print('plan:', plan)
         time.sleep(0.1)

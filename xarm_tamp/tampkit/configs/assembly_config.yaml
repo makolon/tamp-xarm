@@ -24,9 +24,9 @@ curobo:
     checker_type: "PRIMITIVE" # ["PRIMITIVE", "BLOX", "MESH"]
     max_distance: 0.1
   motion_generation_plan_cfg:
-    enable_graph: True
-    enable_graph_attempt: 4
-    max_attempts: 2
+    enable_graph: False
+    enable_graph_attempt: 2
+    max_attempts: 4
     enable_finetune_trajopt: True
     parallel_finetune: True
   ik_solver_cfg:
@@ -39,20 +39,19 @@ curobo:
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
   motion_gen_cfg:
-    num_trajopt_seeds: 10
-    num_grarph_seeds: 10
-    interpolation_dt: 0.01
-    n_obstacle_cuboids: 1
-    n_obstacle_mesh: 4
-    num_graph_seeds: 2
+    num_trajopt_seeds: 12
+    num_graph_seeds: 12
+    interpolation_dt: 0.05
+    n_obstacle_cuboids: 30
+    n_obstacle_mesh: 100
     optimize_dt: True
-    trajopt_dt: 0.01
-    trajopt_tsteps: 4
-    trim_steps: 3
+    trajopt_dt: 0.05
+    trajopt_tsteps: 32
+    trim_steps: None
     use_cuda_graph: True
-    enable_graph: False
+    enable_graph: True
     warmup_js_trajopt: False
-    parallel_finetune: False
+    parallel_finetune: True
   mpc_cfg:
     use_cuda_graph: True
     use_cuda_graph_metrics: True
@@ -60,10 +59,10 @@ curobo:
     self_collision_check: True
     n_obstacle_cuboids: 1
     n_obstacle_mesh: 4
-    use_mppi: False
+    use_mppi: True
     use_lbfgs: False
-    store_rollouts: False
-    step_dt: 0.01
+    store_rollouts: True
+    step_dt: 0.02
 
 # Simulation environment
 sim:

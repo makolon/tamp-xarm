@@ -18,7 +18,7 @@ class Problem:
     init_insertable: tuple = field(default_factory=tuple)
     goal_conf: object = None
     goal_holding: tuple = field(default_factory=tuple)
-    goal_on: tuple = field(default_factory=tuple)
+    goal_placed: tuple = field(default_factory=tuple)
     goal_inserted: tuple = field(default_factory=tuple)
     goal_cleaned: tuple = field(default_factory=tuple)
     goal_cooked: tuple = field(default_factory=tuple)

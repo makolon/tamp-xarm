@@ -44,22 +44,21 @@ CustomValue = namedtuple('CustomValue', ['stream', 'values'])
 def move_cost_fn(c):
     return 1
 
-def opt_grasp_fn(o, r):
-    p2 = CustomValue('p-sg', (r,))
+def opt_grasp_fn(o):
+    p2 = CustomValue('p-sg', (o,))
     return p2,
 
-def opt_place_fn(o, r):
-    p2 = CustomValue('p-sp', (r,))
+def opt_place_fn(o1, o2):
+    p2 = CustomValue('p-sp', (o2,))
     return p2,
 
-def opt_insert_fn(o, r):
-    p2 = CustomValue('p-si', (r,))
+def opt_insert_fn(o1, o2):
+    p2 = CustomValue('p-si', (o2,))
     return p2,
 
-def opt_motion_fn(o, p, g):
-    q = CustomValue('q-ik', (p,))
-    t = CustomValue('t-ik', tuple())
-    return q, t
+def opt_motion_fn(a, q1, q2):
+    t = CustomValue('t-pbm', (q1, q2))
+    return t,
 
 #######################################################
 
@@ -120,7 +119,7 @@ class TAMPPlanner(object):
         init += [('Placeable', b1, b2) for b1, b2 in problem.init_placeable]
         init += [('Insertable', b1, b2) for b1, b2 in problem.init_insertable]
         goal += [('Holding', a, b) for a, b in problem.goal_holding] + \
-                [('On', a, b) for a, b in problem.goal_on] + \
+                [('On', a, b) for a, b in problem.goal_placed] + \
                 [('InHole', a, b) for a, b in problem.goal_inserted] + \
                 [('Cleaned', b)  for b in problem.goal_cleaned] + \
                 [('Cooked', b)  for b in problem.goal_cooked]
