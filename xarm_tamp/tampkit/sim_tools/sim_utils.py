@@ -274,8 +274,8 @@ def set_transform_local(
     if prim.GetAttribute("xformOp:transform").IsValid():
         prim.GetAttribute("xformOp:transform").Set(Gf.Matrix4d(transform.T), time_code)
     else:
-        translation = transform[:3, 3].tolist()  # TODO
-        rot = Rotation.from_matrix(transform[:3, :3])  # TODO
+        translation = transform[:3, 3].tolist()
+        rot = Rotation.from_matrix(transform[:3, :3])
         rot_quat = rot.as_quat()
         rot_quat_real = rot_quat[-1]
         rot_quat_imag = Gf.Vec3f(rot_quat[0:3].tolist())

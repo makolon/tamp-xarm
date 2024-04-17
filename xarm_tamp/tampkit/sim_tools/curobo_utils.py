@@ -48,23 +48,30 @@ def get_robot_cfg(cfg: dict):
 
 def get_world_cfg(cfg: dict):
     # load world config from curobo content/config/world
-    cuboid_cfg, mesh_cfg = [], []
+    world_cfg_cuboid, world_cfg_mesh = None, None
     for _, val in cfg.items():
         if val.type == 'cuboid':
             world_cfg_cuboid = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
-            cuboid_cfg.append(world_cfg_cuboid.cuboid)
         elif val.type == 'mesh':
             world_cfg_mesh = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
-            mesh_cfg.append(world_cfg_mesh.mesh)
 
-    world_cfg = WorldConfig(
-        cuboid=cuboid_cfg[0],  # TODO
-        mesh=mesh_cfg,
-    )
+    if world_cfg_mesh is None:
+        world_cfg = WorldConfig(
+            cuboid=world_cfg_cuboid.cuboid
+        )
+    elif world_cfg_mesh is None:
+        world_cfg = WorldConfig(
+            mesh=world_cfg_mesh.mesh
+        )
+    else:
+        world_cfg = WorldConfig(
+            cuboid=world_cfg_cuboid.cuboid,
+            mesh=world_cfg_mesh.mesh,
+        )
     return world_cfg
 
 def get_motion_gen_plan_cfg(cfg: dict):
@@ -150,16 +157,16 @@ def get_motion_gen_cfg(cfg: dict,
         tensor_args,
         collision_checker_type=CollisionCheckerType.MESH,
         use_cuda_graph=cfg.motion_gen_cfg.use_cuda_graph,
-        # num_trajopt_seeds=cfg.motion_gen_cfg.num_trajopt_seeds,
-        # num_graph_seeds=cfg.motion_gen_cfg.num_graph_seeds,
-        # interpolation_dt=cfg.motion_gen_cfg.interpolation_dt,
-        # collision_cache={
-        #     "obb": cfg.motion_gen_cfg.n_obstacle_cuboids,
-        #     "mesh": cfg.motion_gen_cfg.n_obstacle_mesh},
-        # optimize_dt=cfg.motion_gen_cfg.optimize_dt,
-        # trajopt_dt=cfg.motion_gen_cfg.trajopt_dt,
-        # trajopt_tsteps=cfg.motion_gen_cfg.trajopt_tsteps,
-        # trim_steps=cfg.motion_gen_cfg.trim_steps,
+        num_trajopt_seeds=cfg.motion_gen_cfg.num_trajopt_seeds,
+        num_graph_seeds=cfg.motion_gen_cfg.num_graph_seeds,
+        interpolation_dt=cfg.motion_gen_cfg.interpolation_dt,
+        collision_cache={
+            "obb": cfg.motion_gen_cfg.n_obstacle_cuboids,
+            "mesh": cfg.motion_gen_cfg.n_obstacle_mesh},
+        optimize_dt=cfg.motion_gen_cfg.optimize_dt,
+        trajopt_dt=cfg.motion_gen_cfg.trajopt_dt,
+        trajopt_tsteps=cfg.motion_gen_cfg.trajopt_tsteps,
+        trim_steps=cfg.motion_gen_cfg.trim_steps,
     )
     return motion_gen_cfg
 
@@ -226,8 +233,24 @@ def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
 def get_closest_point():
     pass
 
-def add_fixed_constraint():
-    pass
+def add_fixed_constraint(robot, obj, motion_gen):
+    tensor_args = get_tensor_device_type()
+    sim_js = robot.get_joints_state()
+    cu_js = JointState(
+        position=tensor_args.to_device(sim_js.positions),
+        velocity=tensor_args.to_device(sim_js.velocities) * 0.0,
+        acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
+        jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
+        joint_names=robot.joint_names  # TODO
+    )
 
-def remove_fixed_constraint():
-    pass
+    motion_gen.attach_objects_to_robot(
+        cu_js,
+        [obj.name],
+        sphere_fit_type=SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
+        world_objects_pose_offset=Pose.from_list(
+            [0, 0, 0.01, 1, 0, 0, 0], tensor_args)
+    )
+
+def remove_fixed_constraint(motion_gen):
+    motion_gen.detach_object_from_robot()
