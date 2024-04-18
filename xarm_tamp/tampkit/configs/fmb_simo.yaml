@@ -119,6 +119,7 @@ sim:
     restitution: 0.0
 
   table:
+    table_name: table
     translation: [0.3, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]

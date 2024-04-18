@@ -119,12 +119,13 @@ sim:
     restitution: 0.0
 
   table:
-    translation: [0.3, 0.0, 0.0]
+    table_name: table
+    translation: [0.3, 0.0, 0.025]
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]
-    width: 1.0
-    depth: 1.0
-    height: 0.1
+    width: 0.4
+    depth: 0.4
+    height: 0.05
     size: 1.0
 
   robot:
@@ -134,34 +135,44 @@ sim:
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   base_block:
-    name: base_block
+    name: base
     task: momo
-    translation: [0.3, -0.2, 0.1]
+    position: [0.3, 0.0, 0.1]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
+    scale: [0.5, 0.5, 0.5]
 
   block1:
     name: block1
     task: momo
-    translation: [0.3, 0.0, 0.1]
+    position: [0.3, 0.0, 0.1]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
+    scale: [0.5, 0.5, 0.5]
 
   block2:
     name: block2
     task: momo
-    translation: [0.4, 0.1, 0.1]
+    position: [0.4, 0.1, 0.1]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
+    scale: [0.5, 0.5, 0.5]
 
   block3:
     name: block3
     task: momo
-    translation: [0.4, 0.0, 0.1]
+    position: [0.4, 0.0, 0.1]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
+    scale: [0.5, 0.5, 0.5]
 
   block4:
     name: block4
     task: momo
-    translation: [0.3, 0.1, 0.1]
+    position: [0.3, 0.1, 0.1]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
+    scale: [0.5, 0.5, 0.5]
 
   surface1:
     name: surface1

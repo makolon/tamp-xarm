@@ -77,8 +77,8 @@ def create_floor(world, plane_cfg):
 
 def create_block(block_name, translation, orientation):
     block = cuboid.DynamicCuboid(
-        f"/World/{block_name}",
-        f"{block_name}",
+        prim_path=f"/World/{block_name}",
+        name=f"{block_name}",
         translation=translation,
         orientation=orientation,
         color=np.array([1.0, 1.0, 1.0]),
@@ -88,8 +88,8 @@ def create_block(block_name, translation, orientation):
 
 def create_surface(surface_name, translation, orientation):
     surface = cuboid.VisualCuboid(
-        f"/World/{surface_name}",
-        f"{surface_name}",
+        prim_path=f"/World/{surface_name}",
+        name=f"{surface_name}",
         translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
@@ -114,6 +114,7 @@ def create_table(table_cfg):
     table = cuboid.FixedCuboid(
         prim_path=f"/World/{table_cfg.table_name}",
         name=f"{table_cfg.table_name}",
+        position=np.array(table_cfg.position),
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),
@@ -127,6 +128,7 @@ def create_robot(robot_cfg):
         from xarm_tamp.tampkit.sim_tools.robots import xarm
         robot = xarm.xArm(
             prim_path="/World/xarm7",
+            position=np.array(robot_cfg.position),
             translation=np.array(robot_cfg.translation),
             orientation=np.array(robot_cfg.orientation),
         )
@@ -138,16 +140,22 @@ def create_fmb(fmb_cfg):
     if fmb_cfg.task == 'momo':
         from xarm_tamp.tampkit.sim_tools.objects import fmb_momo
         block = fmb_momo.Block(
-            f"/World/{fmb_cfg.name}",
+            prim_path=f"/World/{fmb_cfg.name}",
+            name=f"{fmb_cfg.name}",
+            position=np.array(fmb_cfg.position),
             translation=np.array(fmb_cfg.translation),
-            orientation=np.array(fmb_cfg.orientation)
+            orientation=np.array(fmb_cfg.orientation),
+            scale=np.array(fmb_cfg.scale),
         )
     elif fmb_cfg.task == 'simo':
         from xarm_tamp.tampkit.sim_tools.objects import fmb_simo
         block = fmb_simo.Block(
-            f"/World/{fmb_cfg.name}",
+            prim_path=f"/World/{fmb_cfg.name}",
+            name=f"{fmb_cfg.name}",
+            position=np.array(fmb_cfg.position),
             translation=np.array(fmb_cfg.translation),
-            orientation=np.array(fmb_cfg.orientation)
+            orientation=np.array(fmb_cfg.orientation),
+            scale=np.array(fmb_cfg.scale),
         )
     return block
 
