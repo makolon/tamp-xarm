@@ -21,7 +21,7 @@ from pxr import Usd
 ##################################################
 
 class BodyPose:
-    
+
     num = count()
     def __init__(self,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],

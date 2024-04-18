@@ -8,35 +8,36 @@ from omegaconf import DictConfig
 import xarm_tamp.tampkit.sim_tools.sim_utils
 
 from xarm_tamp.tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
+from xarm_tamp.tampkit.problems import PROBLEMS
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
-    connect, disconnect,
-    # Getter
-    get_pose, get_max_limit, get_arm_joints, get_gripper_joints,
-    get_joint_positions,
+    connect, disconnect, create_world
 )
 
-from xarm_tamp.tampkit.problems import PROBLEMS
-from xarm_tamp.tampkit.streams.plan_motion_stream import plan_motion_fn
-from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
-from xarm_tamp.tampkit.streams.place_stream import get_place_gen
-from xarm_tamp.tampkit.streams.insert_stream import get_insert_gen
-from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
-    get_cfree_traj_pose_test, get_supported, get_inserted
-from ..tamp_planner import TAMPPlanner
 
-config_name = input("Please input config from (assembly_config, stacking_config, ...)")
-@hydra.main(version_base=None, config_name=config_name, config_path="../configs")
+config_file = input("Please input the problem name from (simple_stacking, simple_fetch, fmb_momo, fmb_simo): ")
+@hydra.main(version_base=None, config_name=config_file, config_path="../configs")
 def main(cfg: DictConfig):
-    tamp_planner = TAMPPlanner(
-        algorithm=cfg.pddlstream.algorithm,
-        unit=cfg.pddlstream.unit,
-        deterministic=cfg.pddlstream.deternimistic,
-        problem=cfg.pddlstream.problem,
-        cfree=cfg.pddlstream.cfree,
-        teleport=cfg.pddlstream.teleport
-    )
-    tamp_planner.execute(cfg.sim, cfg.curobo)
+    # connect
+    sim_app = connect()
+
+    # create world
+    world = create_world()
+
+    # Instanciate problem 
+    problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
+    if cfg.pddlstream.problem not in problem_from_name:
+        raise ValueError(cfg.pddlstream.problem)
+    print('Problem:', cfg.pddlstream.problem)
+    problem_fn = problem_from_name[cfg.pddlstream.problem]
+    tamp_problem = problem_fn(cfg.sim, cfg.curobo)
+
+    while sim_app.is_running():
+        world.step(render=True)
+        if not world.is_playing():
+            continue
+        
+    disconnect()
 
 
 if __name__ == '__main__':

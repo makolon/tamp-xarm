@@ -63,7 +63,8 @@ def opt_motion_fn(a, q1, q2):
 #######################################################
 
 class TAMPPlanner(object):
-    def __init__(self, algorithm, unit, deterministic, problem, cfree, teleport):
+    def __init__(self, task, algorithm, unit, deterministic, problem, cfree, teleport):
+        self._task = task
         self._algorithm = algorithm
         self._unit = unit
         self._deterministic = deterministic
@@ -79,15 +80,15 @@ class TAMPPlanner(object):
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
 
-        domain_pddl = read(get_file_path(__file__, 'problems/assembly/pddl/domain.pddl'))
-        stream_pddl = read(get_file_path(__file__, 'problems/assembly/pddl/stream.pddl'))
+        domain_pddl = read(get_file_path(__file__, f'problems/{self._task}/pddl/domain.pddl'))
+        stream_pddl = read(get_file_path(__file__, f'problems/{self._task}/pddl/stream.pddl'))
         constant_map = {}
 
         # Initlaize init & goal
         init, goal = [AND], [AND]
 
+        # Cost
         init += [
-            ('CanMove',),
             Equal(('PickCost',), 1),
             Equal(('PlaceCost',), 1),
             Equal(('InsertCost',), 1),
@@ -99,21 +100,25 @@ class TAMPPlanner(object):
         init += [('Arm', robot), ('HandEmpty', robot),
                  ('Conf', conf), ('AtConf', robot, conf)]
 
+        # Body
         for body in problem.movable:
             pose = BodyPose(body, get_pose(body))
-            init += [('Graspable', body),
+            init += [('Object', body),
+                     ('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
 
-        # Surface pose
+        # Surface
         for body in problem.surfaces:
             pose = BodyPose(body, get_pose(body))
-            init += [('RegionPose', body, pose)]
+            init += [('Region', body),
+                     ('RegionPose', body, pose)]
 
-        # Hole pose
+        # Hole
         for body in problem.holes:
             pose = BodyPose(body, get_pose(body))
-            init += [('HolePose', body, pose)]
+            init += [('Hole', body),
+                     ('HolePose', body, pose)]
 
         init += [('Inserted', b1) for b1 in problem.holes]
         init += [('Placeable', b1, b2) for b1, b2 in problem.init_placeable]
@@ -216,9 +221,11 @@ class TAMPPlanner(object):
         disconnect()
 
 
-@hydra.main(version_base=None, config_name="assembly_config", config_path="./configs")
+config_file = input("Please input the problem name from (simple_stacking, simple_fetch, fmb_momo, fmb_simo): ")
+@hydra.main(version_base=None, config_name=config_file, config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(
+        task=cfg.pddlstream.task,
         algorithm=cfg.pddlstream.algorithm,
         unit=cfg.pddlstream.unit,
         deterministic=cfg.pddlstream.deterministic,

@@ -81,8 +81,8 @@ def create_block(block_name, translation, orientation):
         f"{block_name}",
         translation=translation,
         orientation=orientation,
-        color=np.array([0., 0., 0.]),
-        size=0.01,
+        color=np.array([1.0, 1.0, 1.0]),
+        size=0.03,
     )
     return block
 
@@ -94,24 +94,26 @@ def create_surface(surface_name, translation, orientation):
         orientation=orientation,
         color=np.array([0., 0., 0.]),
         size=0.01,
+        visible=False,
     )
     return surface
 
 def create_hole(hole_name, translation, orientation):
     hole = cuboid.VisualCuboid(
-        f"/World/{hole_name}",
-        f"{hole_name}",
+        prim_path=f"/World/{hole_name}",
+        name=f"{hole_name}",
         translation=translation,
         orientation=orientation,
         color=np.array([0., 0., 0.]),
         size=0.01,
+        visible=False,
     )
     return hole
 
 def create_table(table_cfg):
-    table = cuboid.VisualCuboid(
-        "/World/table",
-        "table",
+    table = cuboid.FixedCuboid(
+        prim_path=f"/World/{table_cfg.table_name}",
+        name=f"{table_cfg.table_name}",
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),

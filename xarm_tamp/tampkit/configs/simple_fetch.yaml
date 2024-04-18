@@ -1,9 +1,10 @@
 # PDDLStream problem
 pddlstream:
+  task: carrying
   algorithm: adaptive
   unit: True
   deterministic: True
-  problem: fmb_momo_problem
+  problem: carrying_problem
   cfree: True
   teleport: False
 
@@ -117,13 +118,24 @@ sim:
     dynamic_friction: 1.0
     restitution: 0.0
 
-  table:
-    translation: [0.3, 0.0, 0.0]
+  table1:
+    table_name: table1
+    translation: [0.3, -0.2, 0.025]
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]
-    width: 1.0
-    depth: 1.0
-    height: 0.1
+    width: 0.3
+    depth: 0.3
+    height: 0.05
+    size: 1.0
+
+  table2:
+    table_name: table2
+    translation: [0.3, 0.2, 0.025]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+    color: [0.0, 0.0, 0.0]
+    width: 0.3
+    depth: 0.3
+    height: 0.05
     size: 1.0
 
   robot:
@@ -132,74 +144,10 @@ sim:
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
-  base_block:
-    name: base_block
-    task: momo
-    translation: [0.3, -0.2, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
   block1:
     name: block1
-    task: momo
-    translation: [0.3, 0.0, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  block2:
-    name: block2
-    task: momo
-    translation: [0.4, 0.1, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  block3:
-    name: block3
-    task: momo
-    translation: [0.4, 0.0, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  block4:
-    name: block4
-    task: momo
-    translation: [0.3, 0.1, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface1:
-    name: surface1
-    translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface2:
-    name: surface2
-    translation: [0.0, 0.0, 0.11]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface3:
-    name: surface3
-    translation: [0.0, 0.0, 0.11]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface4:
-    name: surface4
-    translation: [0.0, 0.0, 0.11]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole1:
-    name: hole1
-    translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole2:
-    name: hole2
-    translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole3:
-    name: hole3
-    translation: [0.0, 0.0, 0.0]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole4:
-    name: hole4
-    translation: [0.0, 0.0, 0.0]
+    task: carrying
+    translation: [0.3, -0.2, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   parts:

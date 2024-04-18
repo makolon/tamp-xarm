@@ -1,7 +1,5 @@
 (define (stream stacking-tamp)
   (:stream sample-grasp
-    ; object ?o must be graspable and output ?g mush satisfy grasp condition
-
     :inputs (?o)
     :domain (Graspable ?o)
     :outputs (?g)
@@ -9,9 +7,6 @@
   )
 
   (:stream sample-place
-    ; object ?o mush be placeable on the surface ?r 
-    ;   and output mush be stable on the surface ?r at pose ?p
-
     :inputs (?o1 ?o2)
     :domain (Placeable ?o1 ?o2)
     :outputs (?p)
@@ -19,9 +14,6 @@
   )
 
   (:stream sample-insert
-    ; object ?o mush be placeable on the surface ?r 
-    ;   and output mush be stable on the surface ?r at pose ?p
-
     :inputs (?o1 ?o2)
     :domain (Insertable ?o1 ?o2)
     :outputs (?p)
@@ -42,8 +34,8 @@
   )
 
   (:stream test-cfree-approach-pose
-    :inputs (?o1 ?p1 ?g1 ?o2 ?p2)
-    :domain (and (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
+    :inputs (?a ?o1 ?p1 ?g1 ?o2 ?p2)
+    :domain (and (Arm ?a) (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
     :certified (CFreeApproachPose ?o1 ?p1 ?g1 ?o2 ?p2)
   )
 

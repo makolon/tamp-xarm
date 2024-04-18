@@ -27,7 +27,7 @@ from xarm_tamp.tampkit.sim_tools.curobo_utils import (
 from xarm_tamp.tampkit.problems.base_problem import Problem
 
 
-def stacking_problem(sim_cfg, curobo_cfg):
+def carrying_problem(sim_cfg, curobo_cfg):
     world = create_world()
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
@@ -43,26 +43,18 @@ def stacking_problem(sim_cfg, curobo_cfg):
     initial_conf = get_initial_conf(xarm)
     set_initial_conf(xarm, initial_conf)
 
-    # create table
-    table = create_table(sim_cfg.table)
-    set_pose(table, sim_cfg.table.translation, sim_cfg.table.orientation)
+    # create table1
+    table1 = create_table(sim_cfg.table1)
+    set_pose(table1, sim_cfg.table1.translation, sim_cfg.table1.orientation)
+
+    # create table2
+    table2 = create_table(sim_cfg.table2)
+    set_pose(table2, sim_cfg.table2.translation, sim_cfg.table2.orientation)
 
     # set momo parts
     block1 = create_block(sim_cfg.block1.name,
                           sim_cfg.block1.translation,
                           sim_cfg.block1.orientation)
-
-    block2 = create_block(sim_cfg.block2.name,
-                          sim_cfg.block2.translation,
-                          sim_cfg.block2.orientation)
-
-    block3 = create_block(sim_cfg.block3.name,
-                          sim_cfg.block3.translation,
-                          sim_cfg.block3.orientation)
-
-    block4 = create_block(sim_cfg.block4.name,
-                          sim_cfg.block4.translation,
-                          sim_cfg.block4.orientation)
 
     ########################
 
@@ -137,16 +129,12 @@ def stacking_problem(sim_cfg, curobo_cfg):
     return Problem(
         # PDDL
         robot=xarm,
-        movable=[block1, block2, block3, block4],
-        fixed=[table],
-        surfaces=[table, block1, block2, block3, block4],
-        bodies=[table, block1, block2, block3, block4],
-        init_placeable=[
-            (block1, block2), (block2, block3),
-            (block3, block4)],
-        goal_placed=[
-            (block1, block2), (block2, block3),
-            (block3, block4)],
+        movable=[block1],
+        fixed=[table1, table2],
+        surfaces=[table1, table2],
+        bodies=[block1],
+        init_placeable=[(block1, table2)],
+        goal_placed=[(block1, table2)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
