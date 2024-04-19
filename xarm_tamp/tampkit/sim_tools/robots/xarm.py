@@ -18,7 +18,6 @@ class xArm(Robot):
         prim_path: str,
         name: Optional[str] = "xarm7",
         usd_path: Optional[str] = None,
-        position: Optional[np.ndarray] = None,
         translation: Optional[np.ndarray] = None,
         orientation: Optional[np.ndarray] = None,
         end_effector_prim_name: Optional[str] = None,
@@ -60,7 +59,6 @@ class xArm(Robot):
         super().__init__(
             prim_path=prim_path,
             name=name,
-            position=position,
             translation=translation,
             orientation=orientation,
             articulation_controller=None

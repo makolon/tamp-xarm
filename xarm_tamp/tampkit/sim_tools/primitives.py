@@ -31,21 +31,21 @@ class BodyPose:
         self.body = body
         self.pose = pose
         self.index = next(self.num)
-        
+
     @property
     def value(self):
         return self.pose
-    
+
     def assign(self):
         set_pose(self.body, self.pose)
         return self.pose
-    
+
     def __repr__(self):
         index = self.index
         return 'p{}'.format(index)
     
 class BodyGrasp:
-    
+
     num = count()
     def __init__(self,
                  robot: Robot,
@@ -59,27 +59,27 @@ class BodyGrasp:
         self.grasp_pose = grasp_pose
         self.approach_pose = approach_pose
         self.index = next(self.num)
-        
+
     @property
     def value(self):
         return self.grasp_pose
-    
+
     @property
     def approach(self):
         return self.approach_pose
-    
+
     def assign(self):
         parent_link_pose = get_link_pose(self.robot, self.link)
         child_pose = multiply(parent_link_pose, self.grasp_pose)
         set_pose(self.body, child_pose)
         return child_pose
-    
+
     def __repr__(self):
         index = self.index
         return 'g{}'.format(index)
-    
+
 class BodyConf:
-    
+
     num = count()
     def __init__(self,
                  robot: Robot,
@@ -93,21 +93,21 @@ class BodyConf:
         self.joints = joints
         self.configuration = configuration
         self.index = next(self.num)
-        
+
     @property
     def value(self):
         return self.configuration
-    
+
     def assign(self):
         set_joint_positions(self.robot, self.joints, self.configuration)
         return self.configuration
-    
+
     def __repr__(self):
         index = self.index
         return 'q{}'.format(index)
-    
+
 class BodyPath:
-    
+
     def __init__(self,
                  robot: Robot,
                  path: List[ArticulationAction],
@@ -119,17 +119,17 @@ class BodyPath:
         self.path = path
         self.joints = joints
         self.attachments = attachments
-        
+
     def bodies(self):
         return set([self.robot] + [attachment.body for attachment in self.attachments])
-    
+
     def iterator(self):
         for i, configuration in enumerate(self.path):
             set_joint_positions(self.robot, self.joints, configuration)
             for grasp in self.attachments:
                 grasp.assign()
             yield i
-            
+
     def control(self, dt=0):
         for values in self.path:
             apply_action(self.robot, self.joints, values)
@@ -144,30 +144,30 @@ class BodyPath:
         return '{}({},{},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path), len(self.attachments))
 
 class Command:
-    
+
     num = count()
     def __init__(self, body_paths):
         self.body_paths = body_paths
         self.index = next(self.num)
-        
+
     def bodies(self):
         return set(flatten(path.bodies() for path in self.body_paths))
-    
+
     def step(self):
         for i, body_path in enumerate(self.body_paths):
             for j in body_path.iterator():
                 msg = '{},{}) step>'.format(i, j)
                 print(msg)
-                
+
     def execute(self, time_step=0.05):
         for i, body_path in enumerate(self.body_paths):
             for j in body_path.iterator():
                 time.sleep(time_step)
-                
+
     def control(self):
         for body_path in self.body_paths:
             body_path.control()
-            
+
     def refine(self, **kwargs):
         return self.__class__([body_path.refine(**kwargs) for body_path in self.body_paths])
 
@@ -187,7 +187,7 @@ class Attach:
         self.body = body
         self.robot = robot
         self.link = link
-        
+
     def bodies(self):
         return {self.body, self.robot}
 
@@ -202,7 +202,7 @@ class Attach:
 
     def reverse(self):
         return Detach(self.body, self.robot, self.link)
-    
+
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
 
@@ -230,6 +230,6 @@ class Detach:
 
     def reverse(self):
         return Attach(self.body, self.robot, self.link)
-    
+
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)

@@ -63,7 +63,8 @@ def opt_motion_fn(a, q1, q2):
 #######################################################
 
 class TAMPPlanner(object):
-    def __init__(self, task, algorithm, unit, deterministic, problem, cfree, teleport):
+    def __init__(self, task, algorithm, unit, deterministic,
+                    problem, cfree, teleport, simulate):
         self._task = task
         self._algorithm = algorithm
         self._unit = unit
@@ -71,6 +72,7 @@ class TAMPPlanner(object):
         self._problem = problem
         self._cfree = cfree
         self._teleport = teleport
+        self._simulate = simulate
 
         np.set_printoptions(precision=2)
         if deterministic:
@@ -120,7 +122,6 @@ class TAMPPlanner(object):
             init += [('Hole', body),
                      ('HolePose', body, pose)]
 
-        init += [('Inserted', b1) for b1 in problem.holes]
         init += [('Placeable', b1, b2) for b1, b2 in problem.init_placeable]
         init += [('Insertable', b1, b2) for b1, b2 in problem.init_insertable]
         goal += [('Holding', a, b) for a, b in problem.goal_holding] + \
@@ -149,6 +150,7 @@ class TAMPPlanner(object):
     def post_process(self, problem, plan, teleport=False):
         if plan is None:
             return None
+
         paths = []
         for i, (name, args) in enumerate(plan):
             if name == 'move':
@@ -212,7 +214,7 @@ class TAMPPlanner(object):
         command = self.post_process(tamp_problem, plan)
 
         # Execute commands
-        if sim_cfg.simulate:
+        if self._simulate:
             command.control()
         else:
             command.execute()
@@ -232,6 +234,7 @@ def main(cfg: DictConfig):
         problem=cfg.pddlstream.problem,
         cfree=cfg.pddlstream.cfree,
         teleport=cfg.pddlstream.teleport,
+        simulate=cfg.pddlstream.simulate,
     )
     tamp_planer.execute(cfg.sim, cfg.curobo)
 

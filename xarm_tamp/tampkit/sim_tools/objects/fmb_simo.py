@@ -15,7 +15,6 @@ class Block(XFormPrim):
         name: Optional[str] = "block1",
         type: Optional[str] = 'assembly1',
         usd_path: Optional[str] = None,
-        position: Optional[np.ndarray] = None,
         translation: Optional[np.ndarray] = None,
         orientation: Optional[np.ndarray] = None,
         scale: Optional[np.ndarray] = None,
@@ -33,7 +32,6 @@ class Block(XFormPrim):
         super().__init__(
             prim_path=prim_path,
             name=name,
-            position=position,
             translation=translation,
             orientation=orientation,
             scale=scale,

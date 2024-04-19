@@ -7,6 +7,7 @@ pddlstream:
   problem: fmb_momo_problem
   cfree: True
   teleport: False
+  simulate: True
 
 # cuRobo
 curobo:
@@ -130,47 +131,41 @@ sim:
 
   robot:
     name: xarm7
-    position: [0.0, 0.0, 0.0]
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   base_block:
     name: base
     task: momo
-    position: [0.3, 0.0, 0.1]
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block1:
     name: block1
     task: momo
-    position: [0.3, 0.0, 0.1]
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block2:
     name: block2
     task: momo
-    position: [0.4, 0.1, 0.1]
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block3:
     name: block3
     task: momo
-    position: [0.4, 0.0, 0.1]
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block4:
     name: block4
     task: momo
-    position: [0.3, 0.1, 0.1]
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
@@ -181,17 +176,17 @@ sim:
 
   surface2:
     name: surface2
-    translation: [0.0, 0.0, 0.11]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface3:
     name: surface3
-    translation: [0.0, 0.0, 0.11]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface4:
     name: surface4
-    translation: [0.0, 0.0, 0.11]
+    translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole1:

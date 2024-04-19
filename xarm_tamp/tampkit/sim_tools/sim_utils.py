@@ -114,7 +114,6 @@ def create_table(table_cfg):
     table = cuboid.FixedCuboid(
         prim_path=f"/World/{table_cfg.table_name}",
         name=f"{table_cfg.table_name}",
-        position=np.array(table_cfg.position),
         translation=np.array(table_cfg.translation),
         orientation=np.array(table_cfg.orientation),
         color=np.array(table_cfg.color),
@@ -128,7 +127,6 @@ def create_robot(robot_cfg):
         from xarm_tamp.tampkit.sim_tools.robots import xarm
         robot = xarm.xArm(
             prim_path="/World/xarm7",
-            position=np.array(robot_cfg.position),
             translation=np.array(robot_cfg.translation),
             orientation=np.array(robot_cfg.orientation),
         )
@@ -142,7 +140,6 @@ def create_fmb(fmb_cfg):
         block = fmb_momo.Block(
             prim_path=f"/World/{fmb_cfg.name}",
             name=f"{fmb_cfg.name}",
-            position=np.array(fmb_cfg.position),
             translation=np.array(fmb_cfg.translation),
             orientation=np.array(fmb_cfg.orientation),
             scale=np.array(fmb_cfg.scale),
@@ -152,7 +149,6 @@ def create_fmb(fmb_cfg):
         block = fmb_simo.Block(
             prim_path=f"/World/{fmb_cfg.name}",
             name=f"{fmb_cfg.name}",
-            position=np.array(fmb_cfg.position),
             translation=np.array(fmb_cfg.translation),
             orientation=np.array(fmb_cfg.orientation),
             scale=np.array(fmb_cfg.scale),
