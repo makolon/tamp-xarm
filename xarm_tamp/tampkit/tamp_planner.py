@@ -104,6 +104,7 @@ class TAMPPlanner(object):
 
         # Body
         for body in problem.movable:
+            movable_body = body  # TODO: Fix
             pose = BodyPose(body, get_pose(body))
             init += [('Object', body),
                      ('Graspable', body),
@@ -129,6 +130,11 @@ class TAMPPlanner(object):
                 [('InHole', a, b) for a, b in problem.goal_inserted] + \
                 [('Cleaned', b)  for b in problem.goal_cleaned] + \
                 [('Cooked', b)  for b in problem.goal_cooked]
+
+        # TODO: Fix
+        goal = [AND]
+        goal += [('AtPose', movable_body, pose),
+                 ('HandEmpty', robot)]
 
         stream_map = {
             # Constrained sampler
@@ -223,7 +229,7 @@ class TAMPPlanner(object):
         disconnect()
 
 
-config_file = input("Please input the problem name from (simple_stacking, simple_fetch, fmb_momo, fmb_simo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, fmb_simo): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(

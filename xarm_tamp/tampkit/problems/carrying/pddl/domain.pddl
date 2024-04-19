@@ -1,4 +1,4 @@
-(define (domain stacking-tamp)
+(define (domain carrying-tamp)
   (:requirements :strips :equality)
   (:predicates
     ; Static predicates
@@ -25,7 +25,6 @@
     (AtGrasp ?a ?o ?g)
     (AtConf ?a ?q)
     (HandEmpty ?a)
-    (Placed ?o)
     (Supported ?o ?p ?r)
 
     ; Derived predicates
@@ -37,56 +36,42 @@
   )
 
   (:functions
-    (MoveCost ?t)
     (PickCost)
     (PlaceCost)
   )
 
-  (:action move
-    :parameters (?a ?q1 ?q2 ?t)
-    :precondition (and (Motion ?a ?q1 ?t ?q2)
-                       (AtConf ?a ?q1)
-                       (not (UnSafeTraj ?t)))
-    :effect (and (AtConf ?a ?q2)
-                 (not (AtConf ?a ?q1))
-                 (not (= ?q1 ?q2))
-                 (increase (total-cost) (MoveCost ?t)))
-  )
-
   (:action pick
-    :parameters (?a ?o ?p ?g ?q ?t)
-    :precondition (and (Kin ?a ?o ?p ?g ?q ?t)
-                       (HandEmpty ?a)
+    :parameters (?a ?o ?p ?g ?q1 ?q2 ?t)
+    :precondition (and (HandEmpty ?a)
                        (Graspable ?o)
-                       (AtConf ?a ?q)
+                       (AtConf ?a ?q1)
                        (AtPose ?o ?p)
                        (not (UnsafeApproach ?o ?p ?g))
                        (not (UnsafeTraj ?t)))
-    :effect (and (AtGrasp ?a ?o ?g)
+    :effect (and (AtConf ?a ?q2)
+                 (AtGrasp ?a ?o ?g)
                  (not (AtPose ?o ?p))
                  (not (HandEmpty ?a))
                  (increase (total-cost) (PickCost)))
   )
 
   (:action place
-    :parameters (?a ?o1 ?r ?p ?g ?q ?t)
-    :precondition (and (Kin ?a ?o1 ?p ?g ?q ?t)
-                       (AtConf ?a ?q)
+    :parameters (?a ?o1 ?r ?p ?g ?q1 ?q2 ?t)
+    :precondition (and (AtConf ?a ?q1)
                        (AtGrasp ?a ?o1 ?g)
                        (Placeable ?o1 ?r)
                        (not (HandEmpty ?a))
                        (not (UnsafePose ?o1 ?p))
                        (not (UnsafeApproach ?o1 ?p ?g))
                        (not (UnsafeTraj ?t)))
-    :effect (and (AtPose ?o1 ?p)
-                 (Placed ?o1)
+    :effect (and (AtConf ?a ?q2)
+                 (AtPose ?o1 ?p)
                  (HandEmpty ?a)
                  (increase (total-cost) (PlaceCost)))
   )
 
   (:derived (On ?o1 ?o2)
-    (exists (?p) (and (Placed ?o1)
-                      (Supported ?o1 ?p ?o2)
+    (exists (?p) (and (Supported ?o1 ?p ?o2)
                       (AtPose ?o1 ?p)))
   )
 
