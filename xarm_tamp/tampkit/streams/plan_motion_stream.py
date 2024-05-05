@@ -58,24 +58,3 @@ def get_motion_fn(problem, collisions=True, teleport=False):
         return (conf, command)
 
     return fn
-
-def plan_motion_fn(problem, max_attempts=25, teleport=False, **kwargs):
-    motion_fn = get_motion_fn(problem, teleport=teleport, **kwargs)
-
-    def gen_fn(*inputs):
-        b, p, g = inputs
-        attempts = 0
-        while True:
-            if max_attempts <= attempts:
-                if not p.init:
-                    return
-                attempts = 0
-                yield None
-            attempts += 1
-            plan = motion_fn(*(inputs))
-            if plan is None:
-                continue
-            print('Planning attempts:', attempts)
-            yield plan
-            return
-    return gen_fn

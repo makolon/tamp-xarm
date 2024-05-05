@@ -11,15 +11,14 @@ from xarm_tamp.tampkit.streams.plan_motion_stream import get_motion_fn
 from xarm_tamp.tampkit.streams.test_stream import *
 
 
-
 ### Grasp Stream Test
-def grasp_stream_test(problem, world):
+def grasp_stream_test(problem):
     grasp_gen = get_grasp_gen(problem)
 
-    bodies = problem.bodies
+    bodies = problem.movable
     print('bodies:', bodies)
     for _ in range(100):
-        body = random.choise(bodies)
+        body = random.choice(bodies)
         grasp = grasp_gen(body)
         print('grasp:', grasp)
         print('grasp value:', grasp.value)
@@ -28,31 +27,31 @@ def grasp_stream_test(problem, world):
         time.sleep(0.1)
 
 
-### Insert Stream Test
-def insert_stream_test(problem, world):
-    insert_gen = get_insert_gen(problem)
-
-    bodies = problem.bodies
-    for _ in range(100):
-        body = random.choise(bodies)
-        insert = insert_gen(body)
-        print('insert:', insert)
-        print('insert value:', insert.value)
-        insert.assign()
-        time.sleep(0.1)
-
-
 ### Place Stream Test
-def place_stream_test(problem, world):
+def place_stream_test(problem):
     place_gen = get_place_gen(problem)
 
-    bodies = problem.bodies
+    bodies = problem.movable
     for _ in range(100):
-        body = random.choise(bodies)
+        body = random.choice(bodies)
         place = place_gen(body)
         print('place:', place)
         print('place value:', place.value)
         place.assign()
+        time.sleep(0.1)
+
+
+### Insert Stream Test
+def insert_stream_test(problem):
+    insert_gen = get_insert_gen(problem)
+
+    bodies = problem.movable
+    for _ in range(100):
+        body = random.choice(bodies)
+        insert = insert_gen(body)
+        print('insert:', insert)
+        print('insert value:', insert.value)
+        insert.assign()
         time.sleep(0.1)
 
 
@@ -61,8 +60,11 @@ def plan_motion_stream_test(problem):
     plan_motion_fn = get_motion_fn(problem)
 
     bodies = problem.bodies
+    print('bodies:', bodies)
+    pose = BodyPose()
+    grasp = BodyGrasp()
     for _ in range(100):
-        body = random.choise(bodies)
+        body = random.choice(bodies)
         plan = plan_motion_fn(body, pose, grasp)
         print('plan:', plan)
         time.sleep(0.1)
@@ -73,7 +75,7 @@ def test_stream_test(problem):
     pass
 
 
-@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
+@hydra.main(version_base=None, config_name="fmb_momo", config_path="../configs")
 def main(cfg: DictConfig):
     assembly_problem = fmb_momo_problem(cfg.sim, cfg.curobo)
 

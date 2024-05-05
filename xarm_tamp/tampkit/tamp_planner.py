@@ -104,7 +104,6 @@ class TAMPPlanner(object):
 
         # Body
         for body in problem.movable:
-            movable_body = body  # TODO: Fix
             pose = BodyPose(body, get_pose(body))
             init += [('Object', body),
                      ('Graspable', body),
@@ -131,11 +130,6 @@ class TAMPPlanner(object):
                 [('Cleaned', b)  for b in problem.goal_cleaned] + \
                 [('Cooked', b)  for b in problem.goal_cooked]
 
-        # TODO: Fix
-        goal = [AND]
-        goal += [('AtPose', movable_body, pose),
-                 ('HandEmpty', robot)]
-
         stream_map = {
             # Constrained sampler
             'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
@@ -160,15 +154,19 @@ class TAMPPlanner(object):
         paths = []
         for i, (name, args) in enumerate(plan):
             if name == 'move':
+                print('move args:', args)
                 a, q1, q2, c = args
                 new_commands = c.commands
             elif name == 'pick':
+                print('pick args:', args)
                 a, o, p, g, q, c = args
                 new_commands = c.commands
             elif name == 'place':
+                print('place args:', args)
                 a, o1, o2, p, g, q, c = args
                 new_commands = c.commands
             elif name == 'insert':
+                print('insert args:', args)
                 a, o1, o2, p, g, q, c = args
                 new_commands = c.commands
             else:

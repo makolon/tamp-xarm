@@ -1,4 +1,4 @@
-FROM curobo_docker:isaac_sim_2023.1.0
+FROM curobo_docker:isaac_sim_2023.1.1
 
 ENV DEBIAN_FRONTEND=noninteractive
 
