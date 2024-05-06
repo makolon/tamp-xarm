@@ -754,12 +754,8 @@ def iterate_approach_path(robot: Robot,
         if body is not None:
             set_pose(body, multiply(tool_pose, grasp.value))
         yield
-
-### Geometry API
-def read_obj():
-    pass
     
-### Collision API
+### Collision Geometry API
 
 def aabb_empty(aabb):
     lower, upper = aabb
@@ -823,10 +819,13 @@ def approximate_as_prism(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim
 def get_prim_geometry(prim: Usd.Prim) -> Dict[str, np.ndarray]:
     """Return the geometry elements (vertices and faces) for the given prim."""
     if not prim.IsA(UsdGeom.Mesh):
-        raise RuntimeError("Invalid prim type. Prim must be of type `UsdGeom.Mesh`.")
-    faces = prim.GetAttribute("faceVertexIndices").Get()
+        stage = prim.GetStage()
+        usd_geom = UsdGeom.Mesh(stage.GetPrimAtPath(prim))
+    else:
+        usd_geom = prim
+    faces = usd_geom.GetAttribute("faceVertexIndices").Get()
     faces = np.array(faces, dtype=np.int32).reshape(-1, 3)
-    vertices = prim.GetAttribute("points").Get()
+    vertices = usd_geom.GetAttribute("points").Get()
     vertices = np.array(vertices, dtype=np.float32).reshape(-1, 3)
     return dict(vertices=vertices, faces=faces)
 
@@ -842,12 +841,47 @@ def get_bounds(root_prim: Usd.Prim, time_code: Optional[Usd.TimeCode] = None):
     upper = np.array(prim_range.GetMax())
     return lower, upper
 
-# TODO
-def get_closest_points(body1, body2, link1, link2):
-    pass
+def get_closest_points(body1, body2, transform1=None, transform2=None, max_distance=0.):
+    """Calculates the closest points or collision detection between two mesh objects."""
+    if transform1 is None:
+        position, rotation = get_pose(body1)
+        transform1 = tf_matrices_from_poses(position, rotation)
+        assert transform1.size() == (4, 4), "The size of the transform does not match."
+    if transform2 is None:
+        position, rotation = get_pose(body2)
+        transform2 = tf_matrices_from_poses(position, rotation)
+        assert transform1.size() == (4, 4), "The size of the transform does not match."
 
-def pairwise_link_collision(body1, link1, body2, link2=None, **kwargs):
-    return len(get_closest_points(body1, body2, link1=link1, link2=link2, **kwargs)) != 0
+    _mesh1 = get_prim_geometry(body1.prim)
+    _mesh2 = get_prim_geometry(body2.prim)
+    mesh1 = trimesh.Trimesh(
+        vertices=_mesh1.vertices,
+        faces=_mesh1.faces
+    )
+    mesh2 = trimesh.Trimesh(
+        vertices=_mesh2.vertices,
+        faces=_mesh2.faces
+    )
+
+    transform1 = get_pose(body1)
+    transform2 = get_pose(body2)
+
+    mesh1.apply_transform(transform1)
+    mesh2.apply_transform(transform2)
+
+    distance = trimesh.proximity.signed_distance(mesh1, mesh2.vertices)
+    
+    if max_distance > 0:
+        close_distances = distance[np.abs(distance) <= max_distance]
+        if len(close_distances) > 0:
+            return np.min(np.abs(close_distances))
+        else:
+            return None
+    else:
+        return np.min(np.abs(distance))
+
+def pairwise_link_collision(body1, body2, **kwargs):
+    return len(get_closest_points(body1, body2, **kwargs)) != 0
 
 def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
     if links1 is None:
@@ -857,7 +891,7 @@ def any_link_pair_collision(body1, links1, body2, links2=None, **kwargs):
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(body1, link1, body2, link2, **kwargs):
+        if pairwise_link_collision(link1, link2, **kwargs):
             return True
     return False
 
@@ -897,19 +931,23 @@ def expand_links(robot: Robot, **kwargs):
 ### Mathmatic Utils
 
 def wrap_interval(value, interval=(0., 1.)):
+    """Wrap a given value into a specified interval."""
     lower, upper = interval
     assert lower <= upper
     return (value - lower) % (upper - lower) + lower
 
 def circular_difference(theta2, theta1, **kwargs):
+    """Calculate the circular difference between two angles, wrapped within the interval [-π, π)."""
     diff_theta = theta2 - theta1
     interval = (-np.pi, -np.pi + 2 * np.pi)
     return wrap_interval(diff_theta, interval=interval)
 
 def flatten(iterable_of_iterables):
+    """Flatten a nested iterable of iterables into a single generator yielding all inner elements."""
     return (item for iterables in iterable_of_iterables for item in iterables)
 
 def convex_combination(x, y, w=0.5):
+    """Compute the convex combination of two vectors."""
     return (1 - w) * np.array(x) + w * np.array(y)
 
 def unit_vector(data, axis=None, out=None):
