@@ -1,6 +1,5 @@
 import torch
 import argparse
-from collections import namedtuple
 
 from omni.isaac.kit import SimulationApp
 
@@ -30,6 +29,7 @@ import omni.isaac.core.utils.bounds as bounds_utils
 import omni.isaac.core.utils.mesh as mesh_utils
 import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.stage as stage_utils
+from collections import namedtuple
 from itertools import count, product
 from typing import Dict, List, Tuple, Optional, Sequence, Union, Callable, Iterable
 from scipy.spatial.transform import Rotation
@@ -166,17 +166,11 @@ def unit_quat():
 def unit_pose():
     return (unit_point(), unit_quat())
 
-def unit_from_theta(theta):
-    return np.array([np.cos(theta), np.sin(theta)])
-
 def get_point(body):
     return get_pose(body)[0]
 
-def get_unit_vector(vec, norm=2):
-    norm = np.linalg.norm(vec, ord=norm)
-    if norm == 0:
-        return vec
-    return np.array(vec) / norm
+def get_quat(body):
+    return get_pose(body)[1]
 
 ### Rigid Body API
 
@@ -357,7 +351,7 @@ def set_transform_relative(
 ### Link Utils
 
 def get_link(robot: Robot, name: str) -> Usd.Prim:
-    # get the prim of the link according to the given name in the robot.
+    """Get the prim of the link according to the given name in the robot."""
     link_prims = [link_prim for link_prim in robot.prim.GetChildren()]
     for link_prim in link_prims:
         if link_prim.GetName() == name:
@@ -367,14 +361,18 @@ def get_link(robot: Robot, name: str) -> Usd.Prim:
     return None
 
 def get_tool_link(robot: Robot, tool_name: str) -> Usd.Prim:
+    """Get the tool link in the robot."""
     tool_frame = get_link(robot, tool_name)
     return tool_frame
 
 def get_all_links(robot: Robot) -> List[Usd.Prim]:
+    """Get all links in the robot."""
     link_prims = [link_prim for link_prim in robot.prim.GetChildren()]
     return link_prims
 
 def get_moving_links(robot: Robot) -> List[Usd.Prim]:
+    """Get moving links in the robot."""
+    # TODO: add movable filter
     all_links = get_all_links(robot)
     return all_links
 
@@ -394,7 +392,7 @@ def get_child(prim: Usd.Prim, child_name: str = None) -> Optional[Usd.Prim]:
         if child_prim.GetName() == child_name:
             return child_prim
         else:
-            return children_prim[-1]
+            return children_prim[-1]  # TODO: fix -1
 
 def get_children(prim: Usd.Prim) -> Optional[List[Usd.Prim]]:
     """Get the children of prim if it exists."""
@@ -493,7 +491,8 @@ def get_joints_for_articulated_root(
 ) -> List[Usd.Prim]:
     """Get all the child joint prims from the given articulated root prim."""
     if joint_selector_func is None:
-        joint_selector_func = lambda prim: prim.IsA(UsdPhysics.Joint)
+        def joint_selector_func(prim):
+            return prim.IsA(UsdPhysics.Joint)
     stage = prim.GetStage()
     joint_prims = []
     for joint in filter(joint_selector_func, stage.Traverse()):
@@ -538,7 +537,7 @@ def get_movable_joints(robot: Robot, use_gripper: bool = False) -> Optional[Unio
 def get_joint_positions(robot: Robot,
                         joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     """Get joint positions."""
-    if joint_indices == None:
+    if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     joint_positions = robot.get_joint_positions(joint_indices=joint_indices)
     return joint_positions
@@ -546,7 +545,7 @@ def get_joint_positions(robot: Robot,
 def get_joint_velocities(robot: Robot,
                          joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     """Get joint velocities."""
-    if joint_indices == None:
+    if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     joint_velocities = robot.get_joint_velocities(joint_indices=joint_indices)
     return joint_velocities
@@ -585,7 +584,7 @@ def get_custom_limits(robot: Robot,
 def get_initial_conf(robot: Robot,
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
     """Get joint initial configuration."""
-    if joint_indices == None:
+    if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     state = robot.get_joints_default_state()
     if state is None:
@@ -655,8 +654,8 @@ def is_circular(robot: Robot,
         return False
     try:
         joint_index = robot.get_dof_index(joint.GetName())
-    except:
-        return False
+    except ValueError as e:
+        print(e)
     upper, lower = robot.dof_properties['upper'][joint_index], robot.dof_properties['lower'][joint_index]
     return upper < lower
 
@@ -756,7 +755,11 @@ def iterate_approach_path(robot: Robot,
             set_pose(body, multiply(tool_pose, grasp.value))
         yield
 
-### Collision Geomtry API
+### Geometry API
+def read_obj():
+    pass
+    
+### Collision API
 
 def aabb_empty(aabb):
     lower, upper = aabb
@@ -806,32 +809,38 @@ def is_insertion(body, hoke, **kwargs):
         return False
     return is_placed_on_aabb(body, get_aabb(hoke), **kwargs)
 
-def tform_point(affine, point):
-    return multiply(affine, [point, unit_quat()])[0]
-
-def apply_affine(affine, points):
-    return [tform_point(affine, p) for p in points]
-
-def vertices_from_rigid(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                        link: Usd.Prim
-    ) -> Optional[np.ndarray]:
-    """Get verticies from rigid body."""
-    try:
-        coord_prim = stage_utils.get_current_stage().GetPrimAtPath(link.prim_path)
-        vertices = mesh_utils.get_mesh_vertices_relative_to(body, coord_prim)
-        return vertices
-    except:
-        raise NotImplementedError("Please add vertices_from_link")
-
 def approximate_as_prism(body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                          body_pose = unit_pose(),
                          **kwargs):
     """Approximate rigid body as prism."""
-    vertices = apply_affine(body_pose, vertices_from_rigid(body, **kwargs))
+    geom = get_prim_geometry(body.prim)
+    vertices, surfaces = geom['vertices'], geom['surfaces']
     lower, upper = np.min(vertices, axis=0), np.max(vertices, axis=0) 
     diff = np.array(upper) - np.array(lower)
     center = (np.array(upper) + np.array(lower)) / 2.
     return center, diff
+
+def get_prim_geometry(prim: Usd.Prim) -> Dict[str, np.ndarray]:
+    """Return the geometry elements (vertices and faces) for the given prim."""
+    if not prim.IsA(UsdGeom.Mesh):
+        raise RuntimeError("Invalid prim type. Prim must be of type `UsdGeom.Mesh`.")
+    faces = prim.GetAttribute("faceVertexIndices").Get()
+    faces = np.array(faces, dtype=np.int32).reshape(-1, 3)
+    vertices = prim.GetAttribute("points").Get()
+    vertices = np.array(vertices, dtype=np.float32).reshape(-1, 3)
+    return dict(vertices=vertices, faces=faces)
+
+def get_bounds(root_prim: Usd.Prim, time_code: Optional[Usd.TimeCode] = None):
+    """Get the world axis-aligned bounds of geometry rooted at a prim."""
+    if time_code is None:
+        time_code = Usd.TimeCode.Default()
+    bbox_cache = UsdGeom.BBoxCache(time_code, includedPurposes=[UsdGeom.Tokens.default_])
+    bbox_cache.Clear()
+    prim_bbox = bbox_cache.ComputeWorldBound(root_prim)
+    prim_range = prim_bbox.ComputeAlignedRange()
+    lower = np.array(prim_range.GetMin())
+    upper = np.array(prim_range.GetMax())
+    return lower, upper
 
 # TODO
 def get_closest_points(body1, body2, link1, link2):
@@ -997,3 +1006,9 @@ def invert(pose: Optional[Union[list, np.ndarray, torch.Tensor]]
     result_pos = result[:3, 3]
     result_rot = Rotation.from_matrix(result[:3, :3]).as_matrix()
     return result_pos, result_rot
+
+def tform_point(affine, point):
+    return multiply(affine, [point, unit_quat()])[0]
+
+def apply_affine(affine, points):
+    return [tform_point(affine, p) for p in points]

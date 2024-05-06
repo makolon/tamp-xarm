@@ -28,8 +28,7 @@ from curobo.util_file import (
 from curobo.wrap.model.robot_world import RobotWorld, RobotWorldConfig
 # Reacher wrapper
 from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
-from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, \
-    MotionGenPlanConfig, MotionGenResult
+from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, MotionGenPlanConfig
 from curobo.wrap.reacher.mpc import MpcSolver, MpcSolverConfig
 
 ########################
@@ -200,37 +199,38 @@ def get_mpc_solver_cfg(cfg: dict,
 ########################
 
 def get_robot_world(robot_world_cfg: RobotWorldConfig = None):
-    if robot_world_cfg == None:
+    if robot_world_cfg is None:
         raise ValueError("robot_world_cfg is not specified.")
     return RobotWorld(robot_world_cfg)
 
 ########################
 
 def get_collision_checker(world_collision_cfg: WorldCollisionConfig = None):
-    if world_collision_cfg == None:
+    if world_collision_cfg is None:
         raise ValueError("world_collision_cfg is not specified.")
     return create_collision_checker(world_collision_cfg)
 
 ########################
 
 def get_ik_solver(ik_cfg: IKSolverConfig = None):
-    if ik_cfg == None:
+    if ik_cfg is None:
         raise ValueError("ik_cfg is not specified.")
     return IKSolver(ik_cfg)
 
 def get_motion_gen(motion_gen_cfg: MotionGenConfig = None):
-    if motion_gen_cfg == None:
+    if motion_gen_cfg is None:
         raise ValueError("motion_gen_cfg is not specified.")
     return MotionGen(motion_gen_cfg)
 
 def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
-    if mpc_cfg == None:
+    if mpc_cfg is None:
         raise ValueError("mpc_cfg is not specified.")
     return MpcSolver(mpc_cfg)
 
 ########################
 
 def get_closest_point():
+    # TODO: implement this function using Warp.
     pass
 
 def add_fixed_constraint(robot, obj, motion_gen):

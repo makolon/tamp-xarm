@@ -1,14 +1,17 @@
+import carb
 import hydra
 import torch
+import numpy as np
 from omegaconf import DictConfig
 from xarm_tamp.tampkit.sim_tools.sim_utils import *
 from xarm_tamp.tampkit.sim_tools.curobo_utils import *
 from omni.isaac.core.materials import OmniPBR
-from omni.isaac.core.objects import sphere
+from omni.isaac.core.objects import sphere, cuboid
+from omni.isaac.core.utils.types import ArticulationAction
 from omni.isaac.debug_draw import _debug_draw
 from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
 from curobo.rollout.cost.pose_cost import PoseCostMetric
-from curobo.util.logger import setup_curobo_logger, log_error, log_warn
+from curobo.util.logger import setup_curobo_logger, log_error
 from curobo.util.usd_helper import UsdHelper
 
 
@@ -410,7 +413,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     num_targets = 0
     cmd_idx = 0
     i = 0
-    while simulation_app.is_running():
+    while sim_app.is_running():
         world.step(render=True)
         if not world.is_playing():
             if i % 100 == 0:
@@ -581,7 +584,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
                 cmd_plan = None
                 past_cmd = None
 
-    simulation_app.close()
+    sim_app.close()
 
 
 ### MPC Test
@@ -651,7 +654,7 @@ def mpc_example(sim_cfg, curobo_cfg):
     cmd_state_full = None
     articulation_controller = None
     step = 0
-    while simulation_app.is_running():
+    while sim_app.is_running():
         if not init_world:
             for _ in range(10):
                 world.step(render=True)
@@ -763,7 +766,7 @@ def mpc_example(sim_cfg, curobo_cfg):
             carb.log_warn("No action is being taken.")
 
 
-@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
+@hydra.main(version_base=None, config_name="fmb_momo", config_path="../configs")
 def main(cfg: DictConfig):
 
     case = input('Input the number for test: ')
