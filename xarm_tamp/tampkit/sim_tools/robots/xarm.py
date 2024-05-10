@@ -39,9 +39,8 @@ class xArm(Robot):
 
             # end effector
             if self._end_effector_prim_name is None:
-                self._end_effector_prim_path = prim_path + "/fingertip_centered"
-            else:
-                self._end_effector_prim_path = prim_path + "/" + end_effector_prim_name
+                self._end_effector_prim_name = 'fingertip_centered'
+            self._end_effector_prim_path = prim_path + "/" + self._end_effector_prim_name
 
             # arm
             if arm_dof_names is None:

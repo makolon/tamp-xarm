@@ -45,7 +45,7 @@ def stacking_problem(sim_cfg, curobo_cfg):
 
     # create table
     table = create_table(sim_cfg.table)
-    set_pose(table, sim_cfg.table.translation, sim_cfg.table.orientation)
+    set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
 
     # set momo parts
     block1 = create_block(sim_cfg.block1.name,

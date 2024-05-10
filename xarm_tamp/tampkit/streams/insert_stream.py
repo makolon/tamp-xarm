@@ -17,6 +17,7 @@ def sample_insertion(body, hole, max_attempts=25, **kwargs):
     for _ in range(max_attempts):
         theta = np.random.uniform(*CIRCULAR_LIMITS)
         rotation = np.array([0., 0., theta])
+        print('Pose:', multiply([unit_point(), rotation], unit_pose()))
         set_pose(body, multiply([unit_point(), rotation], unit_pose()))
         center, extent = get_center_extent(body)
         hole_pose = get_point(hole)
@@ -37,7 +38,7 @@ def get_insert_gen(problem, collisions=True, **kwargs):
             holes = [hole]
 
         while True:
-            hole = random.choise(holes)
+            hole = random.choice(holes)
             pose = sample_insertion(body, hole, **kwargs)
             if (pose is None) or any(pairwise_collision(body, b) for b in obstacles):
                 continue

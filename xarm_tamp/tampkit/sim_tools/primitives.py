@@ -69,8 +69,8 @@ class BodyGrasp:
         return self.approach_pose
 
     def assign(self):
-        parent_link_pose = get_link_pose(self.robot, self.link)
-        child_pose = multiply(parent_link_pose, self.grasp_pose)
+        parent_link_pose = get_link_pose(self.robot, self.link.GetName())
+        child_pose = multiply(parent_link_pose, self.grasp_pose[0]) # TODO: fix
         set_pose(self.body, child_pose)
         return child_pose
 

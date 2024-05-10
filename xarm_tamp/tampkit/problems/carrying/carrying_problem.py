@@ -45,11 +45,11 @@ def carrying_problem(sim_cfg, curobo_cfg):
 
     # create table1
     table1 = create_table(sim_cfg.table1)
-    set_pose(table1, sim_cfg.table1.translation, sim_cfg.table1.orientation)
+    set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
 
     # create table2
     table2 = create_table(sim_cfg.table2)
-    set_pose(table2, sim_cfg.table2.translation, sim_cfg.table2.orientation)
+    set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
 
     # set momo parts
     block1 = create_block(sim_cfg.block1.name,

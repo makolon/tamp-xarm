@@ -16,43 +16,48 @@ def grasp_stream_test(problem):
     grasp_gen = get_grasp_gen(problem)
 
     bodies = problem.movable
-    print('bodies:', bodies)
     for _ in range(100):
         body = random.choice(bodies)
-        grasp = grasp_gen(body)
+        gen = grasp_gen(body)
+        grasp = next(gen)
         print('grasp:', grasp)
-        print('grasp value:', grasp.value)
-        print('approach:', grasp.approach)
-        grasp.assign()
-        time.sleep(0.1)
+        for g in grasp:
+            print('grasp value:', g.value)
+            print('approach:', g.approach)
+            g.assign()
+            time.sleep(0.1)
 
 
 ### Place Stream Test
 def place_stream_test(problem):
     place_gen = get_place_gen(problem)
 
-    bodies = problem.movable
+    bodies, surfaces = problem.movable, problem.surfaces
     for _ in range(100):
-        body = random.choice(bodies)
-        place = place_gen(body)
+        body, surface = random.choice(bodies), random.choice(surfaces)
+        gen = place_gen(body, surface)
+        place = next(gen)
         print('place:', place)
-        print('place value:', place.value)
-        place.assign()
-        time.sleep(0.1)
+        for p in place:
+            print('place value:', place.value)
+            place.assign()
+            time.sleep(0.1)
 
 
 ### Insert Stream Test
 def insert_stream_test(problem):
     insert_gen = get_insert_gen(problem)
 
-    bodies = problem.movable
+    bodies, holes = problem.movable, problem.holes
     for _ in range(100):
-        body = random.choice(bodies)
-        insert = insert_gen(body)
+        body, hole = random.choice(bodies), random.choice(holes)
+        gen = insert_gen(body, hole)
+        insert = next(gen)
         print('insert:', insert)
-        print('insert value:', insert.value)
-        insert.assign()
-        time.sleep(0.1)
+        for i in insert:
+            print('insert value:', insert.value)
+            insert.assign()
+            time.sleep(0.1)
 
 
 ### Plan Motion Stream Test

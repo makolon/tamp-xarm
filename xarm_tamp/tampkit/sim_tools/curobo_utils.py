@@ -229,10 +229,6 @@ def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
 
 ########################
 
-def get_closest_point():
-    # TODO: implement this function using Warp.
-    pass
-
 def add_fixed_constraint(robot, obj, motion_gen):
     tensor_args = get_tensor_device_type()
     sim_js = robot.get_joints_state()

@@ -16,8 +16,8 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 
 CIRCULAR_LIMITS = (10.0, 10.0)
 
-def sample_placement(top_body, bottom_body, bottom_link=None, max_attempts=25, **kwargs):
-    bottom_aabb = get_aabb(bottom_body, link=bottom_link)
+def sample_placement(top_body, bottom_body, max_attempts=25, **kwargs):
+    bottom_aabb = get_aabb(bottom_body)
     top_pose = get_pose(top_body)
     for _ in range(max_attempts):
         theta = np.random.uniform(*CIRCULAR_LIMITS)
@@ -47,7 +47,7 @@ def get_place_gen(problem, collisions=True, **kwargs):
             surfaces = [surface]
 
         while True:
-            surface = random.choise(surfaces)
+            surface = random.choice(surfaces)
             pose = sample_placement(body, surface, **kwargs)
             if (pose is None) or any(pairwise_collision(body, b) for b in obstacles):
                 continue

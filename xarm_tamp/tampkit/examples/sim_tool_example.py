@@ -91,6 +91,36 @@ def rigid_body_api_test(world):
         rotation = np.array([0., 0.5, 0.]) # TODO: add rotation velocity randomization from utils
         set_velocity(body, translation, rotation)
 
+    # set local transform
+    for body in rigid_bodies:
+        translation = np.array([0.0, 0.1, 0.0])
+        rotation = np.array([0.0, 0.0, 0.0, 1.0])
+        
+        transform = np.zeros(4, 4)
+        rot_mat = R.from_quat(rotation).as_matrix()
+        transform[:3, :3] = rot_max
+        transform[:3, 3] = translation
+        set_transform_local(body.prim, transform)
+
+    # set world transform
+    for body in rigid_bodies:
+        translation = np.array([0.0, 0.1, 0.0])
+        rotation = np.array([0.0, 0.0, 0.0, 1.0])
+
+        transform = np.zeros(4, 4)
+        rot_mat = R.from_quat(rotation).as_matrix()
+        transform[:3, :3] = rot_max
+        transform[:3, 3] = translation
+        set_transform_world(body.prim, transform)
+
+    # get local transform
+    for body in rigid_bodies:
+        pos, rot = get_transform_local(body.prim)
+
+    # get world transform
+    for body in rigid_bodies:
+        pos, rot = get_transform_world(body.prim)
+
 
 ### Link Utils
 def link_api_test(robot):
