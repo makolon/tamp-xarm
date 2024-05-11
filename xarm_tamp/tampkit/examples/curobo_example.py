@@ -478,12 +478,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
             joint_names=sim_js_names,
         )
-
-        if past_cmd is not None:
-            cu_js.position[:] = past_cmd.position
-            cu_js.velocity[:] = past_cmd.velocity
-            cu_js.acceleration[:] = past_cmd.acceleration
-
         cu_js = cu_js.get_ordered_joint_state(motion_gen.kinematics.joint_names)
 
         visualize_spheres = False

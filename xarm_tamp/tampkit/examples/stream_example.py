@@ -13,7 +13,7 @@ from xarm_tamp.tampkit.streams.test_stream import *
 
 ### Grasp Stream Test
 def grasp_stream_test(problem):
-    grasp_gen = get_grasp_gen(problem)
+    grasp_gen = get_grasp_gen(problem, collisions=False)
 
     bodies = problem.movable
     for _ in range(100):
@@ -23,14 +23,13 @@ def grasp_stream_test(problem):
         print('grasp:', grasp)
         for g in grasp:
             print('grasp value:', g.value)
-            print('approach:', g.approach)
             g.assign()
             time.sleep(0.1)
 
 
 ### Place Stream Test
 def place_stream_test(problem):
-    place_gen = get_place_gen(problem)
+    place_gen = get_place_gen(problem, collisions=False)
 
     bodies, surfaces = problem.movable, problem.surfaces
     for _ in range(100):
@@ -39,14 +38,14 @@ def place_stream_test(problem):
         place = next(gen)
         print('place:', place)
         for p in place:
-            print('place value:', place.value)
-            place.assign()
+            print('place value:', p.value)
+            p.assign()
             time.sleep(0.1)
 
 
 ### Insert Stream Test
 def insert_stream_test(problem):
-    insert_gen = get_insert_gen(problem)
+    insert_gen = get_insert_gen(problem, collisions=False)
 
     bodies, holes = problem.movable, problem.holes
     for _ in range(100):
@@ -55,8 +54,8 @@ def insert_stream_test(problem):
         insert = next(gen)
         print('insert:', insert)
         for i in insert:
-            print('insert value:', insert.value)
-            insert.assign()
+            print('insert value:', i.value)
+            i.assign()
             time.sleep(0.1)
 
 
@@ -66,11 +65,10 @@ def plan_motion_stream_test(problem):
 
     bodies = problem.bodies
     print('bodies:', bodies)
-    pose = BodyPose()
-    grasp = BodyGrasp()
+    pose = [np.array((0.25, 0.0, 0.3)), np.array((0., 0., 0., 1.))]
     for _ in range(100):
         body = random.choice(bodies)
-        plan = plan_motion_fn(body, pose, grasp)
+        plan = plan_motion_fn(body, pose)
         print('plan:', plan)
         time.sleep(0.1)
 
@@ -90,13 +88,13 @@ def main(cfg: DictConfig):
     print('###########################')
 
     print('###########################')
-    insert_stream_test(assembly_problem)
-    print('Insert Stream Ready!')
+    place_stream_test(assembly_problem)
+    print('Place Stream Ready!')
     print('###########################')
 
     print('###########################')
-    place_stream_test(assembly_problem)
-    print('Place Stream Ready!')
+    insert_stream_test(assembly_problem)
+    print('Insert Stream Ready!')
     print('###########################')
 
     print('###########################')

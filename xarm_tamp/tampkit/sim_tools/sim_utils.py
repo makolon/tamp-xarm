@@ -46,8 +46,6 @@ from omni.isaac.core.utils.types import ArticulationAction
 
 # Simulation API
 
-simulation_app = None
-
 def connect() -> 'SimulationApp':
     """
     Connect to the simulation application.
@@ -559,6 +557,189 @@ def set_transform_relative(prim: 'Usd.Prim',
     parent2other = get_transform_relative(other_prim, prim.GetParent(), time_code)
     parent2prim = parent2other @ other2prim
     set_transform_local(prim, parent2prim, time_code)
+
+# Link Utils
+
+def get_link(robot: Robot, name: str) -> Optional[Usd.Prim]:
+    """Get the prim of the link according to the given name in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+        name (str): The name of the link.
+
+    Returns:
+        Optional[Usd.Prim]: The prim of the link if found, otherwise None.
+    """
+    for link_prim in robot.prim.GetChildren():
+        if link_prim.GetName() == name:
+            return link_prim
+    return None
+
+def get_tool_link(robot: Robot, tool_name: str) -> Optional[Usd.Prim]:
+    """Get the tool link in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+        tool_name (str): The name of the tool link.
+
+    Returns:
+        Optional[Usd.Prim]: The prim of the tool link if found, otherwise None.
+    """
+    return get_link(robot, tool_name)
+
+def get_all_links(robot: Robot) -> List[Usd.Prim]:
+    """Get all links in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+
+    Returns:
+        List[Usd.Prim]: List of all link prims in the robot.
+    """
+    return list(robot.prim.GetChildren())
+
+def get_moving_links(robot: Robot) -> List[Usd.Prim]:
+    """Get moving links in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+
+    Returns:
+        List[Usd.Prim]: List of all moving link prims in the robot.
+    """
+    return get_all_links(robot)  # TODO: Add movable filter
+
+def get_parent(prim: Usd.Prim) -> Optional[Usd.Prim]:
+    """Get the parent of prim if it exists.
+
+    Args:
+        prim (Usd.Prim): The prim object.
+
+    Returns:
+        Optional[Usd.Prim]: The parent prim if it exists, otherwise None.
+    """
+    parent_prim = prim.GetParent()
+    return parent_prim if parent_prim.IsValid() else None
+
+def get_child(prim: Usd.Prim, child_name: str) -> Optional[Usd.Prim]:
+    """Get the child of prim if it exists.
+
+    Args:
+        prim (Usd.Prim): The prim object.
+        child_name (str): The name of the child.
+
+    Returns:
+        Optional[Usd.Prim]: The child prim if found, otherwise None.
+    """
+    for child_prim in prim.GetChildren():
+        if child_prim.GetName() == child_name:
+            return child_prim
+    return None
+
+def get_children(prim: Usd.Prim) -> List[Usd.Prim]:
+    """Get the children of prim if it exists.
+
+    Args:
+        prim (Usd.Prim): The prim object.
+
+    Returns:
+        List[Usd.Prim]: List of child prims.
+    """
+    return list(prim.GetChildren())
+
+def get_all_link_parents(robot: Robot) -> Dict[str, Optional[Usd.Prim]]:
+    """Get all parent links in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+
+    Returns:
+        Dict[str, Optional[Usd.Prim]]: Dictionary of link names and their parent prims.
+    """
+    return {link.GetName(): get_parent(link) for link in get_all_links(robot)}
+
+def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
+    """Get all children links in the robot.
+
+    Args:
+        robot (Robot): The robot object.
+
+    Returns:
+        Dict[str, List[Usd.Prim]]: Dictionary of link names and their child prims.
+    """
+    return {link.GetName(): get_children(link) for link in get_all_links(robot)}
+
+def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
+    """Get parent link of the specified link.
+
+    Args:
+        robot (Robot): The robot object.
+        link (Usd.Prim): The link prim.
+
+    Returns:
+        Optional[Usd.Prim]: The parent link prim if found, otherwise None.
+    """
+    return get_all_link_parents(robot).get(link.GetName())
+
+def get_link_children(robot: Robot, link: Usd.Prim) -> List[Usd.Prim]:
+    """Get child links of the specified link.
+
+    Args:
+        robot (Robot): The robot object.
+        link (Usd.Prim): The link prim.
+
+    Returns:
+        List[Usd.Prim]: List of child link prims.
+    """
+    return get_all_link_children(robot).get(link.GetName(), [])
+
+def get_link_descendants(robot: Robot, link: Usd.Prim, test: Callable[[Usd.Prim], bool] = lambda l: True) -> List[Usd.Prim]:
+    """Get descendant links of the specified link.
+
+    Args:
+        robot (Robot): The robot object.
+        link (Usd.Prim): The link prim.
+        test (Callable[[Usd.Prim], bool], optional): A test function to filter links. Defaults to a function that returns True.
+
+    Returns:
+        List[Usd.Prim]: List of descendant link prims.
+    """
+    descendants = []
+    for child in get_link_children(robot, link):
+        if test(child):
+            descendants.append(child)
+            descendants.extend(get_link_descendants(robot, child, test))
+    return descendants
+
+def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs) -> List[Usd.Prim]:
+    """Get subtree of the specified link.
+
+    Args:
+        robot (Robot): The robot object.
+        link (Usd.Prim): The link prim.
+
+    Returns:
+        List[Usd.Prim]: List of link prims in the subtree.
+    """
+    return [link] + get_link_descendants(robot, link, **kwargs)
+
+def get_link_pose(robot: Robot, link_name: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Get the pose of the specified link.
+
+    Args:
+        robot (Robot): The robot object.
+        link_name (str): The name of the link.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: The local transform (position, orientation) of the link.
+
+    Raises:
+        ValueError: If the specified link does not exist.
+    """
+    for link_prim in robot.prim.GetChildren():
+        if link_name == link_prim.GetName():
+            return get_transform_local(link_prim)
+    raise ValueError("Specified link does not exist.")
 
 # Joint Utils
 
