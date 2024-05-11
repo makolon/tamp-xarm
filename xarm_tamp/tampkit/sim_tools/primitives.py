@@ -51,26 +51,20 @@ class BodyGrasp:
                  robot: Robot,
                  link: Usd.Prim,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
-                 grasp_pose: Optional[Union[list, np.ndarray, torch.Tensor]],
-                 approach_pose: Optional[Union[list, np.ndarray, torch.Tensor]]):
+                 grasp_pose: Optional[Union[list, np.ndarray, torch.Tensor]]):
         self.robot = robot
         self.link = link
         self.body = body
         self.grasp_pose = grasp_pose
-        self.approach_pose = approach_pose
         self.index = next(self.num)
 
     @property
     def value(self):
         return self.grasp_pose
 
-    @property
-    def approach(self):
-        return self.approach_pose
-
     def assign(self):
         parent_link_pose = get_link_pose(self.robot, self.link.GetName())
-        child_pose = multiply(parent_link_pose, self.grasp_pose[0]) # TODO: fix
+        child_pose = multiply(parent_link_pose, self.grasp_pose)
         set_pose(self.body, child_pose)
         return child_pose
 
