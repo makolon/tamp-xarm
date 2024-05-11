@@ -50,13 +50,12 @@ curobo:
     trajopt_dt: 0.05
     trajopt_tsteps: 32
     trim_steps: None
-    use_cuda_graph: True
+    use_cuda_graph: False
     enable_graph: True
     warmup_js_trajopt: False
     parallel_finetune: True
   mpc_cfg:
     use_cuda_graph: True
-    use_cuda_graph_metrics: True
     use_cuda_graph_full_step: False
     self_collision_check: True
     n_obstacle_cuboids: 1
