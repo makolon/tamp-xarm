@@ -53,10 +53,14 @@ def get_world_cfg(cfg: dict):
             world_cfg_cuboid = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
+            # lower cuboid a little
+            world_cfg_cuboid.cuboid[0].pose[2] -= 0.02
         elif val.type == 'mesh':
             world_cfg_mesh = WorldConfig.from_dict(
                 load_yaml(join_path(get_world_configs_path(), val.yaml))
             )
+            # lower mesh to under ground
+            world_cfg_mesh.mesh[0].pose[2] = -10.5
 
     if world_cfg_mesh is None:
         world_cfg = WorldConfig(
@@ -163,9 +167,9 @@ def get_motion_gen_cfg(cfg: dict,
             "obb": cfg.motion_gen_cfg.n_obstacle_cuboids,
             "mesh": cfg.motion_gen_cfg.n_obstacle_mesh},
         optimize_dt=cfg.motion_gen_cfg.optimize_dt,
-        trajopt_dt=cfg.motion_gen_cfg.trajopt_dt,
+        trajopt_dt=None, # cfg.motion_gen_cfg.trajopt_dt,
         trajopt_tsteps=cfg.motion_gen_cfg.trajopt_tsteps,
-        trim_steps=cfg.motion_gen_cfg.trim_steps,
+        trim_steps=None # cfg.motion_gen_cfg.trim_steps,
     )
     return motion_gen_cfg
 
@@ -237,7 +241,7 @@ def add_fixed_constraint(robot, obj, motion_gen):
         velocity=tensor_args.to_device(sim_js.velocities) * 0.0,
         acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
         jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
-        joint_names=robot.joint_names  # TODO
+        joint_names=robot.joint_names  # TODO: add appropriate joint names to robot
     )
 
     motion_gen.attach_objects_to_robot(
