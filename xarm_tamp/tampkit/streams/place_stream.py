@@ -20,21 +20,28 @@ def sample_placement(top_body, bottom_body, max_attempts=25, **kwargs):
     bottom_aabb = get_aabb(bottom_body)
     top_pose = get_pose(top_body)
     for _ in range(max_attempts):
-        theta = np.random.uniform(*CIRCULAR_LIMITS)
-        rotation = np.array([0., 0., theta])
+        # rotate top_body
+        rotation = np.array([0., 0., np.random.uniform(*CIRCULAR_LIMITS)])
         set_pose(top_body, multiply([unit_point(), rotation], top_pose))
+
+        # get center position and w, d, h
         center, extent = get_center_extent(top_body)
-        lower = (np.array(bottom_aabb[0]))[:2]
-        upper = (np.array(bottom_aabb[1]))[:2]
+        lower = (np.array(bottom_aabb[0]) + extent/2)[:2]
+        upper = (np.array(bottom_aabb[1]) - extent/2)[:2]
         aabb = (lower, upper)
         if aabb_empty(aabb):
             continue
+
+        # sample place pose
         x, y = sample_aabb(aabb)
-        z = (bottom_aabb[1])[2]
+        z = (bottom_aabb[1] + extent/2.)[2] + 1e-3
         point = np.array([x, y, z]) + (get_point(top_body) - center)
         pose = multiply([point, rotation], top_pose)
-        set_pose(top_body, pose)
-    return pose
+
+        # reset position
+        set_pose(top_body, top_pose)
+        return pose
+    return None
 
 
 def get_place_gen(problem, collisions=True, **kwargs):
