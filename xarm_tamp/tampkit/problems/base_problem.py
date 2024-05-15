@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Problem:
     # Objects
+    world: object
     robot: object
     movable: tuple = field(default_factory=tuple)
     bodies: tuple = field(default_factory=tuple)

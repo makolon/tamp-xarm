@@ -136,17 +136,14 @@ def stacking_problem(sim_cfg, curobo_cfg):
 
     return Problem(
         # PDDL
+        world=world,
         robot=xarm,
         movable=[block1, block2, block3, block4],
         fixed=[table],
-        surfaces=[table, block1, block2, block3, block4],
+        surfaces=[table],
         bodies=[table, block1, block2, block3, block4],
-        init_placeable=[
-            (block1, block2), (block2, block3),
-            (block3, block4)],
-        goal_placed=[
-            (block1, block2), (block2, block3),
-            (block3, block4)],
+        init_placeable=[(block1, table)],
+        goal_placed=[(block1, table)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,

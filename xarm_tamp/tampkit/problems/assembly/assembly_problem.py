@@ -193,6 +193,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     return Problem(
         # PDDL
+        world=world,
         robot=xarm,
         movable=[block1, block2, block3, block4],
         fixed=[table, base_block],
