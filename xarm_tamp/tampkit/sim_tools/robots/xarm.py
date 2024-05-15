@@ -66,6 +66,11 @@ class xArm(Robot):
         self.arm_dof_idxs = []
         self.gripper_dof_idxs = []
 
+        # add end effector
+        if self._end_effector_prim_name is not None:
+            self._end_effector = RigidPrim(prim_path=self._end_effector_prim_path, name="fingertip_centered")
+
+        # add gripper
         if self._gripper_dof_names is not None:
             if deltas is None:
                 deltas = np.array([0.05, 0.05]) / get_stage_units()
@@ -158,8 +163,9 @@ class xArm(Robot):
 
     def initialize(self, physics_sim_view=None) -> None:
         super().initialize(physics_sim_view)
-        self._end_effector = RigidPrim(prim_path=self._end_effector_prim_path, name="fingertip_centered")
-        self._end_effector.initialize(physics_sim_view)
+        self._end_effector.initialize(
+            physics_sim_view=physics_sim_view
+        )
         self._gripper.initialize(
             physics_sim_view=physics_sim_view,
             articulation_apply_action_func=self.apply_action,

@@ -23,7 +23,6 @@ class Block(XFormPrim):
         
         self.usd_path = usd_path
         self.urdf_path = urdf_path
-        self._name = name
         
         if self.usd_path is None:
             # TODO: fix this
