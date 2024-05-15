@@ -24,7 +24,6 @@ import carb
 import copy
 import math
 import os
-import pysdf
 import time
 import trimesh
 import numpy as np
@@ -33,7 +32,7 @@ import omni.isaac.core.utils.mesh as mesh_utils
 import omni.isaac.core.utils.prims as prims_utils
 import omni.isaac.core.utils.stage as stage_utils
 from collections import namedtuple
-from itertools import count, product
+from itertools import product
 from typing import Dict, List, Tuple, Optional, Sequence, Union, Callable, Iterable
 from scipy.spatial.transform import Rotation
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
@@ -41,7 +40,8 @@ from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
-from omni.isaac.core.utils.torch.rotations import quat_diff_rad, xyzw2wxyz, wxyz2xyzw
+from omni.isaac.core.utils.numpy.rotations import xyzw2wxyz, wxyz2xyzw
+from omni.isaac.core.utils.torch.rotations import quat_diff_rad
 from omni.isaac.core.utils.types import ArticulationAction
 
 # Simulation API
@@ -266,9 +266,9 @@ def unit_quat() -> np.ndarray:
     Get a unit quaternion.
 
     Returns:
-        np.ndarray: A unit quaternion [1.0, 0.0, 0.0, 0.0].
+        np.ndarray: A unit quaternion [0.0, 0.0, 0.0, 1.0].
     """
-    return np.array([1.0, 0.0, 0.0, 0.0])
+    return np.array([0.0, 0.0, 0.0, 1.0])
 
 def unit_pose() -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -321,6 +321,8 @@ def get_bodies(world: 'World', body_types: List[str] = ['all']) -> Optional[List
 
     if 'all' in body_types:
         bodies.extend(usd_obj for object_dict in all_objects for name, usd_obj in object_dict.items() if 'plane' not in name)
+        return bodies
+
     if 'rigid' in body_types:
         bodies.extend(usd_obj for name, usd_obj in all_objects[0])
     if 'geom' in body_types:
@@ -355,7 +357,7 @@ def get_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) ->
         Tuple[np.ndarray, np.ndarray]: The position and orientation of the body.
     """
     pos, rot = body.get_world_pose()
-    return pos, rot
+    return pos, wxyz2xyzw(rot)
 
 def get_velocity(body: Optional['RigidPrim']) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -386,12 +388,12 @@ def get_transform_local(prim: 'Usd.Prim',
         time_code = Usd.TimeCode.Default()
     xform = UsdGeom.Xformable(prim)
     local_transformation = xform.GetLocalTransformation(time_code)
-    local_pos = local_transformation.ExtractTranslation()
+    local_pos = np.array(local_transformation.ExtractTranslation())
     _quat = local_transformation.ExtractRotationQuat()
-    local_quat = [_quat.GetReal()] + list(_quat.GetImaginary())
-    return np.array(local_pos), np.array(local_quat)
+    local_quat = np.array([_quat.GetReal()] + list(_quat.GetImaginary()))
+    return local_pos, wxyz2xyzw(local_quat)
 
-def get_transform_world(prim: 'Usd.Prim', 
+def get_transform_world(prim: 'Usd.Prim',
                         time_code: Optional['Usd.TimeCode'] = None
                        ) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -408,10 +410,10 @@ def get_transform_world(prim: 'Usd.Prim',
         time_code = Usd.TimeCode.Default()
     xform = UsdGeom.Xformable(prim)
     world_transformation = xform.ComputeLocalToWorldTransform(time_code)
-    world_pos = world_transformation.ExtractTranslation()
+    world_pos = np.array(world_transformation.ExtractTranslation())
     _quat = world_transformation.ExtractRotationQuat()
-    world_quat = [_quat.GetReal()] + list(_quat.GetImaginary())
-    return np.array(world_pos), np.array(world_quat)
+    world_quat = np.array([_quat.GetReal()] + list(_quat.GetImaginary()))
+    return world_pos, wxyz2xyzw(world_quat)
 
 def get_transform_relative(prim: 'Usd.Prim', 
                            other_prim: 'Usd.Prim', 
@@ -447,7 +449,7 @@ def set_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
     """
     position, orientation = pose
     assert isinstance(body, (GeometryPrim, RigidPrim, XFormPrim)), "Invalid body type."
-    body.set_world_pose(position=position, orientation=orientation)
+    body.set_world_pose(position=position, orientation=xyzw2wxyz(orientation))
 
 def set_velocity(body: Optional['RigidPrim'], 
                  translation: np.ndarray = np.array([0.0, 0.0, 0.0]), 
@@ -560,7 +562,7 @@ def set_transform_relative(prim: 'Usd.Prim',
 
 # Link Utils
 
-def get_link(robot: Robot, name: str) -> Optional[Usd.Prim]:
+def get_link(robot: 'Robot', name: str) -> Optional['Usd.Prim']:
     """Get the prim of the link according to the given name in the robot.
 
     Args:
@@ -575,7 +577,7 @@ def get_link(robot: Robot, name: str) -> Optional[Usd.Prim]:
             return link_prim
     return None
 
-def get_tool_link(robot: Robot, tool_name: str) -> Optional[Usd.Prim]:
+def get_tool_link(robot: 'Robot', tool_name: str) -> Optional['Usd.Prim']:
     """Get the tool link in the robot.
 
     Args:
@@ -587,7 +589,7 @@ def get_tool_link(robot: Robot, tool_name: str) -> Optional[Usd.Prim]:
     """
     return get_link(robot, tool_name)
 
-def get_all_links(robot: Robot) -> List[Usd.Prim]:
+def get_all_links(robot: 'Robot') -> List['Usd.Prim']:
     """Get all links in the robot.
 
     Args:
@@ -598,7 +600,7 @@ def get_all_links(robot: Robot) -> List[Usd.Prim]:
     """
     return list(robot.prim.GetChildren())
 
-def get_moving_links(robot: Robot) -> List[Usd.Prim]:
+def get_moving_links(robot: 'Robot') -> List['Usd.Prim']:
     """Get moving links in the robot.
 
     Args:
@@ -609,7 +611,7 @@ def get_moving_links(robot: Robot) -> List[Usd.Prim]:
     """
     return get_all_links(robot)  # TODO: Add movable filter
 
-def get_parent(prim: Usd.Prim) -> Optional[Usd.Prim]:
+def get_parent(prim: 'Usd.Prim') -> Optional['Usd.Prim']:
     """Get the parent of prim if it exists.
 
     Args:
@@ -621,7 +623,7 @@ def get_parent(prim: Usd.Prim) -> Optional[Usd.Prim]:
     parent_prim = prim.GetParent()
     return parent_prim if parent_prim.IsValid() else None
 
-def get_child(prim: Usd.Prim, child_name: str) -> Optional[Usd.Prim]:
+def get_child(prim: 'Usd.Prim', child_name: str) -> Optional['Usd.Prim']:
     """Get the child of prim if it exists.
 
     Args:
@@ -636,7 +638,7 @@ def get_child(prim: Usd.Prim, child_name: str) -> Optional[Usd.Prim]:
             return child_prim
     return None
 
-def get_children(prim: Usd.Prim) -> List[Usd.Prim]:
+def get_children(prim: 'Usd.Prim') -> List['Usd.Prim']:
     """Get the children of prim if it exists.
 
     Args:
@@ -647,7 +649,7 @@ def get_children(prim: Usd.Prim) -> List[Usd.Prim]:
     """
     return list(prim.GetChildren())
 
-def get_all_link_parents(robot: Robot) -> Dict[str, Optional[Usd.Prim]]:
+def get_all_link_parents(robot: 'Robot') -> Dict[str, Optional['Usd.Prim']]:
     """Get all parent links in the robot.
 
     Args:
@@ -658,7 +660,7 @@ def get_all_link_parents(robot: Robot) -> Dict[str, Optional[Usd.Prim]]:
     """
     return {link.GetName(): get_parent(link) for link in get_all_links(robot)}
 
-def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
+def get_all_link_children(robot: 'Robot') -> Dict[str, List['Usd.Prim']]:
     """Get all children links in the robot.
 
     Args:
@@ -669,7 +671,7 @@ def get_all_link_children(robot: Robot) -> Dict[str, List[Usd.Prim]]:
     """
     return {link.GetName(): get_children(link) for link in get_all_links(robot)}
 
-def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
+def get_link_parents(robot: 'Robot', link: 'Usd.Prim') -> Optional['Usd.Prim']:
     """Get parent link of the specified link.
 
     Args:
@@ -681,7 +683,7 @@ def get_link_parents(robot: Robot, link: Usd.Prim) -> Optional[Usd.Prim]:
     """
     return get_all_link_parents(robot).get(link.GetName())
 
-def get_link_children(robot: Robot, link: Usd.Prim) -> List[Usd.Prim]:
+def get_link_children(robot: 'Robot', link: 'Usd.Prim') -> List['Usd.Prim']:
     """Get child links of the specified link.
 
     Args:
@@ -693,7 +695,7 @@ def get_link_children(robot: Robot, link: Usd.Prim) -> List[Usd.Prim]:
     """
     return get_all_link_children(robot).get(link.GetName(), [])
 
-def get_link_descendants(robot: Robot, link: Usd.Prim, test: Callable[[Usd.Prim], bool] = lambda l: True) -> List[Usd.Prim]:
+def get_link_descendants(robot: 'Robot', link: 'Usd.Prim', test: Callable[['Usd.Prim'], bool] = lambda l: True) -> List['Usd.Prim']:
     """Get descendant links of the specified link.
 
     Args:
@@ -711,7 +713,7 @@ def get_link_descendants(robot: Robot, link: Usd.Prim, test: Callable[[Usd.Prim]
             descendants.extend(get_link_descendants(robot, child, test))
     return descendants
 
-def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs) -> List[Usd.Prim]:
+def get_link_subtree(robot: 'Robot', link: 'Usd.Prim') -> List['Usd.Prim']:
     """Get subtree of the specified link.
 
     Args:
@@ -721,9 +723,9 @@ def get_link_subtree(robot: Robot, link: Usd.Prim, **kwargs) -> List[Usd.Prim]:
     Returns:
         List[Usd.Prim]: List of link prims in the subtree.
     """
-    return [link] + get_link_descendants(robot, link, **kwargs)
+    return [link] + get_link_descendants(robot, link)
 
-def get_link_pose(robot: Robot, link_name: str) -> Tuple[np.ndarray, np.ndarray]:
+def get_link_pose(robot: 'Robot', link_name: str) -> Tuple[np.ndarray, np.ndarray]:
     """Get the pose of the specified link.
 
     Args:
@@ -738,8 +740,20 @@ def get_link_pose(robot: Robot, link_name: str) -> Tuple[np.ndarray, np.ndarray]
     """
     for link_prim in robot.prim.GetChildren():
         if link_name == link_prim.GetName():
-            return get_transform_local(link_prim)
+            return get_transform_world(link_prim)
     raise ValueError("Specified link does not exist.")
+
+def get_tool_pose(robot: 'Robot') -> Tuple[np.ndarray, np.ndarray]:
+    """Get the pose of the end effector.
+
+    Args:
+        robot (Robot): The robot object.mro
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: The world transform (position, orientation)
+    """
+    end_effector = robot.end_effector
+    return end_effector.get_world_pose()
 
 # Joint Utils
 
@@ -1418,7 +1432,7 @@ def is_placed_on_aabb(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPr
 
 def is_placement(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                  surface: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-                 **kwargs) -> bool:
+                ) -> bool:
     """
     Check if a body is placed on a surface.
 
@@ -1431,11 +1445,11 @@ def is_placement(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]
     """
     if get_aabb(surface) is None:
         return False
-    return is_placed_on_aabb(body, get_aabb(surface), **kwargs)
+    return is_placed_on_aabb(body, get_aabb(surface))
 
 def is_insertion(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                  hole: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-                 **kwargs) -> bool:
+                ) -> bool:
     """
     Check if a body is inserted into a hole.
 
@@ -1448,11 +1462,30 @@ def is_insertion(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]
     """
     if get_aabb(hole) is None:
         return False
-    return is_placed_on_aabb(body, get_aabb(hole), **kwargs)
+    return is_placed_on_aabb(body, get_aabb(hole))
+
+def check_geometry_type(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]):
+    # Is it possible to alternate this function using `get_prim_type_name`?
+    if body.prim.IsA(UsdGeom.Capsule):
+        return 'capsule'
+    elif body.prim.IsA(UsdGeom.Cone):
+        return 'cone'
+    elif body.prim.IsA(UsdGeom.Cube):
+        return 'cude'
+    elif body.prim.IsA(UsdGeom.Cylinder):
+        return 'cylinder'
+    elif body.prim.IsA(UsdGeom.Sphere):
+        return 'sphere'
+    elif body.prim.IsA(UsdGeom.Plane):
+        return 'plane'
+    elif body.prim.IsA(UsdGeom.Mesh):
+        return 'mesh'
+    else:
+        raise ValueError('prim geometry does not exist.')
 
 def approximate_as_prism(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-                         body_pose: np.ndarray = np.eye(4),
-                         **kwargs) -> Tuple[np.ndarray, np.ndarray]:
+                         body_pose: np.ndarray = None,
+                        ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Approximate a rigid body as a prism.
 
@@ -1463,11 +1496,22 @@ def approximate_as_prism(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFor
     Returns:
         Tuple[np.ndarray, np.ndarray]: A tuple containing the center and extent of the approximated prism.
     """
-    mesh = get_body_geometry(body)
-    vertices = mesh.vertices
-    lower, upper = np.min(vertices, axis=0), np.max(vertices, axis=0)
-    diff = np.array(upper) - np.array(lower)
-    center = (np.array(upper) + np.array(lower)) / 2.
+    if body_pose is None:
+        position, rotation = get_pose(body)
+        transform = tf_matrices_from_poses(position, rotation)
+    else:
+        position, rotation = body_pose
+        transform = tf_matrices_from_poses(position, rotation)
+
+    body_type = check_geometry_type(body)
+    if body_type == 'mesh':
+        mesh = get_body_geometry(body)
+        mesh.apply_transform(transform)
+
+        lower, upper = np.min(mesh.vertices, axis=0), np.max(mesh.vertices, axis=0)
+        diff, center = np.array(upper) - np.array(lower), (np.array(upper) + np.array(lower)) / 2.
+    else:
+        center, diff = get_center_extent(body)
     return center, diff
 
 def get_prim_geometry(prim: 'Usd.Prim') -> Dict[str, np.ndarray]:
@@ -1503,7 +1547,7 @@ def get_body_geometry(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPr
         trimesh.Trimesh: A trimesh object containing the geometry.
     """
     stage = omni.usd.get_context().get_stage()
-    prim_path = body.prim_path + f'/{body._name}/collisions/mesh_0'
+    prim_path = body.prim_path + f'/{body.name}/collisions/mesh_0'  # TODO: fix
     prim = stage.GetPrimAtPath(prim_path)
     usd_geom = UsdGeom.Mesh(prim)
     faces = usd_geom.GetFaceVertexIndicesAttr().Get()
@@ -1561,11 +1605,17 @@ def get_closest_points(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XForm
         position, rotation = get_pose(body2)
         transform2 = tf_matrices_from_poses(position, rotation)
 
-    mesh1 = get_body_geometry(body1)
-    mesh2 = get_body_geometry(body2)
+    body1_type = check_geometry_type(body1)
+    body2_type = check_geometry_type(body2)
 
-    mesh1.apply_transform(transform1)
-    mesh2.apply_transform(transform2)
+    # TODO: need to add sdf culculation function for cubes and spheres.
+
+    if body1_type == 'mesh' and body2_type == 'mesh':
+        mesh1 = get_body_geometry(body1)
+        mesh2 = get_body_geometry(body2)
+
+        mesh1.apply_transform(transform1)
+        mesh2.apply_transform(transform2)
 
     distance = trimesh.proximity.signed_distance(mesh1, mesh2.vertices)
     if max_distance > 0:
@@ -1578,7 +1628,7 @@ def get_closest_points(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XForm
 
 def pairwise_link_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                             body2: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-                            **kwargs) -> bool:
+                           ) -> bool:
     """
     Check for a collision between two links of different bodies.
 
@@ -1589,13 +1639,13 @@ def pairwise_link_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', '
     Returns:
         bool: True if there is a collision, False otherwise.
     """
-    return len(get_closest_points(body1, body2, **kwargs)) != 0
+    return len(get_closest_points(body1, body2)) != 0
 
 def any_link_pair_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                             links1: List[str],
                             body2: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                             links2: Optional[List[str]] = None,
-                            **kwargs) -> bool:
+                           ) -> bool:
     """
     Check for a collision between any pair of links from two bodies.
 
@@ -1615,13 +1665,13 @@ def any_link_pair_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', '
     for link1, link2 in product(links1, links2):
         if (body1 == body2) and (link1 == link2):
             continue
-        if pairwise_link_collision(link1, link2, **kwargs):
+        if pairwise_link_collision(link1, link2):
             return True
     return False
 
 def body_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
                    body2: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-                   **kwargs) -> bool:
+                  ) -> bool:
     """
     Check for a collision between two bodies.
 
@@ -1632,11 +1682,11 @@ def body_collision(body1: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim
     Returns:
         bool: True if there is a collision, False otherwise.
     """
-    return len(get_closest_points(body1, body2, **kwargs)) != 0
+    return len(get_closest_points(body1, body2)) != 0
 
 def pairwise_collision(body1: Union[Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']], Tuple],
                        body2: Union[Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']], Tuple],
-                       **kwargs) -> bool:
+                      ) -> bool:
     """
     Check for a collision between two bodies or links of bodies.
 
@@ -1650,8 +1700,8 @@ def pairwise_collision(body1: Union[Optional[Union['GeometryPrim', 'RigidPrim', 
     if isinstance(body1, tuple) or isinstance(body2, tuple):
         body1, links1 = expand_links(body1)
         body2, links2 = expand_links(body2)
-        return any_link_pair_collision(body1, links1, body2, links2, **kwargs)
-    return body_collision(body1, body2, **kwargs)
+        return any_link_pair_collision(body1, links1, body2, links2)
+    return body_collision(body1, body2)
 
 def all_between(lower_limits: np.ndarray, values: np.ndarray, upper_limits: np.ndarray) -> bool:
     """
@@ -1698,7 +1748,7 @@ def flatten_links(robot: 'Robot', links: Optional[List[str]] = None) -> set:
     collision_pair = namedtuple('Collision', ['robot', 'links'])
     return {collision_pair(robot, frozenset([link])) for link in links}
 
-def expand_links(robot: 'Robot', **kwargs) -> Tuple['Robot', Union[None, List[str]]]:
+def expand_links(robot: 'Robot') -> Tuple['Robot', Union[None, List[str]]]:
     """
     Expand a robot's links.
 
@@ -1708,7 +1758,7 @@ def expand_links(robot: 'Robot', **kwargs) -> Tuple['Robot', Union[None, List[st
     Returns:
         Tuple[Robot, Union[None, List[str]]]: A tuple containing the robot and expanded links.
     """
-    body, links = parse_body(robot, **kwargs)
+    body, links = parse_body(robot)
     if links is None:
         links = get_all_links(body)
     collision_pair = namedtuple('Collision', ['robot', 'links'])
