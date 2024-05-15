@@ -14,17 +14,21 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 CIRCULAR_LIMITS = (10.0, 10.0)
 
 def sample_insertion(body, hole, max_attempts=25, **kwargs):
+    body_pose = get_pose(body)
     for _ in range(max_attempts):
-        theta = np.random.uniform(*CIRCULAR_LIMITS)
-        rotation = np.array([0., 0., theta])
-        print('Pose:', multiply([unit_point(), rotation], unit_pose()))
+        # rotate body
+        rotation = np.array([0., 0., np.random.uniform(*CIRCULAR_LIMITS)])
         set_pose(body, multiply([unit_point(), rotation], unit_pose()))
+
+        # get center position and w, d, h
         center, extent = get_center_extent(body)
         hole_pose = get_point(hole)
         x, y, z = hole_pose
         point = np.array([x, y, z]) + (get_point(body) - center)
         pose = multiply([point, rotation], unit_pose())
-        set_pose(body, pose)
+
+        # reset body pose
+        set_pose(body, body_pose)
         return pose
     return None
 
