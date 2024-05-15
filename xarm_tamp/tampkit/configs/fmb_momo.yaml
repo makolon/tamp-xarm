@@ -56,6 +56,7 @@ curobo:
     parallel_finetune: True
   mpc_cfg:
     use_cuda_graph: True
+    use_cuda_graph_metrics: True
     use_cuda_graph_full_step: False
     self_collision_check: True
     n_obstacle_cuboids: 1
