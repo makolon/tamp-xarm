@@ -17,10 +17,10 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 )
 
 from xarm_tamp.tampkit.problems import PROBLEMS
-from xarm_tamp.tampkit.streams.plan_motion_stream import plan_motion_fn
+from xarm_tamp.tampkit.streams.inverse_kinematics_stream import get_ik_fn
+from xarm_tamp.tampkit.streams.plan_motion_stream import get_free_motion_fn, get_holding_motion_fn
 from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
 from xarm_tamp.tampkit.streams.place_stream import get_place_gen
-from xarm_tamp.tampkit.streams.insert_stream import get_insert_gen
 from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
 
@@ -56,7 +56,7 @@ def opt_insert_fn(o1, o2):
     p2 = CustomValue('p-si', (o2,))
     return p2,
 
-def opt_motion_fn(a, q1, q2):
+def opt_motion_fn(q1, q2):
     t = CustomValue('t-pbm', (q1, q2))
     return t,
 
@@ -89,38 +89,31 @@ class TAMPPlanner(object):
         # Initlaize init & goal
         init, goal = [AND], [AND]
 
-        # Cost
-        init += [
-            Equal(('PickCost',), 1),
-            Equal(('PlaceCost',), 1),
-            Equal(('InsertCost',), 1),
-        ]
-
         # Robot
         joints = get_arm_joints(robot)
         conf = BodyConf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', robot), ('HandEmpty', robot),
-                 ('Conf', conf), ('AtConf', robot, conf)]
+        init += [('CanMove',),
+                 ('HandEmpty',),
+                 ('Conf', conf),
+                 ('AtConf', conf),]
+        goal += [('AtConf', conf)]
 
         # Body
         for body in problem.movable:
             pose = BodyPose(body, get_pose(body))
-            init += [('Object', body),
-                     ('Graspable', body),
+            init += [('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
 
         # Surface
         for body in problem.surfaces:
             pose = BodyPose(body, get_pose(body))
-            init += [('Region', body),
-                     ('RegionPose', body, pose)]
+            init += [('Region', body)]
 
         # Hole
         for body in problem.holes:
             pose = BodyPose(body, get_pose(body))
-            init += [('Hole', body),
-                     ('HolePose', body, pose)]
+            init += [('Hole', body)]
 
         init += [('Placeable', b1, b2) for b1, b2 in problem.init_placeable]
         init += [('Insertable', b1, b2) for b1, b2 in problem.init_insertable]
@@ -134,9 +127,11 @@ class TAMPPlanner(object):
             # Constrained sampler
             'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
             'sample-place': from_gen_fn(get_place_gen(problem, collisions=collisions)),
-            'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
+            # Inverse kinematics
+            'inverse-kinematics': from_fn(get_ik_fn(problem, collisions=collisions)),
             # Planner
-            'plan-motion': from_fn(plan_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions, teleport=teleport)),
             # Test function
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
