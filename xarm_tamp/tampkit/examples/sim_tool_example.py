@@ -27,7 +27,7 @@ def env_api_test(cfg, world):
 
     # create table
     table = create_table(cfg.sim.table)
-    set_pose(table, cfg.sim.table.translation, cfg.sim.table.orientation)
+    set_pose(table, (cfg.sim.table.translation, cfg.sim.table.orientation))
     print('table:', table.name)
     world.scene.add(table)
 
@@ -73,13 +73,13 @@ def rigid_body_api_test(world):
         print('rotation:', rot)
 
     # set pose
-    for body in bodies:
-        position = np.array([0.1, 0., 0.]) # TODO: add position randomization from utils
-        orientation = np.array([0., 0., 0., 1.]) # TODO: add orientation randomization from utils
-        set_pose(body, position, orientation)
+    rigid_bodies = get_bodies(world, body_types=['rigid'])
+    for body in rigid_bodies:
+        position = np.array([0.1, 0., 0.])  # TODO: add position randomization from utils
+        orientation = np.array([0., 0., 0., 1.])  # TODO: add orientation randomization from utils
+        set_pose(body, (position, orientation))
 
     # get velocity
-    rigid_bodies = get_bodies(world, body_types=['rigid'])
     for body in rigid_bodies:
         lin_vel, ang_vel = get_velocity(body)
         print('linear velocity:', lin_vel)
@@ -87,8 +87,8 @@ def rigid_body_api_test(world):
 
     # set velocity
     for body in rigid_bodies:
-        translation = np.array([0.1, 0., 0.]) # TODO: add translation velocity randomization from utils
-        rotation = np.array([0., 0.5, 0.]) # TODO: add rotation velocity randomization from utils
+        translation = np.array([0.1, 0., 0.])  # TODO: add translation velocity randomization from utils
+        rotation = np.array([0., 0.5, 0.])  # TODO: add rotation velocity randomization from utils
         set_velocity(body, translation, rotation)
 
     # set local transform
@@ -97,8 +97,8 @@ def rigid_body_api_test(world):
         rotation = np.array([0.0, 0.0, 0.0, 1.0])
         
         transform = np.zeros(4, 4)
-        rot_mat = R.from_quat(rotation).as_matrix()
-        transform[:3, :3] = rot_max
+        rot_mat = Rotation.from_quat(rotation).as_matrix()
+        transform[:3, :3] = rot_mat
         transform[:3, 3] = translation
         set_transform_local(body.prim, transform)
 
@@ -108,18 +108,22 @@ def rigid_body_api_test(world):
         rotation = np.array([0.0, 0.0, 0.0, 1.0])
 
         transform = np.zeros(4, 4)
-        rot_mat = R.from_quat(rotation).as_matrix()
-        transform[:3, :3] = rot_max
+        rot_mat = Rotation.from_quat(rotation).as_matrix()
+        transform[:3, :3] = rot_mat
         transform[:3, 3] = translation
         set_transform_world(body.prim, transform)
 
     # get local transform
     for body in rigid_bodies:
         pos, rot = get_transform_local(body.prim)
+        print('position:', pos)
+        print('rotation:', rot)
 
     # get world transform
     for body in rigid_bodies:
         pos, rot = get_transform_world(body.prim)
+        print('position:', pos)
+        print('rotation:', rot)
 
 
 ### Link Utils
@@ -187,11 +191,11 @@ def link_api_test(robot):
 ### Joint Utils
 def joint_api_test(robot):
     # get base joints
-    try:
-        base_joints = get_base_joints(robot)
-        print('base_joints:', base_joints)
-    except:
-        print('Base joint does not exist.')
+    # try:
+    #     base_joints = get_base_joints(robot)
+    #     print('base_joints:', base_joints)
+    # except ValueError as e:
+    #     print(f'{e}: Base joint does not exist.')
 
     # get arm joints
     arm_joints = get_arm_joints(robot)
@@ -284,41 +288,72 @@ def joint_api_test(robot):
 
 ### Collision Utils
 def collision_api_test(world):
-    bodies = get_bodies(world)
+    rigid_bodies = get_bodies(world, body_types=['rigid'])
 
     # get aabb
-    for body in bodies:
+    for body in rigid_bodies:
         lower, upper = get_aabb(body)
         print('lower:', lower)
         print('upper:', upper)
         
     # get center extent
-    for body in bodies:
+    for body in rigid_bodies:
         center, diff = get_center_extent(body)
         print('center:', center)
         print('diff:', diff)
         
     # sample aabb
-    for body in bodies:
+    for body in rigid_bodies:
         aabb = get_aabb(body)
         value = sample_aabb(aabb)
         print('value:', value)
     
     # get aabb2d_from_aabb
-    for body in bodies:
+    for body in rigid_bodies:
         aabb = get_aabb(body)
         aabb2d = aabb2d_from_aabb(aabb)
         print('aabb2d:', aabb2d)
         
     # get aabb_empty
-    for body in bodies:
+    for body in rigid_bodies:
         aabb = get_aabb(body)
         empty = aabb_empty(aabb)
         print('empty:', empty)
 
     # check one aabb contains ohter aabb
-    for body in bodies:
-        pass
+    body1, body2 = rigid_bodies[0], rigid_bodies[1]
+    aabb1 = get_aabb(body1)
+    aabb2 = get_aabb(body2)
+    print('body1 contains body2:', aabb_contains_aabb(aabb1, aabb2))
+
+    # check is_placement
+    print('is placed on body2:', is_placement(body1, body2))
+
+    # check is_insertion
+    print('is inserted into body2:', is_insertion(body1, body2))
+
+    # check geometry types
+    for body in rigid_bodies:
+        geom_type = check_geometry_type(body)
+        print('geometry_type:', geom_type)
+
+    # get mesh-based center extent
+    for body in rigid_bodies:
+        center, diff = approximate_as_prism(body)
+        print('center:', center)
+        print('diff:', diff)
+
+    # get mesh
+    for body in rigid_bodies:
+        mesh = get_body_geometry(body)
+        vertices = mesh.vertices
+        faces = mesh.faces
+        print('vertices:', vertices)
+        print('faces:', faces)
+
+    # # get bounds (deprecated)
+    # for body in rigid_bodies:
+    #     lower, upper = get_bounds(body.prim)
 
 
 ### Math Utils
@@ -332,7 +367,7 @@ def math_api_test():
     print('circular_difference:', result)
 
     # check flatten
-    result = flatten(range(10))
+    result = flatten([range(10)])
     print('flatten:', result)
 
     # check convex_combination
@@ -373,7 +408,7 @@ def math_api_test():
     print('invert:', invert)
 
 
-@hydra.main(version_base=None, config_name="assembly_config", config_path="../configs")
+@hydra.main(version_base=None, config_name="fmb_momo", config_path="../configs")
 def main(cfg: DictConfig):
     print('###########################')
     world = sim_api_test()

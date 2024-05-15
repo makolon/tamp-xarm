@@ -12,6 +12,8 @@ def pddl_test(pddl_path, verbose=True):
     # Validate pddl
     is_valid = pddl.is_valid(verbose=verbose)
     print('This PDDL problem can be solved!: ', is_valid)
+    if not is_valid:
+        raise RuntimeError()
 
     # Initialize basic forward planner from the PDDL initial state.
     planner = symbolic.Planner(pddl)
