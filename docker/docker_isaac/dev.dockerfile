@@ -72,7 +72,7 @@ ENV omni_python='/isaac-sim/python.sh'
 # Create an alias for omniverse python
 RUN echo "alias omni_python='/isaac-sim/python.sh'" >> ${HOME}/.bashrc
 RUN echo "export DISPLAY=:1" >> ${HOME}/.bashrc
-RUN echo "export PYTHONPATH=$PYTHONPATH:/root/tamp-xarm/" >> ${HOME}/.bashrc
+RUN echo "export PYTHONPATH=$PYTHONPATH:/workspace/tamp-xarm/" >> ${HOME}/.bashrc
 
 # Setup Python Package
 RUN apt-get update
@@ -130,6 +130,7 @@ RUN $omni_python -m pip install \
     pybullet==3.2.5 \
     pygame==2.1.2 \
     pyparsing==3.0.9 \
+    pysymbolic==1.0.2 \
     pytest==7.1.2 \
     python-dateutil==2.8.2 \
     pytz==2022.1 \
@@ -159,7 +160,7 @@ RUN $omni_python -m pip install \
     zipp==3.8.1
 
 # Setup Workdir
-WORKDIR /root
+WORKDIR /workspace
 
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-c"]
