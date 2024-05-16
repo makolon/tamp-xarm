@@ -1,13 +1,9 @@
 import hydra
-import random
-import numpy as np
-from collections import namedtuple
 from omegaconf import DictConfig
 
 # Initialize isaac sim
 import xarm_tamp.tampkit.sim_tools.sim_utils
 
-from xarm_tamp.tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
 from xarm_tamp.tampkit.problems import PROBLEMS
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility

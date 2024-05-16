@@ -1,10 +1,3 @@
-import carb
-import numpy as np
-
-from omni.isaac.core import World
-from omni.isaac.core.controllers import BaseController
-from omni.isaac.core.utils.types import ArticulationAction
-
 from curobo.types.math import Pose
 from curobo.types.state import JointState
 from curobo.types.base import TensorDeviceType
@@ -13,12 +6,7 @@ from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType, WorldCollisionConfig
 from curobo.geom.sdf.utils import create_collision_checker
 from curobo.geom.sphere_fit import SphereFitType
-from curobo.rollout.rollout_base import Goal
-from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import (
-    get_assets_path,
-    get_filename,
-    get_path_of_dir,
     get_robot_configs_path,
     get_world_configs_path,
     join_path,

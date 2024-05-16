@@ -13,6 +13,7 @@ from xarm_tamp.tampkit.streams.test_stream import (
     get_cfree_traj_pose_test, get_supported, get_inserted
 )
 
+
 ### Grasp Stream Test
 def grasp_stream_test(problem):
     # connect to simulator

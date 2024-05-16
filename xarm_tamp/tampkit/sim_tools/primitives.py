@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from itertools import count
 from typing import List, Optional, Union
-
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     apply_action, flatten, get_pose, get_joint_positions,
     get_link_pose, get_movable_joints, multiply, refine_path,

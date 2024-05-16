@@ -1,7 +1,5 @@
 (define (stream stacking-tamp)
   (:stream sample-grasp
-    ; object ?o must be graspable and output ?g mush satisfy grasp condition
-
     :inputs (?o)
     :domain (Graspable ?o)
     :outputs (?g)
@@ -9,9 +7,6 @@
   )
 
   (:stream sample-place
-    ; object ?o mush be placeable on the surface ?r 
-    ;   and output mush be stable on the surface ?r at pose ?p
-
     :inputs (?o1 ?o2)
     :domain (Placeable ?o1 ?o2)
     :outputs (?p)
@@ -32,6 +27,7 @@
     :outputs (?t)
     :certified (FreeMotion ?q1 ?t ?q2)
   )
+
   (:stream plan-holding-motion
     :inputs (?q1 ?q2 ?o ?g)
     :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))

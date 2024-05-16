@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from xarm_tamp.tampkit.sim_tools.primitives import BodyGrasp
 from xarm_tamp.tampkit.sim_tools.sim_utils import (

@@ -37,7 +37,7 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     ########################
 
     # create plane
-    plane = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
@@ -235,7 +235,7 @@ def fmb_simo_problem(sim_cfg):
     ########################
 
     # create plane
-    plane = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
 
     # create robot
     xarm = create_robot(sim_cfg.robot)

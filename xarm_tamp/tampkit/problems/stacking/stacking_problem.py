@@ -3,7 +3,7 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
     create_world, create_floor, create_robot,
     create_table, create_block,
     # Getter
-    get_initial_conf, get_pose,
+    get_initial_conf,
     # Setter
     set_pose, set_initial_conf,
 )
@@ -36,33 +36,42 @@ def stacking_problem(sim_cfg, curobo_cfg):
     ########################
 
     # create plane
-    plane = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
     initial_conf = get_initial_conf(xarm)
     set_initial_conf(xarm, initial_conf)
+    world.scene.add(xarm)
 
     # create table
     table = create_table(sim_cfg.table)
     set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
+    world.scene.add(table)
 
     # set momo parts
     block1 = create_block(sim_cfg.block1.name,
                           sim_cfg.block1.translation,
                           sim_cfg.block1.orientation)
+    world.scene.add(block1)
 
     block2 = create_block(sim_cfg.block2.name,
                           sim_cfg.block2.translation,
                           sim_cfg.block2.orientation)
+    world.scene.add(block2)
 
     block3 = create_block(sim_cfg.block3.name,
                           sim_cfg.block3.translation,
                           sim_cfg.block3.orientation)
+    world.scene.add(block3)
 
     block4 = create_block(sim_cfg.block4.name,
                           sim_cfg.block4.translation,
                           sim_cfg.block4.orientation)
+    world.scene.add(block4)
+
+    # reset world
+    world.reset()
 
     ########################
 

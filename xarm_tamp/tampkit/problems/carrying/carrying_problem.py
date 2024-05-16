@@ -3,7 +3,7 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
     create_world, create_floor, create_robot,
     create_table, create_block,
     # Getter
-    get_initial_conf, get_pose,
+    get_initial_conf,
     # Setter
     set_pose, set_initial_conf,
 )
@@ -36,7 +36,7 @@ def carrying_problem(sim_cfg, curobo_cfg):
     ########################
 
     # create plane
-    plane = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
