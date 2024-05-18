@@ -1,4 +1,4 @@
-(define (stream stacking-tamp)
+(define (stream fetch-tamp)
   (:stream sample-grasp
     :inputs (?o)
     :domain (Graspable ?o)
@@ -13,18 +13,27 @@
     :certified (and (Pose ?o1 ?p) (Supported ?o1 ?p ?o2))
   )
 
-  (:stream sample-insert
-    :inputs (?o1 ?o2)
-    :domain (Insertable ?o1 ?o2)
-    :outputs (?p)
-    :certified (and (Pose ?o1 ?p) (Assembled ?o1 ?p ?o2))
+  (:stream inverse-kinematics
+    :inputs (?o ?p ?g)
+    :domain (and (Pose ?o ?p) (Grasp ?o ?g))
+    :outputs (?q ?t)
+    :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t))
   )
 
-  (:stream plan-motion
-    :inputs (?a ?q1 ?q2)
-    :domain (and (Arm ?a) (Conf ?q1) (Conf ?q2))
+  (:stream plan-free-motion
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
+    :fluents (AtPose)
     :outputs (?t)
-    :certified (and (Traj ?t) (Motion ?a ?q1 ?t ?q2))
+    :certified (FreeMotion ?q1 ?t ?q2)
+  )
+
+  (:stream plan-holding-motion
+    :inputs (?q1 ?q2 ?o ?g)
+    :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
+    :fluents (AtPose)
+    :outputs (?t)
+    :certified (HoldingMotion ?q1 ?t ?q2 ?o ?g)
   )
 
   (:stream test-cfree-pose-pose
@@ -34,8 +43,8 @@
   )
 
   (:stream test-cfree-approach-pose
-    :inputs (?a ?o1 ?p1 ?g1 ?o2 ?p2)
-    :domain (and (Arm ?a) (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
+    :inputs (?o1 ?p1 ?g1 ?o2 ?p2)
+    :domain (and (Pose ?o1 ?p1) (Grasp ?o1 ?g1) (Pose ?o2 ?p2))
     :certified (CFreeApproachPose ?o1 ?p1 ?g1 ?o2 ?p2)
   )
 
@@ -55,9 +64,5 @@
     :inputs (?o1 ?p1 ?o2 ?p2)
     :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
     :certified (Assembled ?o1 ?p1)
-  )
-
-  (:function (MoveCost ?t)
-    (and (Traj ?t))
   )
 )

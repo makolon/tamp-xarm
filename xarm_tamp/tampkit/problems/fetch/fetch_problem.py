@@ -27,7 +27,7 @@ from xarm_tamp.tampkit.sim_tools.curobo_utils import (
 from xarm_tamp.tampkit.problems.base_problem import Problem
 
 
-def carrying_problem(sim_cfg, curobo_cfg):
+def fetch_problem(sim_cfg, curobo_cfg):
     world = create_world()
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
@@ -42,19 +42,26 @@ def carrying_problem(sim_cfg, curobo_cfg):
     xarm = create_robot(sim_cfg.robot)
     initial_conf = get_initial_conf(xarm)
     set_initial_conf(xarm, initial_conf)
+    world.scene.add(xarm)
 
     # create table1
     table1 = create_table(sim_cfg.table1)
     set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
+    world.scene.add(table1)
 
     # create table2
     table2 = create_table(sim_cfg.table2)
     set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
+    world.scene.add(table2)
 
     # set momo parts
     block1 = create_block(sim_cfg.block1.name,
                           sim_cfg.block1.translation,
                           sim_cfg.block1.orientation)
+    world.scene.add(block1)
+
+    # reset world
+    world.reset()
 
     ########################
 
@@ -128,6 +135,7 @@ def carrying_problem(sim_cfg, curobo_cfg):
 
     return Problem(
         # PDDL
+        world=world,
         robot=xarm,
         movable=[block1],
         fixed=[table1, table2],

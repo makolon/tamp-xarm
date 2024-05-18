@@ -1,10 +1,10 @@
 # PDDLStream problem
 pddlstream:
-  task: carrying
+  task: fetch
   algorithm: adaptive
   unit: True
   deterministic: True
-  problem: carrying_problem
+  problem: fetch_problem
   cfree: True
   teleport: False
   simulate: True
@@ -147,7 +147,7 @@ sim:
 
   block1:
     name: block1
-    task: carrying
+    task: fetch
     translation: [0.3, -0.2, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 

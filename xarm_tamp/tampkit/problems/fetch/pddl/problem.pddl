@@ -1,5 +1,5 @@
-(define (problem example-problem)
-  (:domain carrying-tamp)
+(define (problem fetch-problem)
+  (:domain fetch-tamp)
   
   (:objects
     arm1
