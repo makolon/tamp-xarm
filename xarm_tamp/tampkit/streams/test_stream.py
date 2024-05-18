@@ -6,7 +6,7 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 )
 
 
-def get_cfree_pose_pose_test(collisions=True, **kwargs):
+def get_cfree_pose_pose_test(problem, collisions=True, **kwargs):
     def test(b1, p1, b2, p2):
         if not collisions or (b1 == b2):
             return True
@@ -14,6 +14,7 @@ def get_cfree_pose_pose_test(collisions=True, **kwargs):
         p2.assign()
         return not pairwise_collision(b1, b2, **kwargs)
     return test
+
 
 def get_cfree_approach_pose_test(problem, collisions=True):
     gripper = problem.robot.gripper.prim
@@ -26,6 +27,7 @@ def get_cfree_approach_pose_test(problem, collisions=True):
                 return False
         return True
     return test
+
 
 def get_cfree_traj_pose_test(problem, collisions=True):
     def test(c, b2, p2):
@@ -45,10 +47,12 @@ def get_cfree_traj_pose_test(problem, collisions=True):
         return True
     return test
 
+
 def get_supported(problem, collisions=True):
     def test(b, p1, r, p2):
         return is_placement(b, r)
     return test
+
 
 def get_inserted(problem, collisions=True):
     def test(b, p1, r, p2):
