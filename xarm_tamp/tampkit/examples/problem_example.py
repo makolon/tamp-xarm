@@ -26,7 +26,7 @@ def main(cfg: DictConfig):
         raise ValueError(cfg.pddlstream.problem)
     print('Problem:', cfg.pddlstream.problem)
     problem_fn = problem_from_name[cfg.pddlstream.problem]
-    tamp_problem = problem_fn(cfg.sim, cfg.curobo)
+    problem_fn(cfg.sim, cfg.curobo)
 
     while sim_app.is_running():
         world.step(render=True)

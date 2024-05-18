@@ -80,7 +80,7 @@ def collision_check_example(sim_cfg, curobo_cfg):
 
     # create world
     world = create_world()
-    floor = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
 
     # add usd_helper
     usd_help = UsdHelper()
@@ -160,7 +160,7 @@ def ik_example(sim_cfg, curobo_cfg):
 
     # create world
     world = create_world()
-    floor = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
     robot = create_robot(sim_cfg.robot)
     world.scene.add(robot)
 
@@ -370,7 +370,7 @@ def motion_gen_example(sim_cfg, curobo_cfg):
 
     # create world
     world = create_world()
-    floor = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
     robot = create_robot(sim_cfg.robot)
     world.scene.add(robot)
 
@@ -415,7 +415,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
     past_pose = None
     cmd_plan = None
     spheres = None
-    past_cmd = None
     target_orientation = None
     past_orientation = None
     pose_metric = None
@@ -571,7 +570,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
         past_orientation = cube_orientation
         if cmd_plan is not None:
             cmd_state = cmd_plan[cmd_idx]
-            past_cmd = cmd_state.clone()
 
             # get full dof state
             art_action = ArticulationAction(
@@ -587,7 +585,6 @@ def motion_gen_example(sim_cfg, curobo_cfg):
             if cmd_idx >= len(cmd_plan.position):
                 cmd_idx = 0
                 cmd_plan = None
-                past_cmd = None
 
     sim_app.close()
 
@@ -599,7 +596,7 @@ def mpc_example(sim_cfg, curobo_cfg):
 
     # create world
     world = create_world()
-    floor = create_floor(world, sim_cfg.floor)
+    create_floor(world, sim_cfg.floor)
     robot = create_robot(sim_cfg.robot)
     world.scene.add(robot)
 

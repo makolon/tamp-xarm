@@ -1,4 +1,3 @@
-import carb
 import math
 import torch
 import numpy as np
