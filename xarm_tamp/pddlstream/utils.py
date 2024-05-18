@@ -9,7 +9,6 @@ import time
 import random
 import cProfile
 import pstats
-import io
 
 from collections import defaultdict, deque, Counter, namedtuple
 from itertools import count
@@ -51,6 +50,7 @@ def read_pickle(filename):
         try:
             return pickle.load(f)
         except UnicodeDecodeError as e:
+            print(f'Error: {e}')
             return pickle.load(f, encoding='latin1')
 
 def safe_remove(p):
