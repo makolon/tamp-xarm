@@ -40,13 +40,10 @@ def fetch_problem(sim_cfg, curobo_cfg):
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
-    initial_conf = get_initial_conf(xarm)
-    set_initial_conf(xarm, initial_conf)
     world.scene.add(xarm)
 
     # create table1
     table1 = create_table(sim_cfg.table1)
-    set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
     world.scene.add(table1)
 
     # create table2
@@ -62,6 +59,16 @@ def fetch_problem(sim_cfg, curobo_cfg):
 
     # reset world
     world.reset()
+
+    # initialize world
+    set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
+    set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
+    initial_conf = sim_cfg.robot.initial_configuration
+    set_initial_conf(xarm, initial_conf)
+    world.step(render=True)
+
+    # play world
+    world.play()
 
     ########################
 

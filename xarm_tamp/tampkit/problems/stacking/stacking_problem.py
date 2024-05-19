@@ -40,13 +40,10 @@ def stacking_problem(sim_cfg, curobo_cfg):
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
-    initial_conf = get_initial_conf(xarm)
-    set_initial_conf(xarm, initial_conf)
     world.scene.add(xarm)
 
     # create table
     table = create_table(sim_cfg.table)
-    set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
     world.scene.add(table)
 
     # set momo parts
@@ -72,6 +69,15 @@ def stacking_problem(sim_cfg, curobo_cfg):
 
     # reset world
     world.reset()
+
+    # initialize world
+    set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
+    initial_conf = sim_cfg.robot.initial_configuration
+    set_initial_conf(xarm, initial_conf)
+    world.step(render=True)
+
+    # play world
+    world.play()
 
     ########################
 

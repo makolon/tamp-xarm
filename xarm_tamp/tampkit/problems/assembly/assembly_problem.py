@@ -41,54 +41,40 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # create robot
     xarm = create_robot(sim_cfg.robot)
-    initial_conf = get_initial_conf(xarm)
-    set_initial_conf(xarm, initial_conf)
     world.scene.add(xarm)
 
     # create table
     table = create_table(sim_cfg.table)
-    set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
     world.scene.add(table)
 
     # create base plate
     base_block = create_fmb(sim_cfg.base_block)
-    set_pose(base_block, (sim_cfg.base_block.translation, sim_cfg.base_block.orientation))
     world.scene.add(base_block)
 
     # set momo parts
     block1 = create_fmb(sim_cfg.block1)
-    set_pose(block1, (sim_cfg.block1.translation, sim_cfg.block1.orientation))
     world.scene.add(block1)
 
     block2 = create_fmb(sim_cfg.block2)
-    set_pose(block2, (sim_cfg.block2.translation, sim_cfg.block2.orientation))
     world.scene.add(block2)
 
     block3 = create_fmb(sim_cfg.block3)
-    set_pose(block3, (sim_cfg.block3.translation, sim_cfg.block3.orientation))
     world.scene.add(block3)
 
     block4 = create_fmb(sim_cfg.block4)
-    set_pose(block4, (sim_cfg.block4.translation, sim_cfg.block4.orientation))
     world.scene.add(block4)
 
     # define surfaces
     block1_pose = get_pose(block1)
     surf1 = create_surface(sim_cfg.surface1.name, *block1_pose)
-    surf1_pose = calc_surf_pose(block1_pose, "surface1")
-    set_pose(surf1, surf1_pose)
     world.scene.add(surf1)
 
     block2_pose = get_pose(block2)
     surf2 = create_surface(sim_cfg.surface2.name, *block2_pose)
-    surf2_pose = calc_surf_pose(block2_pose, "surface2")
-    set_pose(surf2, surf2_pose)
     world.scene.add(surf2)
 
     block3_pose = get_pose(block3)
     surf3 = create_surface(sim_cfg.surface3.name, *block3_pose)
-    surf3_pose = calc_surf_pose(block3_pose, "surface3")
-    set_pose(surf3, surf3_pose)
     world.scene.add(surf3)
 
     block4_pose = get_pose(block4)
@@ -99,27 +85,49 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     # define holes
     hole1 = create_hole(sim_cfg.hole1.name, *block1_pose)
-    hole1_pose = calc_hole_pose(block1_pose, "hole1")
-    set_pose(hole1, hole1_pose)
     world.scene.add(hole1)
 
     hole2 = create_hole(sim_cfg.hole2.name, *block2_pose)
-    hole2_pose = calc_hole_pose(block2_pose, "hole2")
-    set_pose(hole2, hole2_pose)
     world.scene.add(hole2)
 
     hole3 = create_hole(sim_cfg.hole3.name, *block3_pose)
-    hole3_pose = calc_hole_pose(block3_pose, "hole3")
-    set_pose(hole3, hole3_pose)
     world.scene.add(hole3)
 
     hole4 = create_hole(sim_cfg.hole4.name, *block4_pose)
-    hole4_pose = calc_hole_pose(block4_pose, "hole4")
-    set_pose(hole4, hole4_pose)
     world.scene.add(hole4)
 
     # reset world
     world.reset()
+
+    # initialize world
+    set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
+    set_pose(base_block, (sim_cfg.base_block.translation, sim_cfg.base_block.orientation))
+    set_pose(block1, (sim_cfg.block1.translation, sim_cfg.block1.orientation))
+    set_pose(block2, (sim_cfg.block2.translation, sim_cfg.block2.orientation))
+    set_pose(block3, (sim_cfg.block3.translation, sim_cfg.block3.orientation))
+    set_pose(block4, (sim_cfg.block4.translation, sim_cfg.block4.orientation))
+
+    surf1_pose = calc_surf_pose(block1_pose, "surface1")
+    set_pose(surf1, surf1_pose)
+    surf2_pose = calc_surf_pose(block2_pose, "surface2")
+    set_pose(surf2, surf2_pose)
+    surf3_pose = calc_surf_pose(block3_pose, "surface3")
+    set_pose(surf3, surf3_pose)
+    hole1_pose = calc_hole_pose(block1_pose, "hole1")
+    set_pose(hole1, hole1_pose)
+    hole2_pose = calc_hole_pose(block2_pose, "hole2")
+    set_pose(hole2, hole2_pose)
+    hole3_pose = calc_hole_pose(block3_pose, "hole3")
+    set_pose(hole3, hole3_pose)
+    hole4_pose = calc_hole_pose(block4_pose, "hole4")
+    set_pose(hole4, hole4_pose)
+
+    initial_conf = sim_cfg.robot.initial_configuration
+    set_initial_conf(xarm, initial_conf)
+    world.step(render=True)
+
+    # play world
+    world.play()
 
     ########################
 
