@@ -91,7 +91,7 @@ def create_world() -> 'World':
     """
     return World(stage_units_in_meters=1.0)
 
-def create_floor(world: 'World', plane_cfg: 'PlaneConfig') -> 'GroundPlane':
+def create_floor(world: 'World', plane_cfg: 'Dict') -> 'object':
     """
     Create a ground plane in the simulation world.
 
@@ -108,7 +108,7 @@ def create_floor(world: 'World', plane_cfg: 'PlaneConfig') -> 'GroundPlane':
         restitution=plane_cfg.restitution,
     )
 
-def create_block(block_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'DynamicCuboid':
+def create_block(block_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'RigidPrim':
     """
     Create a dynamic block in the simulation world.
 
@@ -129,7 +129,7 @@ def create_block(block_name: str, translation: np.ndarray, orientation: np.ndarr
         size=0.03,
     )
 
-def create_surface(surface_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'VisualCuboid':
+def create_surface(surface_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'GeometryPrim':
     """
     Create a visual surface in the simulation world.
 
@@ -151,7 +151,7 @@ def create_surface(surface_name: str, translation: np.ndarray, orientation: np.n
         visible=False,
     )
 
-def create_hole(hole_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'VisualCuboid':
+def create_hole(hole_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'GeometryPrim':
     """
     Create a visual hole in the simulation world.
 
@@ -173,7 +173,7 @@ def create_hole(hole_name: str, translation: np.ndarray, orientation: np.ndarray
         visible=False,
     )
 
-def create_table(table_cfg: 'TableConfig') -> 'FixedCuboid':
+def create_table(table_cfg: 'Dict') -> 'GeometryPrim':
     """
     Create a fixed table in the simulation world.
 
@@ -193,7 +193,7 @@ def create_table(table_cfg: 'TableConfig') -> 'FixedCuboid':
         size=table_cfg.size,
     )
 
-def create_robot(robot_cfg: 'RobotConfig') -> 'Robot':
+def create_robot(robot_cfg: 'Dict') -> 'Robot':
     """
     Create a robot in the simulation world.
 
@@ -216,7 +216,7 @@ def create_robot(robot_cfg: 'RobotConfig') -> 'Robot':
     else:
         raise ValueError("Unknown robot name")
 
-def create_fmb(fmb_cfg: 'FmbConfig') -> 'Block':
+def create_fmb(fmb_cfg: 'Dict') -> 'XFormPrim':
     """
     Create a functional block module (FMB) in the simulation world.
 
