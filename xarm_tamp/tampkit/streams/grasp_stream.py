@@ -29,6 +29,7 @@ def sample_grasps(body, tool_pose, body_pose, grasp_length=0.0, max_width=0.1):
         grasps = multiply(tool_pose, pose_diff)
         return grasps
 
+
 def get_grasp_gen(problem, collisions=True):
     robot = problem.robot
     tool_link = get_tool_link(robot, robot._end_effector_prim_name)

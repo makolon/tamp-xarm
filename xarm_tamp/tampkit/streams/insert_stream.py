@@ -33,6 +33,7 @@ def sample_insertion(body, hole, max_attempts=25, **kwargs):
         return pose
     return None
 
+
 def get_insert_gen(problem, collisions=True, **kwargs):
     # Sample insert pose
     obstacles = problem.fixed if collisions else []
