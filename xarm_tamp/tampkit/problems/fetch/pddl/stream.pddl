@@ -20,20 +20,11 @@
     :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t))
   )
 
-  (:stream plan-free-motion
+  (:stream plan-motion
     :inputs (?q1 ?q2)
     :domain (and (Conf ?q1) (Conf ?q2))
-    :fluents (AtPose)
     :outputs (?t)
-    :certified (FreeMotion ?q1 ?t ?q2)
-  )
-
-  (:stream plan-holding-motion
-    :inputs (?q1 ?q2 ?o ?g)
-    :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
-    :fluents (AtPose)
-    :outputs (?t)
-    :certified (HoldingMotion ?q1 ?t ?q2 ?o ?g)
+    :certified (Motion ?q1 ?t ?q2)
   )
 
   (:stream test-cfree-pose-pose
