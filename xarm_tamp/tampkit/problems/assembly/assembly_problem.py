@@ -79,8 +79,6 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
 
     block4_pose = get_pose(block4)
     surf4 = create_surface(sim_cfg.surface4.name, *block4_pose)
-    surf4_pose = calc_surf_pose(block4_pose, "surface4")
-    set_pose(surf4, surf4_pose)
     world.scene.add(surf4)
 
     # define holes
@@ -113,6 +111,8 @@ def fmb_momo_problem(sim_cfg, curobo_cfg):
     set_pose(surf2, surf2_pose)
     surf3_pose = calc_surf_pose(block3_pose, "surface3")
     set_pose(surf3, surf3_pose)
+    surf4_pose = calc_surf_pose(block4_pose, "surface4")
+    set_pose(surf4, surf4_pose)
     hole1_pose = calc_hole_pose(block1_pose, "hole1")
     set_pose(hole1, hole1_pose)
     hole2_pose = calc_hole_pose(block2_pose, "hole2")
