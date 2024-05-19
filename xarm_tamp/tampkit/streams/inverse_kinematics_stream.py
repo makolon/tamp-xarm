@@ -1,5 +1,4 @@
 import carb
-import numpy as np
 from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath, Command
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     get_arm_joints,
@@ -17,7 +16,8 @@ def get_ik_fn(problem, collisions=True):
     motion_planner = problem.motion_planner
     obstacles = problem.fixed if collisions else []
 
-    def fn(arm, body, pose, grasp):
+    def fn(body, pose, grasp):
+        # TODO: add grasp to attach
         arm_joints = get_arm_joints(robot)
 
         # Default confs
@@ -26,8 +26,8 @@ def get_ik_fn(problem, collisions=True):
         # Set position to default configuration for grasp action
         assert len(default_arm_conf) == len(arm_joints), "Lengths do not match."
 
-        # parse pose
-        position, rotation = pose
+        # target pose
+        position, rotation = grasp.value
 
         # Set ik goal
         ik_goal = Pose(
