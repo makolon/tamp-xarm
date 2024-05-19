@@ -12,26 +12,22 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
     connect, disconnect,
     # Getter
-    get_pose, get_max_limit, get_arm_joints, get_gripper_joints,
-    get_joint_positions,
+    get_pose, get_arm_joints, get_joint_positions,
 )
 
 from xarm_tamp.tampkit.problems import PROBLEMS
 from xarm_tamp.tampkit.streams.inverse_kinematics_stream import get_ik_fn
-from xarm_tamp.tampkit.streams.plan_motion_stream import get_free_motion_fn, get_holding_motion_fn
+from xarm_tamp.tampkit.streams.plan_motion_stream import get_motion_fn
 from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
 from xarm_tamp.tampkit.streams.place_stream import get_place_gen
 from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
 
 # PDDLStream functions
-from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.algorithms.meta import solve
 from pddlstream.language.generator import from_gen_fn, from_fn, from_test
-from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
-from pddlstream.language.external import defer_shared, never_defer
-from pddlstream.language.function import FunctionInfo
+from pddlstream.language.constants import print_solution, AND, PDDLProblem
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.object import SharedOptValue
 from pddlstream.utils import get_file_path, read, str_from_object, Profiler, INF
 
 BASE_CONSTANT = 1
@@ -130,10 +126,9 @@ class TAMPPlanner(object):
             # Inverse kinematics
             'inverse-kinematics': from_fn(get_ik_fn(problem, collisions=collisions)),
             # Planner
-            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions, teleport=teleport)),
-            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-motion': from_fn(get_motion_fn(problem, collisions=collisions, teleport=teleport)),
             # Test function
-            'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
+            'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(problem, collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
             'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem, collisions=collisions)),
             'test-supported': from_test(get_supported(problem, collisions=collisions)),
@@ -149,25 +144,21 @@ class TAMPPlanner(object):
         paths = []
         for i, (name, args) in enumerate(plan):
             if name == 'move':
-                print('move args:', args)
-                a, q1, q2, c = args
-                new_commands = c.commands
+                q1, q2, c = args
+                new_commands = c
             elif name == 'pick':
-                print('pick args:', args)
-                a, o, p, g, q, c = args
-                new_commands = c.commands
+                o, p, g, q, c = args
+                new_commands = c
             elif name == 'place':
-                print('place args:', args)
-                a, o1, o2, p, g, q, c = args
-                new_commands = c.commands
+                o, p, g, q, c = args
+                new_commands = c
             elif name == 'insert':
-                print('insert args:', args)
-                a, o1, o2, p, g, q, c = args
-                new_commands = c.commands
+                o, p, g, q, c = args
+                new_commands = c
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
-            paths += new_commands
+            paths += [new_commands]
         return Command(paths)
 
     def execute(self, sim_cfg, curobo_cfg):
