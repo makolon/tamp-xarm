@@ -1,4 +1,4 @@
-(define (domain pick-and-place)
+(define (domain stacking-tamp)
   (:requirements :strips :equality)
   (:predicates
     ; Static predicates
@@ -10,8 +10,7 @@
     (Traj ?t)
     (Conf ?q)
     (Kin ?o ?p ?g ?q ?t)
-    (FreeMotion ?q1 ?t ?q2)
-    (HoldingMotion ?q1 ?t ?q2 ?o ?g)
+    (Motion ?q1 ?t ?q2)
     (Graspable ?o)
     (Placeable ?o ?r)
     (CFreePosePose ?o ?p ?o2 ?p2)
@@ -34,23 +33,11 @@
     (UnsafeTraj ?t)
   )
 
-  (:action move_free
+  (:action move
     :parameters (?q1 ?q2 ?t)
     :precondition (and (CanMove)
-                       (HandEmpty)
                        (AtConf ?q1)
-                       (FreeMotion ?q1 ?t ?q2))
-    :effect (and (AtConf ?q2)
-                 (not (AtConf ?q1))
-                 (not (CanMove)))
-  )
-
-  (:action move_holding
-    :parameters (?q1 ?q2 ?o ?g ?t)
-    :precondition (and (CanMove)
-                       (AtConf ?q1)
-                       (AtGrasp ?o ?g)
-                       (HoldingMotion ?q1 ?t ?q2 ?o ?g))
+                       (Motion ?q1 ?t ?q2))
     :effect (and (AtConf ?q2)
                  (not (AtConf ?q1))
                  (not (CanMove)))

@@ -1,5 +1,5 @@
-(define (problem pick-and-place-problem)
-  (:domain pick-and-place)
+(define (problem stacking-problem)
+  (:domain stacking-tamp)
   (:objects
     robot_arm - arm
     block1 block2 - object
