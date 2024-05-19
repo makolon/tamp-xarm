@@ -1,6 +1,7 @@
 import carb
 from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath, Command
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
+    create_trajectory,
     get_arm_joints,
     get_initial_conf,
 )
@@ -56,9 +57,11 @@ def get_ik_fn(problem, collisions=True):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        goal_conf = goal_conf.js_solution.position
-        conf = BodyConf(robot=robot, configuration=goal_conf)
-        command = Command([BodyPath(robot, trajectory)])
+        conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position)
+
+        # create trajectory
+        art_traj = create_trajectory(trajectory)
+        command = Command([BodyPath(robot, art_traj)])
         return (conf, command)
 
     return fn

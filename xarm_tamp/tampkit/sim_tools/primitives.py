@@ -99,6 +99,8 @@ class BodyConf:
         index = self.index
         return 'q{}'.format(index)
 
+##################################################
+
 class BodyPath:
 
     def __init__(self,
@@ -123,9 +125,10 @@ class BodyPath:
                 grasp.assign()
             yield i
 
-    def control(self, dt=0):
-        for values in self.path:
-            apply_action(self.robot, self.joints, values)
+    def control(self):
+        # for values in self.path:
+        #     apply_action(self.robot, self.joints, values)
+        apply_action(self.robot, self.joints, self.path)
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)

@@ -1073,9 +1073,25 @@ def set_initial_conf(robot: 'Robot',
         initial_conf = get_joint_positions(robot, joint_indices)
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
+def create_trajectory(trajectory: List) -> List[ArticulationAction]:
+    """
+    Create a list of ArticulationAction objects from a list of trajectories.
+
+    Args:
+        trajectory (List): A list of trajectory data.
+
+    Returns:
+        List[ArticulationAction]: A list of ArticulationAction objects created from the trajectory data.
+    """
+    art_traj = ArticulationAction(
+        joint_positions=trajectory.position.cpu().numpy(),
+        joint_velocities=trajectory.velocity.cpu().numpy(),
+        joint_efforts=trajectory.acceleration.cpu().numpy())
+    return art_traj
+
 def apply_action(robot: 'Robot', 
+                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
                  configuration: Optional['ArticulationAction'] = None, 
-                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None
                 ) -> None:
     """
     Apply articulation action.
@@ -1085,6 +1101,10 @@ def apply_action(robot: 'Robot',
         configuration (Optional[ArticulationAction], optional): Articulation action configuration. Defaults to None.
         joint_indices (Optional[Union[list, np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
     """
+    if joint_indices is None:
+        joint_indices = get_movable_joints(robot)
+    if configuration is None:
+        raise ValueError("Goal configuration is not specified.")
     art_controller = robot.get_articulation_controller()
     art_controller.apply_action(configuration)
 
