@@ -60,7 +60,7 @@ def get_ik_fn(problem, collisions=True):
         conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position)
 
         # create trajectory
-        art_traj = create_trajectory(trajectory)
+        art_traj = create_trajectory(trajectory, arm_joints)
         command = Command([BodyPath(robot, art_traj)])
         return (conf, command)
 

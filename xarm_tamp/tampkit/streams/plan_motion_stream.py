@@ -68,7 +68,7 @@ def get_motion_fn(problem, collisions=True, teleport=False):
             return None
 
         # create trajectory
-        art_traj = create_trajectory(trajectory)
+        art_traj = create_trajectory(trajectory, arm_joints)
         command = Command([BodyPath(robot, art_traj)])
         return (command,)
 
