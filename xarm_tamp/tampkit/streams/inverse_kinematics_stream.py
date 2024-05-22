@@ -14,7 +14,6 @@ def get_ik_fn(problem, collisions=True):
     plan_cfg = problem.plan_cfg
     ik_solver = problem.ik_solver
     motion_planner = problem.motion_planner
-    obstacles = problem.fixed if collisions else []
 
     def fn(body, pose, grasp):
         # TODO: add grasp to attach
@@ -57,7 +56,8 @@ def get_ik_fn(problem, collisions=True):
             return None
 
         conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position)
-        traj = BodyPath(robot, arm_joints, trajectory)
+        arm_traj = trajectory.position.cpu().numpy()
+        traj = BodyPath(robot, arm_joints, arm_traj)
         return (conf, traj)
 
     return fn
