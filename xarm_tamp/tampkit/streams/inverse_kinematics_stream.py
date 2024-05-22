@@ -1,7 +1,6 @@
 import carb
-from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath, Command
+from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
-    create_trajectory,
     get_arm_joints,
     get_initial_conf,
 )
@@ -58,10 +57,7 @@ def get_ik_fn(problem, collisions=True):
             return None
 
         conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position)
-
-        # create trajectory
-        art_traj = create_trajectory(trajectory, arm_joints)
-        command = Command([BodyPath(robot, art_traj)])
-        return (conf, command)
+        traj = BodyPath(robot, arm_joints, trajectory)
+        return (conf, traj)
 
     return fn

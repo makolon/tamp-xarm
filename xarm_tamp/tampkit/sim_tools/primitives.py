@@ -1,10 +1,9 @@
-import time
 import torch
 import numpy as np
 from itertools import count
 from typing import List, Optional, Union
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
-    apply_action, flatten, get_pose, get_joint_positions,
+    apply_action, get_gripper_joints, get_pose, get_joint_positions,
     get_link_pose, get_movable_joints, multiply, refine_path,
     set_pose, set_joint_positions
 )
@@ -99,9 +98,59 @@ class BodyConf:
         index = self.index
         return 'q{}'.format(index)
 
+class BodyPath:
+
+    num = count()
+    def __init__(self,
+                 robot: Robot,
+                 joints: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                 path: Optional[Union[list, np.ndarray, torch.Tensor]] = None):
+        if joints is None:
+            joints = get_movable_joints(robot)
+        self.robot = robot
+        self.joints = joints
+        self.path = path
+        self.index = next(self.num)
+
+    @property
+    def value(self):
+        return self.path
+
+    def assign(self):
+        for value in self.path:
+            set_joint_positions(self.robot, self.joints, value)
+        return self.path
+
+    def __repr__(self):
+        index = self.index
+        return 't{}'.format(index)
+
 ##################################################
 
-class BodyPath:
+class Command:
+
+    def bodies(self):
+        raise NotImplementedError()
+
+    def iterate(self):
+        raise NotImplementedError()
+
+    def control(self, dt=0):
+        raise NotImplementedError()
+
+    def apply(self, state, **kwargs):
+        raise NotImplementedError()
+
+    def refine(self, num_steps=0):
+        raise NotImplementedError()
+
+    def reverse(self):
+        raise NotImplementedError()
+
+    def __repr__(self):
+        raise NotImplementedError()
+
+class ArmCommand(Command):
 
     def __init__(self,
                  robot: Robot,
@@ -126,9 +175,8 @@ class BodyPath:
             yield i
 
     def control(self):
-        # for values in self.path:
-        #     apply_action(self.robot, self.joints, values)
-        apply_action(self.robot, self.joints, self.path)
+        for values in self.path:
+            apply_action(self.robot, self.joints, values)
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)
@@ -139,42 +187,35 @@ class BodyPath:
     def __repr__(self):
         return '{}({},{},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path), len(self.attachments))
 
-class Command:
+class GripperCommand(Command):
 
-    num = count()
-    def __init__(self, body_paths):
-        self.body_paths = body_paths
-        self.index = next(self.num)
+    def __init__(self,
+                 robot: Robot,
+                 path: List[ArticulationAction],
+                 joints: Optional[Union[np.ndarray, torch.Tensor]] = None):
+        if joints is None:
+            joints = get_gripper_joints(robot)
+        self.robot = robot
+        self.path = path
+        self.joints = joints
 
     def bodies(self):
-        return set(flatten(path.bodies() for path in self.body_paths))
-
-    def step(self):
-        for i, body_path in enumerate(self.body_paths):
-            for j in body_path.iterator():
-                msg = '{},{}) step>'.format(i, j)
-                print(msg)
-
-    def execute(self, time_step=0.05):
-        for i, body_path in enumerate(self.body_paths):
-            for j in body_path.iterator():
-                time.sleep(time_step)
+        return set(([self.robot]))
 
     def control(self):
-        for body_path in self.body_paths:
-            body_path.control()
+        for values in self.path:
+            apply_action(self.robot, self.joints, values)
 
-    def refine(self, **kwargs):
-        return self.__class__([body_path.refine(**kwargs) for body_path in self.body_paths])
+    def refine(self, num_steps=0):
+        return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints)
 
     def reverse(self):
-        return self.__class__([body_path.reverse() for body_path in reversed(self.body_paths)])
+        return self.__class__(self.robot, self.path[::-1], self.joints)
 
     def __repr__(self):
-        index = self.index
-        return 'c{}'.format(index)
+        return '{}({},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path))
 
-class Attach:
+class AttachCommand(Command):
 
     def __init__(self,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
@@ -197,12 +238,12 @@ class Attach:
         return self
 
     def reverse(self):
-        return Detach(self.body, self.robot, self.link)
+        return DetachCommand(self.body, self.robot, self.link)
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
 
-class Detach:
+class DetachCommand(Command):
 
     def __init__(self,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
@@ -225,7 +266,7 @@ class Detach:
         return self
 
     def reverse(self):
-        return Attach(self.body, self.robot, self.link)
+        return AttachCommand(self.body, self.robot, self.link)
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)

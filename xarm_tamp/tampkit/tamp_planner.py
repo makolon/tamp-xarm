@@ -7,12 +7,16 @@ from omegaconf import DictConfig
 # Initialize isaac sim
 import xarm_tamp.tampkit.sim_tools.sim_utils
 
-from xarm_tamp.tampkit.sim_tools.primitives import BodyPose, BodyConf, Command
+from xarm_tamp.tampkit.sim_tools.primitives import (
+    BodyPose, BodyConf, ArmCommand, GripperCommand
+)
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
-    connect, disconnect,
+    connect, disconnect, step_simulation, apply_action,
+    create_grasp_action, create_trajectory,
     # Getter
     get_pose, get_arm_joints, get_joint_positions,
+    get_gripper_joints
 )
 
 from xarm_tamp.tampkit.problems import PROBLEMS
@@ -141,25 +145,36 @@ class TAMPPlanner(object):
         if plan is None:
             return None
 
-        paths = []
+        commands = []
         for i, (name, args) in enumerate(plan):
+            new_commands = []
             if name == 'move':
                 q1, q2, c = args
-                new_commands = c
+                move_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(problem.robot, move_trajectory)]
             elif name == 'pick':
                 o, p, g, q, c = args
-                new_commands = c
+                pick_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(problem.robot, pick_trajectory)]
+                grasp_action = create_grasp_action([50, 50], get_gripper_joints(problem.robot))
+                new_commands += [GripperCommand(problem.robot, grasp_action)]
             elif name == 'place':
                 o, p, g, q, c = args
-                new_commands = c
+                place_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(problem.robot, place_trajectory)]
+                release_action = create_grasp_action([-50, -50], get_gripper_joints(problem.robot))
+                new_commands += [GripperCommand(problem.robot, release_action)]
             elif name == 'insert':
                 o, p, g, q, c = args
-                new_commands = c
+                insert_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(problem.robot, insert_trajectory)]
+                release_action = create_grasp_action([-50, -50], get_gripper_joints(problem.robot))
+                new_commands += [GripperCommand(problem.robot, release_action)]
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
-            paths += [new_commands]
-        return Command(paths)
+            commands += new_commands
+        return commands
 
     def execute(self, sim_cfg, curobo_cfg):
         simulation_app = connect()
@@ -201,13 +216,19 @@ class TAMPPlanner(object):
             return
 
         # Post process
-        command = self.post_process(tamp_problem, plan)
+        commands = self.post_process(tamp_problem, plan)
+        print('commands:', commands)
 
         # Execute commands
         if self._simulate:
-            command.control()
+            for command in commands:
+                for path in command.path:
+                    apply_action(command.robot, path)
+                    step_simulation(tamp_problem.world, steps=5)
         else:
-            command.execute()
+            for command in commands:
+                for path in command.path.iterator():
+                    step_simulation(tamp_problem.world, steps=5)
 
         # Close simulator
         disconnect()

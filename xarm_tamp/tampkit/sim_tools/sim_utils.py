@@ -59,14 +59,15 @@ def disconnect() -> None:
     global simulation_app
     simulation_app.close()
 
-def step_simulation(world: 'World') -> None:
+def step_simulation(world: 'World', steps=1) -> None:
     """
     Step the simulation forward.
 
     Args:
         world (World): The simulation world.
     """
-    world.step(render=True)
+    for _ in range(steps):
+        world.step(render=True)
 
 def loop_simulation(world: 'World') -> None:
     """
@@ -1073,7 +1074,26 @@ def set_initial_conf(robot: 'Robot',
         initial_conf = get_joint_positions(robot, joint_indices)
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
-def create_trajectory(trajectory: List) -> List[ArticulationAction]:
+def create_grasp_action(gripper_command: List,
+                        joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]
+                       ) -> List[ArticulationAction]:
+    """
+    Create a list of ArticulationAction objects from a list of gripper_commands.
+
+    Args:
+        gripper_command (List): A list of gripper command.
+
+    Returns:
+        List[ArticulationAction]: A list of ArticulationAction objects create from the gripper_command.
+    """
+    art_traj = [ArticulationAction(
+        joint_efforts=gripper_command,
+        joint_indices=joint_indices)]
+    return art_traj
+
+def create_trajectory(trajectory: List,
+                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]]
+                     ) -> List[ArticulationAction]:
     """
     Create a list of ArticulationAction objects from a list of trajectories.
 
@@ -1083,14 +1103,16 @@ def create_trajectory(trajectory: List) -> List[ArticulationAction]:
     Returns:
         List[ArticulationAction]: A list of ArticulationAction objects created from the trajectory data.
     """
-    art_traj = ArticulationAction(
-        joint_positions=trajectory.position.cpu().numpy(),
-        joint_velocities=trajectory.velocity.cpu().numpy(),
-        joint_efforts=trajectory.acceleration.cpu().numpy())
+    art_traj = []
+    for pos, vel, acc in zip(trajectory.position, trajectory.velocity, trajectory.acceleration):
+        art_traj.append(ArticulationAction(
+            joint_positions=pos.cpu().numpy(),
+            joint_velocities=vel.cpu().numpy(),
+            joint_efforts=acc.cpu().numpy(),
+            joint_indices=joint_indices))
     return art_traj
 
-def apply_action(robot: 'Robot', 
-                 joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
+def apply_action(robot: 'Robot',
                  configuration: Optional['ArticulationAction'] = None, 
                 ) -> None:
     """
@@ -1099,10 +1121,7 @@ def apply_action(robot: 'Robot',
     Args:
         robot (Robot): The robot object.
         configuration (Optional[ArticulationAction], optional): Articulation action configuration. Defaults to None.
-        joint_indices (Optional[Union[list, np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
     """
-    if joint_indices is None:
-        joint_indices = get_movable_joints(robot)
     if configuration is None:
         raise ValueError("Goal configuration is not specified.")
     art_controller = robot.get_articulation_controller()

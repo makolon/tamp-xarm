@@ -1,8 +1,7 @@
 import carb
 import torch
-from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath, Command
+from xarm_tamp.tampkit.sim_tools.primitives import BodyPath
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
-    create_trajectory,
     get_arm_joints,
     get_initial_conf,
 )
@@ -67,9 +66,7 @@ def get_motion_fn(problem, collisions=True, teleport=False):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        # create trajectory
-        art_traj = create_trajectory(trajectory, arm_joints)
-        command = Command([BodyPath(robot, art_traj)])
-        return (command,)
+        traj = BodyPath(robot, arm_joints, trajectory)
+        return (traj,)
 
     return fn
