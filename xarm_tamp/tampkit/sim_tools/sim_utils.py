@@ -1087,7 +1087,7 @@ def create_grasp_action(gripper_command: List,
         List[ArticulationAction]: A list of ArticulationAction objects create from the gripper_command.
     """
     art_traj = [ArticulationAction(
-        joint_efforts=gripper_command,
+        joint_positions=gripper_command,
         joint_indices=joint_indices)]
     return art_traj
 
@@ -1104,11 +1104,9 @@ def create_trajectory(trajectory: List,
         List[ArticulationAction]: A list of ArticulationAction objects created from the trajectory data.
     """
     art_traj = []
-    for pos, vel, acc in zip(trajectory.position, trajectory.velocity, trajectory.acceleration):
+    for position in trajectory:
         art_traj.append(ArticulationAction(
-            joint_positions=pos.cpu().numpy(),
-            joint_velocities=vel.cpu().numpy(),
-            joint_efforts=acc.cpu().numpy(),
+            joint_positions=position,
             joint_indices=joint_indices))
     return art_traj
 
