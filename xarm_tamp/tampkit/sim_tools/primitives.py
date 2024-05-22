@@ -121,6 +121,9 @@ class BodyPath:
             set_joint_positions(self.robot, self.joints, value)
         return self.path
 
+    def reverse(self):
+        return self.__class__(self.robot, self.joints, self.path[::-1])
+
     def __repr__(self):
         index = self.index
         return 't{}'.format(index)
@@ -142,9 +145,6 @@ class Command:
         raise NotImplementedError()
 
     def refine(self, num_steps=0):
-        raise NotImplementedError()
-
-    def reverse(self):
         raise NotImplementedError()
 
     def __repr__(self):
@@ -181,9 +181,6 @@ class ArmCommand(Command):
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)
 
-    def reverse(self):
-        return self.__class__(self.robot, self.path[::-1], self.joints, self.attachments)
-
     def __repr__(self):
         return '{}({},{},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path), len(self.attachments))
 
@@ -208,9 +205,6 @@ class GripperCommand(Command):
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints)
-
-    def reverse(self):
-        return self.__class__(self.robot, self.path[::-1], self.joints)
 
     def __repr__(self):
         return '{}({},{},{})'.format(self.__class__.__name__, self.robot, len(self.joints), len(self.path))
@@ -237,9 +231,6 @@ class AttachCommand(Command):
     def refine(self, **kwargs):
         return self
 
-    def reverse(self):
-        return DetachCommand(self.body, self.robot, self.link)
-
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
 
@@ -264,9 +255,6 @@ class DetachCommand(Command):
 
     def refine(self, **kwargs):
         return self
-
-    def reverse(self):
-        return AttachCommand(self.body, self.robot, self.link)
 
     def __repr__(self):
         return '{}({},{})'.format(self.__class__.__name__, self.robot, self.body)
