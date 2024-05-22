@@ -21,7 +21,7 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 
 from xarm_tamp.tampkit.problems import PROBLEMS
 from xarm_tamp.tampkit.streams.inverse_kinematics_stream import get_ik_fn
-from xarm_tamp.tampkit.streams.plan_motion_stream import get_motion_fn
+from xarm_tamp.tampkit.streams.plan_motion_stream import get_free_motion_fn, get_holding_motion_fn
 from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
 from xarm_tamp.tampkit.streams.place_stream import get_place_gen
 from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
@@ -56,8 +56,12 @@ def opt_insert_fn(o1, o2):
     p2 = CustomValue('p-si', (o2,))
     return p2,
 
-def opt_motion_fn(q1, q2):
+def opt_free_motion_fn(q1, q2):
     t = CustomValue('t-pbm', (q1, q2))
+    return t,
+
+def opt_holding_motion_fn(q1, q2, o, g):
+    t = CustomValue('t-hm', (q1, q2, o, g))
     return t,
 
 #######################################################
@@ -130,7 +134,8 @@ class TAMPPlanner(object):
             # Inverse kinematics
             'inverse-kinematics': from_fn(get_ik_fn(problem, collisions=collisions)),
             # Planner
-            'plan-motion': from_fn(get_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions, teleport=teleport)),
             # Test function
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(problem, collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
@@ -148,27 +153,31 @@ class TAMPPlanner(object):
         commands = []
         for i, (name, args) in enumerate(plan):
             new_commands = []
-            if name == 'move':
+            if name == 'move_free':
                 q1, q2, c = args
+                move_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(problem.robot, move_trajectory)]
+            elif name == 'move_holding':
+                q1, q2, o, g, c = args
                 move_trajectory = create_trajectory(c.path, c.joints)
                 new_commands += [ArmCommand(problem.robot, move_trajectory)]
             elif name == 'pick':
                 o, p, g, q, c = args
                 pick_trajectory = create_trajectory(c.path, c.joints)
                 new_commands += [ArmCommand(problem.robot, pick_trajectory)]
-                grasp_action = create_grasp_action([50, 50], get_gripper_joints(problem.robot))
+                grasp_action = create_grasp_action([30, -30], get_gripper_joints(problem.robot))
                 new_commands += [GripperCommand(problem.robot, grasp_action)]
             elif name == 'place':
                 o, p, g, q, c = args
-                place_trajectory = create_trajectory(c.path, c.joints)
+                place_trajectory = create_trajectory(c.reverse().path, c.joints)
                 new_commands += [ArmCommand(problem.robot, place_trajectory)]
-                release_action = create_grasp_action([-50, -50], get_gripper_joints(problem.robot))
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
                 new_commands += [GripperCommand(problem.robot, release_action)]
             elif name == 'insert':
                 o, p, g, q, c = args
                 insert_trajectory = create_trajectory(c.path, c.joints)
                 new_commands += [ArmCommand(problem.robot, insert_trajectory)]
-                release_action = create_grasp_action([-50, -50], get_gripper_joints(problem.robot))
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
                 new_commands += [GripperCommand(problem.robot, release_action)]
             else:
                 raise ValueError(name)
@@ -193,7 +202,8 @@ class TAMPPlanner(object):
             'sample-grasp': StreamInfo(opt_gen_fn=from_fn(opt_grasp_fn)),
             'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
             'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'plan-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_fn)),
+            'plan-free-motion': StreamInfo(opt_gen_fn=from_fn(opt_free_motion_fn)),
+            'plan-holding-motion': StreamInfo(opt_gen_fn=from_fn(opt_holding_motion_fn))
         }
 
         _, _, _, stream_map, init, goal = pddlstream_problem
@@ -221,14 +231,16 @@ class TAMPPlanner(object):
 
         # Execute commands
         if self._simulate:
-            for command in commands:
+            for step, command in enumerate(commands):
+                print('step:', step)
                 for path in command.path:
                     apply_action(command.robot, path)
-                    step_simulation(tamp_problem.world, steps=5)
+                    step_simulation(tamp_problem.world, steps=2)
         else:
-            for command in commands:
+            for step, command in enumerate(commands):
+                print('step:', step)
                 for path in command.path.iterator():
-                    step_simulation(tamp_problem.world, steps=5)
+                    step_simulation(tamp_problem.world, steps=2)
 
         # Close simulator
         disconnect()
