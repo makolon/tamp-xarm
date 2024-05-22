@@ -2,8 +2,6 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
     create_table, create_block,
-    # Getter
-    get_initial_conf,
     # Setter
     set_pose, set_initial_conf,
 )
@@ -157,8 +155,12 @@ def stacking_problem(sim_cfg, curobo_cfg):
         fixed=[table],
         surfaces=[table],
         bodies=[table, block1, block2, block3, block4],
-        init_placeable=[(block1, table)],
-        goal_placed=[(block1, table)],
+        init_placeable=[
+            (block1, table), (block2, table),
+            (block3, table), (block4, table)],
+        goal_placed=[
+            (block1, table), (block2, table),
+            (block3, table), (block4, table)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
