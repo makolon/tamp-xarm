@@ -72,8 +72,7 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
             stream.reset()
         goal = And(*goals[:i+1])
         print('Goal:', str_from_object(goal))
-        # No strict need to reuse streams because generator functions
-        #local_problem = PDDLProblem(domain_pddl, constant_map, stream_pddl, stream_map, state, goal)
+
         local_problem = PDDLProblem(domain_pddl, constant_map, streams, None, state, goal)
         with Verbose(verbose):
             solution = solve_focused(local_problem, stream_info=stream_info, unit_costs=unit_costs,
@@ -81,7 +80,6 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         print_solution(solution)
         local_plan, local_cost, local_certificate = solution
         if local_plan is None:
-            # TODO: replan upon failure
             global_certificate = Certificate(all_facts={}, preimage_facts=None)
             return Solution(None, INF, global_certificate)
 
@@ -90,21 +88,15 @@ def solve_serialized(initial_problem, stream_info={}, unit_costs=False, unit_eff
         else:
             _, fluent_facts = partition_facts(domain, state)
             state = static_init + fluent_facts + local_certificate.preimage_facts # TODO: include functions
-        #print('State:', state)
-        # TODO: indicate when each fact is used
-        # TODO: record failed facts
+
         global_plan.extend(local_plan)  # TODO: compute preimage of the executed plan
         global_cost += local_cost
 
         static_state, _ = partition_facts(domain, state)
-        #global_all.extend(partition_facts(domain, local_certificate.all_facts)[0])
-        #global_preimage.extend(static_state)
+
         print('Static:', static_state)
         state = apply_actions(domain, state, local_plan, unit_costs=unit_costs)
         print(SEPARATOR)
-        #user_input('Continue?')
-        # TODO: could also just test the goal here
-        # TODO: constrain future plan skeletons
 
     global_certificate = Certificate(all_facts={}, preimage_facts=None)
     return global_plan, global_cost, global_certificate

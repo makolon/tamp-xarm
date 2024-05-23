@@ -166,7 +166,6 @@ def print_plan(plan):
         elif isinstance(action, Action):
             name, args = action
             print('{:2}) {} {}'.format(step, name, ' '.join(map(str_from_object, args))))
-            #print('{}) {}{}'.format(step, name, str_from_object(tuple(args))))
             step += 1
         elif isinstance(action, StreamAction):
             name, inputs, outputs = action
