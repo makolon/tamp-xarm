@@ -37,6 +37,7 @@
   (:action move_free
     :parameters (?q1 ?q2 ?t)
     :precondition (and (CanMove)
+                       (HandEmpty)
                        (AtConf ?q1)
                        (FreeMotion ?q1 ?t ?q2))
     :effect (and (AtConf ?q2)
