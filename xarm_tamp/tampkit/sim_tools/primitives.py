@@ -153,12 +153,14 @@ class Command:
 class ArmCommand(Command):
 
     def __init__(self,
+                 name: str,
                  robot: Robot,
                  path: List[ArticulationAction],
                  joints: Optional[Union[np.ndarray, torch.Tensor]] = None,
                  attachments: List[BodyPose] = []):
         if joints is None:
             joints = get_movable_joints(robot)
+        self.name = name
         self.robot = robot
         self.path = path
         self.joints = joints
@@ -187,11 +189,13 @@ class ArmCommand(Command):
 class GripperCommand(Command):
 
     def __init__(self,
+                 name: str,
                  robot: Robot,
                  path: List[ArticulationAction],
                  joints: Optional[Union[np.ndarray, torch.Tensor]] = None):
         if joints is None:
             joints = get_gripper_joints(robot)
+        self.name = name
         self.robot = robot
         self.path = path
         self.joints = joints
