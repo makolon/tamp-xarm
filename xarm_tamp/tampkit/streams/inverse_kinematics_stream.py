@@ -25,7 +25,7 @@ def get_ik_fn(problem, collisions=True):
         # Set position to default configuration for grasp action
         assert len(default_arm_conf) == len(arm_joints), "Lengths do not match."
 
-        # target pose
+        # Target pose
         position, rotation = grasp.value
 
         # Set ik goal

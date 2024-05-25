@@ -43,7 +43,6 @@ def sample_placement(top_body, bottom_body, max_attempts=25, **kwargs):
         return pose
     return None
 
-
 def get_place_gen(problem, collisions=True, **kwargs):
     # Sample place pose
     obstacles = problem.fixed if collisions else []

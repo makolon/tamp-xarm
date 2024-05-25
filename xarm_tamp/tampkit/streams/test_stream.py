@@ -15,7 +15,6 @@ def get_cfree_pose_pose_test(problem, collisions=True, **kwargs):
         return not pairwise_collision(b1, b2, **kwargs)
     return test
 
-
 def get_cfree_approach_pose_test(problem, collisions=True):
     gripper = problem.robot.gripper.prim
     def test(b1, p1, g1, b2, p2):
@@ -27,7 +26,6 @@ def get_cfree_approach_pose_test(problem, collisions=True):
                 return False
         return True
     return test
-
 
 def get_cfree_traj_pose_test(problem, collisions=True):
     def test(c, b2, p2):
@@ -47,12 +45,10 @@ def get_cfree_traj_pose_test(problem, collisions=True):
         return True
     return test
 
-
 def get_supported(problem, collisions=True):
     def test(b, p1, r, p2):
         return is_placement(b, r)
     return test
-
 
 def get_inserted(problem, collisions=True):
     def test(b, p1, r, p2):
