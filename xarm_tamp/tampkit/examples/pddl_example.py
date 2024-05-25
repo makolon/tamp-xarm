@@ -44,6 +44,9 @@ def pddl_test(pddl_path, verbose=True):
         # Iterate over all nodes in the plan.
         for node in plan:
             print(node)
+
+    print('############')
+    print("It's over!!!")
             
 
 if __name__ == '__main__':
