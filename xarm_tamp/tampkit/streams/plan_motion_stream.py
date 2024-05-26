@@ -91,7 +91,7 @@ def get_holding_motion_fn(problem, collisions=True, teleport=False):
             position=tensor_args.to_device(conf1.value),
             velocity=tensor_args.to_device(conf1.value) * 0.0,
             acceleration=tensor_args.to_device(conf1.value) * 0.0,
-            jerk=tensor_args.to_device(conf1.values) * 0.0,
+            jerk=tensor_args.to_device(conf1.value) * 0.0,
             joint_names=robot._arm_dof_names
         )
         curr_js = curr_js.get_ordered_joint_state(motion_planner.kinematics.joint_names)

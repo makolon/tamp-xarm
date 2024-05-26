@@ -156,29 +156,29 @@ class TAMPPlanner(object):
             if name == 'move_free':
                 q1, q2, c = args
                 move_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(problem.robot, move_trajectory)]
+                new_commands += [ArmCommand(name, problem.robot, move_trajectory)]
             elif name == 'move_holding':
                 q1, q2, o, g, c = args
                 move_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(problem.robot, move_trajectory)]
+                new_commands += [ArmCommand(name, problem.robot, move_trajectory)]
             elif name == 'pick':
                 o, p, g, q, c = args
                 pick_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(problem.robot, pick_trajectory)]
-                grasp_action = create_grasp_action([30, -30], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(problem.robot, grasp_action)]
+                new_commands += [ArmCommand(name, problem.robot, pick_trajectory)]
+                grasp_action = create_grasp_action([-50, 50], get_gripper_joints(problem.robot))
+                new_commands += [GripperCommand(name, problem.robot, grasp_action)]
             elif name == 'place':
                 o, p, g, q, c = args
                 place_trajectory = create_trajectory(c.reverse().path, c.joints)
-                new_commands += [ArmCommand(problem.robot, place_trajectory)]
+                new_commands += [ArmCommand(name, problem.robot, place_trajectory)]
                 release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(problem.robot, release_action)]
+                new_commands += [GripperCommand(name, problem.robot, release_action)]
             elif name == 'insert':
                 o, p, g, q, c = args
                 insert_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(problem.robot, insert_trajectory)]
+                new_commands += [ArmCommand(name, problem.robot, insert_trajectory)]
                 release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(problem.robot, release_action)]
+                new_commands += [GripperCommand(name, problem.robot, release_action)]
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
