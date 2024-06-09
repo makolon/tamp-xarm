@@ -71,7 +71,7 @@ RUN apt-get update && \
 
 ### Install python packages
 RUN pip3 install -U pip
-RUN pip3 install \
+RUN pip3 install --ignore-installed \
     setuptools \
 	gym \
 	numpy \
@@ -118,7 +118,7 @@ ENV ROS_PACKAGE_PATH=/root/catkin_ws:$ROS_PACKAGE_PATH
 ENV ROS_WORKSPACE=/root/catkin_ws
 RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
 RUN echo "export DISPLAY=:0" >> ~/.bashrc
-RUN echo "export PYTHONPATH='/root/tamp-hsr/hsr_tamp:$PYTHONPATH'" >> ~/.bashrc
+RUN echo "export PYTHONPATH='/root/tamp-xarm/xarm_tamp:$PYTHONPATH'" >> ~/.bashrc
 
 ### Install CUDA
 RUN rm /etc/apt/sources.list.d/cuda.list
@@ -126,23 +126,3 @@ RUN apt-key del 7fa2af80
 RUN apt-get update && apt-get install -y --no-install-recommends wget
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb
 RUN dpkg -i cuda-keyring_1.0-1_all.deb && rm cuda-keyring_1.0-1_all.deb
-
-### Install HSR packages
-RUN sh -c 'echo "deb [arch=amd64] https://hsr-user:jD3k4G2e@packages.hsr.io/ros/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/tmc.list'
-RUN sh -c 'echo "deb [arch=amd64] https://hsr-user:jD3k4G2e@packages.hsr.io/tmc/ubuntu `lsb_release -cs` multiverse main" >> /etc/apt/sources.list.d/tmc.list'
-RUN sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
-RUN wget https://hsr-user:jD3k4G2e@packages.hsr.io/tmc.key -O - | sudo apt-key add -
-RUN wget https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc -O - | sudo apt-key add -
-RUN wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
-RUN sh -c 'mkdir -p /etc/apt/auth.conf.d'
-RUN sh -c '/bin/echo -e "machine packages.hsr.io\nlogin hsr-user\npassword jD3k4G2e" > /etc/apt/auth.conf.d/auth.conf'
-RUN apt-get update && apt-get install -y ros-noetic-tmc-desktop-full
-COPY ./hsrrc /root/
-RUN cat /root/hsrrc >> ~/.bashrc
-
-### Terminator window settings
-COPY config /
-
-### User group settings
-COPY entrypoint.sh /
-ENTRYPOINT ["/entrypoint.sh"] /

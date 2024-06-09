@@ -15,5 +15,6 @@ docker run -it \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   --net=host \
   --volume /dev:/dev \
+  --volume /home/$USER/Codes/tamp-xarm:/workspace/tamp-xarm \
   --mount type=bind,src=/home/$USER/Codes,target=/home/$USER/Codes \
   --gpus all --rm --privileged --name "xarm_isaac_dev" xarm_isaac:dev
