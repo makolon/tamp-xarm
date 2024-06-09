@@ -8,6 +8,7 @@ pddlstream:
   cfree: True
   teleport: False
   simulate: True
+  attach: True
 
 # cuRobo
 curobo:
@@ -144,12 +145,18 @@ sim:
     position: [0.0, 0.0, 0.0]
     translation: [0.0, 0.0, 0.0]
     orientation: [1.0, 0.0, 0.0, 0.0]
-    initial_configuration: [0.0, -0.873, 0.0, 0.524, 0.0, 1.40, 0.0]
+    initial_configuration: [0.0, -0.873, 0.0, 0.524, 0.0, 1.40, 0.0, 0.0, 0.0]
 
   block1:
     name: block1
     task: fetch
-    translation: [0.3, -0.2, 0.1]
+    translation: [0.3, -0.25, 0.1]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+  block2:
+    name: block2
+    task: fetch
+    translation: [0.3, -0.15, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   parts:
