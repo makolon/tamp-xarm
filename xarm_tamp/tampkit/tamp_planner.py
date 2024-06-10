@@ -10,13 +10,16 @@ import xarm_tamp.tampkit.sim_tools.sim_utils
 from xarm_tamp.tampkit.sim_tools.primitives import (
     BodyPose, BodyConf, ArmCommand, GripperCommand
 )
+from xarm_tamp.tampkit.sim_tools.curobo_utils import (
+    add_fixed_constraint, remove_fixed_constraint, update_world
+)
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
     connect, disconnect, step_simulation, apply_action,
-    create_grasp_action, create_trajectory,
+    create_grasp_action, create_trajectory, target_reached,
     # Getter
     get_pose, get_arm_joints, get_joint_positions,
-    get_gripper_joints
+    get_gripper_joints,
 )
 
 from xarm_tamp.tampkit.problems import PROBLEMS
@@ -68,7 +71,7 @@ def opt_holding_motion_fn(q1, q2, o, g):
 
 class TAMPPlanner(object):
     def __init__(self, task, algorithm, unit, deterministic,
-                    problem, cfree, teleport, simulate):
+                    problem, cfree, teleport, simulate, attach):
         self._task = task
         self._algorithm = algorithm
         self._unit = unit
@@ -77,6 +80,7 @@ class TAMPPlanner(object):
         self._cfree = cfree
         self._teleport = teleport
         self._simulate = simulate
+        self._attach = attach
 
         np.set_printoptions(precision=2)
         if deterministic:
@@ -134,8 +138,8 @@ class TAMPPlanner(object):
             # Inverse kinematics
             'inverse-kinematics': from_fn(get_ik_fn(problem, collisions=collisions)),
             # Planner
-            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions, teleport=teleport)),
-            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions)),
+            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions)),
             # Test function
             'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(problem, collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
@@ -156,29 +160,29 @@ class TAMPPlanner(object):
             if name == 'move_free':
                 q1, q2, c = args
                 move_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(name, problem.robot, move_trajectory)]
+                new_commands += [ArmCommand(name, c.robot, move_trajectory)]
             elif name == 'move_holding':
                 q1, q2, o, g, c = args
                 move_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(name, problem.robot, move_trajectory)]
+                new_commands += [ArmCommand(name, c.robot, move_trajectory)]
             elif name == 'pick':
                 o, p, g, q, c = args
-                pick_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(name, problem.robot, pick_trajectory)]
-                grasp_action = create_grasp_action([-50, 50], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(name, problem.robot, grasp_action)]
+                grasp_action = create_grasp_action([40.0 / np.pi * 180, -40.0 / np.pi * 180], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('grasp', o, c.robot, grasp_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             elif name == 'place':
                 o, p, g, q, c = args
-                place_trajectory = create_trajectory(c.reverse().path, c.joints)
-                new_commands += [ArmCommand(name, problem.robot, place_trajectory)]
-                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(name, problem.robot, release_action)]
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('release', o, c.robot, release_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             elif name == 'insert':
                 o, p, g, q, c = args
-                insert_trajectory = create_trajectory(c.path, c.joints)
-                new_commands += [ArmCommand(name, problem.robot, insert_trajectory)]
-                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(problem.robot))
-                new_commands += [GripperCommand(name, problem.robot, release_action)]
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('release', c.robot, release_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
@@ -228,25 +232,32 @@ class TAMPPlanner(object):
         # Post process
         commands = self.post_process(tamp_problem, plan)
         print('commands:', commands)
+        input('wait_for_user')
 
         # Execute commands
-        if self._simulate:
-            for step, command in enumerate(commands):
-                print('step:', step)
-                for path in command.path:
+        for step, command in enumerate(commands):
+            print('step.{}: {} action'.format(step, command.name))
+            for path in command.path:
+                if command.name in ['grasp', 'release']:
                     apply_action(command.robot, path)
-                    step_simulation(tamp_problem.world, steps=2)
-        else:
-            for step, command in enumerate(commands):
-                print('step:', step)
-                for path in command.path.iterator():
-                    step_simulation(tamp_problem.world, steps=2)
+                    step_simulation(tamp_problem.world)
+                    continue
+
+                while not target_reached(command.robot, path):
+                    apply_action(command.robot, path)
+                    step_simulation(tamp_problem.world)
+
+            if self._attach:
+                if command.name == 'grasp':
+                    tamp_problem.robot.gripper.close()
+                if command.name == 'release':
+                    tamp_problem.robot.gripper.open()
 
         # Close simulator
         disconnect()
 
 
-config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, fmb_simo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(
@@ -258,6 +269,7 @@ def main(cfg: DictConfig):
         cfree=cfg.pddlstream.cfree,
         teleport=cfg.pddlstream.teleport,
         simulate=cfg.pddlstream.simulate,
+        attach=cfg.pddlstream.attach,
     )
     tamp_planer.execute(cfg.sim, cfg.curobo)
 

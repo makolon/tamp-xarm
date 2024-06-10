@@ -70,7 +70,8 @@ curobo:
 # Simulation environment
 sim:
   dt: 0.00833333333 # 1/120 s
-  use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
+  use_ccd: True
+  use_gpu_pipeline: True
   gravity: [0.0, 0.0, -9.81]
   disable_gravity: False
   add_ground_plane: True
@@ -87,8 +88,8 @@ sim:
 
   physx:
     worker_thread_count: ${....num_threads}
-    solver_type: ${....solver_type}
-    use_gpu: ${eq:${....sim_device},"gpu"} # set to False to run on CPU
+    solver_type: "TGS"
+    use_gpu: True
     solver_position_iteration_count: 32
     solver_velocity_iteration_count: 16
     contact_offset: 0.005
@@ -126,7 +127,7 @@ sim:
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]
     width: 0.4
-    depth: 0.4
+    depth: 0.6
     height: 0.05
     size: 1.0
 
@@ -139,76 +140,76 @@ sim:
   base_block:
     name: base
     task: momo
-    translation: [0.3, 0.0, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.05]
+    orientation: [0.0, 0.0, 0.0, 1.0]
     scale: [0.5, 0.5, 0.5]
 
   block1:
     name: block1
     task: momo
-    translation: [0.3, 0.0, 0.1]
+    translation: [0.35, -0.15, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block2:
     name: block2
     task: momo
-    translation: [0.3, 0.0, 0.1]
+    translation: [0.35, -0.05, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block3:
     name: block3
     task: momo
-    translation: [0.3, 0.0, 0.1]
+    translation: [0.25, -0.05, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
     scale: [0.5, 0.5, 0.5]
 
   block4:
     name: block4
     task: momo
-    translation: [0.3, 0.0, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
+    translation: [0.25, -0.15, 0.06]
+    orientation: [0.5, -0.5, 0.5, -0.5]
     scale: [0.5, 0.5, 0.5]
 
   surface1:
     name: surface1
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.2665, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface2:
     name: surface2
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3335, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface3:
     name: surface3
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface4:
     name: surface4
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole1:
     name: hole1
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.2665, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole2:
     name: hole2
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3335, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole3:
     name: hole3
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   hole4:
     name: hole4
-    translation: [0.0, 0.0, 0.0]
+    translation: [0.3, 0.1, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   parts:

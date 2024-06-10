@@ -23,6 +23,7 @@ simulation_app = SimulationApp(
 import math
 import trimesh
 import numpy as np
+import torch.nn.functional as F
 import omni.isaac.core.utils.bounds as bounds_utils
 import omni.isaac.core.utils.mesh as mesh_utils
 import omni.isaac.core.utils.prims as prims_utils
@@ -38,6 +39,7 @@ from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
 from omni.isaac.core.utils.numpy.rotations import xyzw2wxyz, wxyz2xyzw
 from omni.isaac.core.utils.torch.rotations import quat_diff_rad
+from omni.isaac.core.utils.torch.tensor import convert
 from omni.isaac.core.utils.types import ArticulationAction
 
 # Simulation API
@@ -895,7 +897,8 @@ def get_movable_joints(robot: 'Robot', use_gripper: bool = False) -> Optional[Un
     return robot.arm_joints + robot.gripper_joints if use_gripper else robot.arm_joints
 
 def get_joint_positions(robot: 'Robot', 
-                        joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None
+                        joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
+                        use_gripper: bool = False,
                        ) -> np.ndarray:
     """
     Get joint positions.
@@ -908,7 +911,7 @@ def get_joint_positions(robot: 'Robot',
         np.ndarray: Joint positions.
     """
     if joint_indices is None:
-        joint_indices = get_movable_joints(robot)
+        joint_indices = get_movable_joints(robot, use_gripper=use_gripper)
     return robot.get_joint_positions(joint_indices=joint_indices)
 
 def get_joint_velocities(robot: 'Robot', 
@@ -1058,7 +1061,8 @@ def set_joint_positions(robot: 'Robot',
 
 def set_initial_conf(robot: 'Robot', 
                      initial_conf: Optional[Union[np.ndarray, torch.Tensor]], 
-                     joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None
+                     joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                     use_gripper: bool = True,
                     ) -> None:
     """
     Set joint positions to initial configuration.
@@ -1069,7 +1073,7 @@ def set_initial_conf(robot: 'Robot',
         joint_indices (Optional[Union[np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
     """
     if joint_indices is None:
-        joint_indices = get_movable_joints(robot)
+        joint_indices = get_movable_joints(robot, use_gripper=use_gripper)
     if initial_conf is None:
         initial_conf = get_joint_positions(robot, joint_indices)
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
@@ -1124,6 +1128,22 @@ def apply_action(robot: 'Robot',
         raise ValueError("Goal configuration is not specified.")
     art_controller = robot.get_articulation_controller()
     art_controller.apply_action(configuration)
+
+def target_reached(robot: 'Robot',
+                   configuration: Optional['ArticulationAction'],
+                   threshold: float = 3e-2,
+                  ) -> None:
+    """
+    Check whether the robot reached to the target
+    """
+    target_position = configuration.joint_positions
+    current_position = get_joint_positions(robot, configuration.joint_indices)
+
+    error = np.linalg.norm(target_position - current_position, ord=2)
+    if error <= threshold:
+        return True
+    else:
+        return False
 
 def is_ancestor(prim: 'Usd.Prim', other_prim: 'Usd.Prim') -> bool:
     """
@@ -1513,7 +1533,11 @@ def check_geometry_type(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XForm
         return 'plane'
     elif body.prim.IsA(UsdGeom.Mesh):
         return 'mesh'
+    elif body.prim.IsA(UsdGeom.Xform):
+        return 'xform'
     else:
+        print(f'body name {body.name}')
+        print(f'body type is {type(body.prim)}')
         raise ValueError('prim geometry does not exist.')
 
 def approximate_as_prism(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
@@ -2075,3 +2099,66 @@ def tf_matrices_from_poses(position: np.ndarray, quaternion: np.ndarray) -> np.n
     T[:3, 3] = position
     T[3, 3] = 1
     return T
+
+def compute_configuration_distance(conf1: torch.Tensor,
+                                   conf2: torch.Tensor,
+                                   device: str = 'cpu') -> float:
+    """
+    Calculate euclidean distance of two different configurations.
+
+    Args:
+        conf1 (torch.Tensor): configuration 1.
+        conf2 (torch.Tensor): configuration 2.
+
+    Returns:
+        float: Euclidian distance.
+    """
+    t_conf1, t_conf2 = convert(conf1, device), convert(conf2, device)
+    distance = torch.norm(t_conf1 - t_conf2).item()
+    return distance
+
+def compute_homogeneous_transform(pose1: Union[List, np.ndarray, torch.Tensor],
+                                  pose2: Union[List, np.ndarray, torch.Tensor],
+                                  device: str = 'cpu'):
+    """
+    Create a homogeneous transformation matrix from the difference between two poses.
+
+    Args:
+        pose1 (tuple): (position1, quaternion1) - position1 is a 3D vector, quaternion1 is a 4D quaternion
+        pose2 (tuple): (position2, quaternion2) - position2 is a 3D vector, quaternion2 is a 4D quaternion
+
+    Returns:
+        torch.Tensor: 4x4 homogeneous transformation matrix
+    """
+    position1, quaternion1 = convert(pose1[0], device), convert(pose1[1], device)
+    position2, quaternion2 = convert(pose2[0], device), convert(pose2[1], device)
+
+    # Calculate the difference in positions
+    position_diff = position2 - position1
+    
+    # Calculate the difference in quaternions
+    quaternion1_inv = quaternion1 * torch.tensor([-1, -1, -1, 1], dtype=torch.float32, device=device)
+    quaternion_diff = F.normalize(torch.cat([
+        quaternion1_inv[3:] * quaternion2[:3] + quaternion1_inv[:3] * quaternion2[3:] + torch.cross(quaternion1_inv[:3], quaternion2[:3]),
+        torch.tensor([quaternion1_inv[3] * quaternion2[3] - torch.dot(quaternion1_inv[:3], quaternion2[:3])], device=device)
+    ]), p=2, dim=0)
+    
+    # Create the homogeneous transformation matrix
+    homogeneous_matrix = tf_matrices_from_poses(position_diff, quaternion_diff)
+    
+    return homogeneous_matrix
+
+def end_effector_from_body(body_pose: Union[List, np.ndarray], grasp_pose: Union[List, np.ndarray]):
+    """
+    grasp_pose: the body's pose in gripper's frame
+
+    world_from_child * (parent_from_child)^(-1) = world_from_parent
+    (parent: gripper, child: body to be grasped)
+
+    Pose_{world,gripper} = Pose_{world,block}*Pose_{block,gripper}
+                         = Pose_{world,block}*(Pose_{gripper,block})^{-1}
+    """
+    homogeneous_matrix = compute_homogeneous_transform(grasp_pose, body_pose)
+    pose_diff = [homogeneous_matrix[:3, 3], Rotation.from_matrix(homogeneous_matrix[:3, :3]).as_quat()]
+    target_position, target_rotation = multiply(pose_diff, grasp_pose)
+    return target_position, target_rotation

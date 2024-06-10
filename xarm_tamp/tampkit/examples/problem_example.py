@@ -11,7 +11,7 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 )
 
 
-config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, fmb_simo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="../configs")
 def main(cfg: DictConfig):
     # connect

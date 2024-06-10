@@ -91,7 +91,7 @@ class BodyConf:
         return self.configuration
 
     def assign(self):
-        set_joint_positions(self.robot, self.joints, self.configuration)
+        set_joint_positions(self.robot, self.configuration, self.joints)
         return self.configuration
 
     def __repr__(self):
@@ -118,7 +118,7 @@ class BodyPath:
 
     def assign(self):
         for value in self.path:
-            set_joint_positions(self.robot, self.joints, value)
+            set_joint_positions(self.robot, value, self.joints)
         return self.path
 
     def reverse(self):
@@ -178,7 +178,7 @@ class ArmCommand(Command):
 
     def control(self):
         for values in self.path:
-            apply_action(self.robot, self.joints, values)
+            apply_action(self.robot, values)
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints, self.attachments)
@@ -190,12 +190,14 @@ class GripperCommand(Command):
 
     def __init__(self,
                  name: str,
+                 body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                  robot: Robot,
                  path: List[ArticulationAction],
                  joints: Optional[Union[np.ndarray, torch.Tensor]] = None):
         if joints is None:
             joints = get_gripper_joints(robot)
         self.name = name
+        self.body = body
         self.robot = robot
         self.path = path
         self.joints = joints
@@ -205,7 +207,7 @@ class GripperCommand(Command):
 
     def control(self):
         for values in self.path:
-            apply_action(self.robot, self.joints, values)
+            apply_action(self.robot, values)
 
     def refine(self, num_steps=0):
         return self.__class__(self.robot, refine_path(self.robot, self.joints, self.path, num_steps), self.joints)
@@ -216,9 +218,11 @@ class GripperCommand(Command):
 class AttachCommand(Command):
 
     def __init__(self,
+                 name: str,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                  robot: Robot,
                  link: Usd.Prim):
+        self.name = name
         self.body = body
         self.robot = robot
         self.link = link
@@ -227,7 +231,7 @@ class AttachCommand(Command):
         return {self.body, self.robot}
 
     def control(self, **kwargs):
-        add_fixed_constraint(self.body, self.robot, self.link)
+        add_fixed_constraint(self.robot, self.body)
 
     def iterator(self, **kwargs):
         return []
@@ -241,9 +245,11 @@ class AttachCommand(Command):
 class DetachCommand(Command):
 
     def __init__(self,
+                 name: str,
                  body: Optional[Union[GeometryPrim, RigidPrim, XFormPrim]],
                  robot: Robot,
                  link: Usd.Prim):
+        self.name = name
         self.body = body
         self.robot = robot
         self.link = link
@@ -252,7 +258,7 @@ class DetachCommand(Command):
         return {self.body, self.robot}
 
     def control(self, **kwargs):
-        remove_fixed_constraint(self.body, self.robot, self.link)
+        pass
 
     def iterator(self, **kwargs):
         return []

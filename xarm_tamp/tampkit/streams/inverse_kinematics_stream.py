@@ -1,8 +1,8 @@
 import carb
 from xarm_tamp.tampkit.sim_tools.primitives import BodyConf, BodyPath
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
+    end_effector_from_body,
     get_arm_joints,
-    get_initial_conf,
 )
 from curobo.types.math import Pose
 from curobo.types.state import JointState
@@ -15,23 +15,17 @@ def get_ik_fn(problem, collisions=True):
     ik_solver = problem.ik_solver
     motion_planner = problem.motion_planner
 
+    # Get arm joints
+    arm_joints = get_arm_joints(robot)
     def fn(body, pose, grasp):
-        # TODO: add grasp to attach
-        arm_joints = get_arm_joints(robot)
-
-        # Default confs
-        default_arm_conf = get_initial_conf(robot)
-
-        # Set position to default configuration for grasp action
-        assert len(default_arm_conf) == len(arm_joints), "Lengths do not match."
-
         # Target pose
-        position, rotation = grasp.value
+        target_position, target_rotation = end_effector_from_body(pose.value, grasp.value)
+        target_rotation = [0.0, 1.0, 0.0, 0.0]  # TODO: fix
 
         # Set ik goal
         ik_goal = Pose(
-            position=tensor_args.to_device(position),
-            quaternion=tensor_args.to_device(rotation),
+            position=tensor_args.to_device(target_position),
+            quaternion=tensor_args.to_device(target_rotation),
         )
         goal_conf = ik_solver.solve_single(ik_goal)
 
@@ -55,7 +49,7 @@ def get_ik_fn(problem, collisions=True):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position)
+        conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position.squeeze().cpu().numpy())
         arm_traj = trajectory.position.cpu().numpy()
         traj = BodyPath(robot, arm_joints, arm_traj)
         return (conf, traj)

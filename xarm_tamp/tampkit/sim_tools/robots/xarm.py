@@ -6,7 +6,7 @@ from omni.isaac.core.prims.rigid_prim import RigidPrim
 from omni.isaac.core.robots.robot import Robot
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
-from omni.isaac.manipulators.grippers.parallel_gripper import ParallelGripper
+from omni.isaac.manipulators.grippers.surface_gripper import SurfaceGripper
 from xarm_rl.tasks.utils.usd_utils import set_drive  # TODO: fix this
 from pxr import PhysxSchema
 
@@ -50,9 +50,9 @@ class xArm(Robot):
             if gripper_dof_names is None:
                 self._gripper_dof_names = ["left_drive_joint", "right_drive_joint"]
             if gripper_open_position is None:
-                gripper_open_position = np.array([0.05, 0.05]) / get_stage_units()
+                gripper_open_position = np.array([0.0, 0.0]) / get_stage_units()
             if gripper_closed_position is None:
-                gripper_closed_position = np.array([0.0, 0.0])
+                gripper_closed_position = np.array([-40.0, 40.0])
         
         super().__init__(
             prim_path=prim_path,
@@ -73,12 +73,8 @@ class xArm(Robot):
         if self._gripper_dof_names is not None:
             if deltas is None:
                 deltas = np.array([0.05, 0.05]) / get_stage_units()
-            self._gripper = ParallelGripper(
+            self._gripper = SurfaceGripper(
                 end_effector_prim_path=self._end_effector_prim_path,
-                joint_prim_names=self._gripper_dof_names,
-                joint_opened_positions=gripper_open_position,
-                joint_closed_positions=gripper_closed_position,
-                action_deltas=deltas,
             )
 
     def set_drive_property(self):
@@ -116,7 +112,7 @@ class xArm(Robot):
                 max_velocity[i]
             )
 
-    def set_xarm_properties(self, stage, prim):
+    def set_link_properties(self, stage, prim):
         for link_prim in prim.GetChildren():
             if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI): 
                 rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
@@ -157,7 +153,7 @@ class xArm(Robot):
         return self._end_effector
 
     @property
-    def gripper(self) -> ParallelGripper:
+    def gripper(self) -> SurfaceGripper:
         return self._gripper
 
     def initialize(self, physics_sim_view=None) -> None:
@@ -167,20 +163,11 @@ class xArm(Robot):
         )
         self._gripper.initialize(
             physics_sim_view=physics_sim_view,
-            articulation_apply_action_func=self.apply_action,
-            get_joint_positions_func=self.get_joint_positions,
-            set_joint_positions_func=self.set_joint_positions,
-            dof_names=self.dof_names,
         )
+        self.set_drive_property()
         self.set_dof_idxs()
         self.set_dof_limits()
 
     def post_reset(self) -> None:
         super().post_reset()
         self._gripper.post_reset()
-        self._articulation_controller.switch_dof_control_mode(
-            dof_index=self.gripper.joint_dof_indicies[0], mode="position"
-        )
-        self._articulation_controller.switch_dof_control_mode(
-            dof_index=self.gripper.joint_dof_indicies[1], mode="position"
-        )

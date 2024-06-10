@@ -5,7 +5,6 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
     get_pose,
     get_tool_pose,
     get_tool_link,
-    multiply,
     pairwise_collision,
     unit_quat,
 )
@@ -22,12 +21,9 @@ def sample_grasps(body, tool_pose, body_pose, grasp_length=0.0, max_width=0.1):
     else:
         rotation = unit_quat()
 
-    pose_diff = [tool_pose[0] - body_pose[0], rotation]
-
-    under = 0
-    for _ in range(1 + under):
-        grasps = multiply(tool_pose, pose_diff)
-        return grasps
+    pose_diff = [tool_pose[0] - body_pose[0], rotation]  # TODO: fix
+    pose_diff[0][2] -= 0.07  # TODO: fix
+    return pose_diff
 
 def get_grasp_gen(problem, collisions=True):
     robot = problem.robot

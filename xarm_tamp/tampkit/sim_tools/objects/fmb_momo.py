@@ -22,7 +22,7 @@ class Block(XFormPrim):
         
         if self.usd_path is None:
             # TODO: fix this
-            self.usd_path = f"/home/makolon/Codes/tamp-xarm/xarm_rl/models/usd/fmb/momo/{type}/{name}/{name}.usd"
+            self.usd_path = f"/home/makolon/Codes/tamp-xarm/xarm_rl/models/usd/fmb/momo/{type}/{name}.usd"
         if self.urdf_path is None:
             # TODO: fix this
             self.urdf_path = f"/home/makolon/Codes/tamp-xarm/xarm_rl/models/urdf/fmb/momo/{type}/{name}.urdf"

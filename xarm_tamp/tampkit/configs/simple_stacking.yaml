@@ -70,7 +70,8 @@ curobo:
 # Simulation environment
 sim:
   dt: 0.00833333333 # 1/120 s
-  use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
+  use_ccd: True
+  use_gpu_pipeline: True
   gravity: [0.0, 0.0, -9.81]
   disable_gravity: False
   add_ground_plane: True
@@ -87,8 +88,8 @@ sim:
 
   physx:
     worker_thread_count: ${....num_threads}
-    solver_type: ${....solver_type}
-    use_gpu: ${eq:${....sim_device},"gpu"} # set to False to run on CPU
+    solver_type: "TGS"
+    use_gpu: True
     solver_position_iteration_count: 32
     solver_velocity_iteration_count: 16
     contact_offset: 0.005

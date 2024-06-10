@@ -2,7 +2,7 @@ import hydra
 import random
 import numpy as np
 from omegaconf import DictConfig
-from xarm_tamp.tampkit.problems import stacking_problem, fmb_momo_problem
+from xarm_tamp.tampkit.problems import stacking_problem, fetch_problem, fmb_momo_problem
 from xarm_tamp.tampkit.sim_tools.sim_utils import connect, get_pose
 from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
 from xarm_tamp.tampkit.streams.insert_stream import get_insert_gen
@@ -374,38 +374,38 @@ def test_stream_test(problem):
         break
 
 
-config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, fmb_simo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="../configs")
 def main(cfg: DictConfig):
-    if config_file == 'simple_stacking':
-        simple_stacking_problem = stacking_problem(cfg.sim, cfg.curobo)
+    if config_file == 'simple_stacking' or config_file == 'simple_fetch':
+        simple_fetch_problem = fetch_problem(cfg.sim, cfg.curobo)
 
         print('###########################')
-        grasp_stream_test(simple_stacking_problem)
+        grasp_stream_test(simple_fetch_problem)
         print('Grasp Stream Ready!')
         print('###########################')
 
         print('###########################')
-        place_stream_test(simple_stacking_problem)
+        place_stream_test(simple_fetch_problem)
         print('Place Stream Ready!')
         print('###########################')
 
         print('###########################')
-        ik_stream_test(simple_stacking_problem)
+        ik_stream_test(simple_fetch_problem)
         print('IK Stream Ready!')
         print('###########################')
 
         print('###########################')
-        plan_motion_stream_test(simple_stacking_problem)
+        plan_motion_stream_test(simple_fetch_problem)
         print('Plan Motion Stream Ready!')
         print('###########################')
 
         print('###########################')
-        test_stream_test(simple_stacking_problem)
+        test_stream_test(simple_fetch_problem)
         print('Test Stream Ready!')
         print('###########################')
 
-    if config_file == 'fmb_momo' or 'fmb_simo':
+    if config_file == 'fmb_momo':
         assembly_problem = fmb_momo_problem(cfg.sim, cfg.curobo)
 
         print('###########################')

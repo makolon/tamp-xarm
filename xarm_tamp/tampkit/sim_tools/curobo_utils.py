@@ -6,6 +6,7 @@ from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType, WorldCollisionConfig
 from curobo.geom.sdf.utils import create_collision_checker
 from curobo.geom.sphere_fit import SphereFitType
+from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import (
     get_robot_configs_path,
     get_world_configs_path,
@@ -24,6 +25,10 @@ from curobo.wrap.reacher.mpc import MpcSolver, MpcSolverConfig
 def get_tensor_device_type():
     tensor_args = TensorDeviceType()
     return tensor_args
+
+def get_usd_helper():
+    usd_helper = UsdHelper()
+    return usd_helper
 
 ########################
 
@@ -54,7 +59,7 @@ def get_world_cfg(cfg: dict):
         world_cfg = WorldConfig(
             cuboid=world_cfg_cuboid.cuboid
         )
-    elif world_cfg_mesh is None:
+    elif world_cfg_cuboid is None:
         world_cfg = WorldConfig(
             mesh=world_cfg_mesh.mesh
         )
@@ -221,7 +226,7 @@ def get_mpc_solver(mpc_cfg: MpcSolverConfig = None):
 
 ########################
 
-def add_fixed_constraint(robot, obj, motion_gen):
+def add_fixed_constraint(robot, obj, attach_fn):
     tensor_args = get_tensor_device_type()
     sim_js = robot.get_joints_state()
     cu_js = JointState(
@@ -229,16 +234,26 @@ def add_fixed_constraint(robot, obj, motion_gen):
         velocity=tensor_args.to_device(sim_js.velocities) * 0.0,
         acceleration=tensor_args.to_device(sim_js.velocities) * 0.0,
         jerk=tensor_args.to_device(sim_js.velocities) * 0.0,
-        joint_names=robot.joint_names  # TODO: add appropriate joint names to robot
+        joint_names=robot._arm_dof_names
     )
 
-    motion_gen.attach_objects_to_robot(
+    attach_fn(
         cu_js,
-        [obj.name],
+        [obj.prim_path],
         sphere_fit_type=SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
-        world_objects_pose_offset=Pose.from_list(
-            [0, 0, 0.01, 1, 0, 0, 0], tensor_args)
+        world_objects_pose_offset=Pose.from_list([0, 0, 0.01, 1, 0, 0, 0], tensor_args)
     )
 
-def remove_fixed_constraint(motion_gen):
-    motion_gen.detach_object_from_robot()
+def remove_fixed_constraint(detach_fn):
+    detach_fn()
+
+########################
+
+def update_world(tamp_problem,
+                 ignore_substring: str = None,
+                 reference_prim_path: str = None):
+    obstacles = tamp_problem.usd_helper.get_obstacles_from_stage(
+        ignore_substring=ignore_substring, reference_prim_path=reference_prim_path
+    ).get_collision_check_world()
+    obstacles.add_obstacle(tamp_problem.world_cfg.cuboid[0])
+    tamp_problem.motion_planner.update_world(obstacles)
