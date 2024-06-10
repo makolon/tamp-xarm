@@ -16,6 +16,7 @@ from xarm_tamp.tampkit.sim_tools.curobo_utils import (
     get_motion_gen_cfg,
     get_mpc_solver_cfg,
     get_tensor_device_type,
+    get_usd_helper,
     get_motion_gen,
     get_robot_world,
     get_collision_checker,
@@ -30,6 +31,14 @@ def stacking_problem(sim_cfg, curobo_cfg):
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
+
+    ########################
+
+    # setup physics
+    world._physics_context.enable_ccd(sim_cfg.use_ccd)
+    world._physics_context.enable_gpu_dynamics(sim_cfg.use_gpu_pipeline)
+    world._physics_context.set_physics_dt(sim_cfg.dt)
+    world._physics_context.set_solver_type(sim_cfg.physx.solver_type)
 
     ########################
 
@@ -71,7 +80,7 @@ def stacking_problem(sim_cfg, curobo_cfg):
     # initialize world
     set_pose(table, (sim_cfg.table.translation, sim_cfg.table.orientation))
     initial_conf = sim_cfg.robot.initial_configuration
-    set_initial_conf(xarm, initial_conf)
+    set_initial_conf(xarm, initial_conf, use_gripper=True)
     world.step(render=True)
 
     # play world
@@ -92,7 +101,13 @@ def stacking_problem(sim_cfg, curobo_cfg):
     
     # define tensor_args
     tensor_args = get_tensor_device_type()
-    
+
+    ########################
+
+    # usd helper
+    usd_helper = get_usd_helper()
+    usd_helper.load_stage(stage)
+
     ########################
 
     # define world model
@@ -111,9 +126,9 @@ def stacking_problem(sim_cfg, curobo_cfg):
         tensor_args=tensor_args,
     )
     world_collision = get_collision_checker(world_collision_cfg)
-    
+
     ########################
-    
+
     # define inverse kinematics
     ik_solver_cfg = get_ik_solver_cfg(
         cfg=curobo_cfg,
@@ -155,18 +170,16 @@ def stacking_problem(sim_cfg, curobo_cfg):
         fixed=[table],
         surfaces=[table, block1, block2, block3],
         bodies=[table, block1, block2, block3, block4],
-        init_placeable=[
-            (block1, table), (block2, block1),
-            (block3, block2), (block4, block3)],
-        goal_placed=[
-            (block1, table), (block2, block1),
-            (block3, block2), (block4, block3)],
+        init_placeable=[(block2, block1), (block4, block3)],
+        goal_placed=[(block2, block1), (block4, block3)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         plan_cfg=plan_cfg,
         # Tensor args
         tensor_args=tensor_args,
+        # Usd helper
+        usd_helper=usd_helper,
         # World
         robot_world=robot_world,
         # Collision

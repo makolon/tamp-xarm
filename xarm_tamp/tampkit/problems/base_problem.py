@@ -34,6 +34,8 @@ class Problem:
     plan_cfg: dict = field(default_factory=dict)
     # Tensor args
     tensor_args: object = None
+    # Usd helper
+    usd_helper: object = None
     # World
     robot_world: object = None
     # Collision

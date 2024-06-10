@@ -1,7 +1,5 @@
 (define (stream assembly-tamp)
   (:stream sample-grasp
-    ; object ?o must be graspable and output ?g mush satisfy grasp condition
-
     :inputs (?o)
     :domain (Graspable ?o)
     :outputs (?g)
@@ -9,30 +7,31 @@
   )
 
   (:stream sample-place
-    ; object ?o mush be placeable on the surface ?r 
-    ;   and output mush be stable on the surface ?r at pose ?p
-
     :inputs (?o1 ?o2)
     :domain (Placeable ?o1 ?o2)
     :outputs (?p)
-    :certified (and (Pose ?o1 ?p) (RegionPose ?o2 ?p))
+    :certified (and (Pose ?o1 ?p) (Supported ?o1 ?p ?o2))
   )
 
-  (:stream sample-insert
-    ; object ?o mush be placeable on the surface ?r 
-    ;   and output mush be stable on the surface ?r at pose ?p
-
-    :inputs (?o1 ?o2)
-    :domain (Insertable ?o1 ?o2)
-    :outputs (?p)
-    :certified (and (Pose ?o1 ?p) (HolePose ?o2 ?p))
+  (:stream inverse-kinematics
+    :inputs (?o ?p ?g)
+    :domain (and (Pose ?o ?p) (Grasp ?o ?g))
+    :outputs (?q ?t)
+    :certified (and (Conf ?q) (Traj ?t) (Kin ?o ?p ?g ?q ?t))
   )
 
-  (:stream plan-motion
-    :inputs (?a ?q1 ?q2)
-    :domain (and (Arm ?a) (Conf ?q1) (Conf ?q2))
+  (:stream plan-free-motion
+    :inputs (?q1 ?q2)
+    :domain (and (Conf ?q1) (Conf ?q2))
     :outputs (?t)
-    :certified (and (Traj ?t) (Motion ?a ?q1 ?t ?q2))
+    :certified (FreeMotion ?q1 ?t ?q2)
+  )
+
+  (:stream plan-holding-motion
+    :inputs (?q1 ?q2 ?o ?g)
+    :domain (and (Conf ?q1) (Conf ?q2) (Grasp ?o ?g))
+    :outputs (?t)
+    :certified (HoldingMotion ?q1 ?t ?q2 ?o ?g)
   )
 
   (:stream test-cfree-pose-pose
@@ -56,16 +55,12 @@
   (:stream test-supported
     :inputs (?o1 ?p1 ?o2 ?p2)
     :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
-    :certified (Supported ?o1 ?p1)
+    :certified (Supported ?o1 ?p1 ?o2)
   )
 
   (:stream test-inserted
     :inputs (?o1 ?p1 ?o2 ?p2)
     :domain (and (Pose ?o1 ?p1) (Pose ?o2 ?p2))
     :certified (Assembled ?o1 ?p1)
-  )
-
-  (:function (MoveCost ?t)
-    (and (Traj ?t))
   )
 )

@@ -16,6 +16,7 @@ from xarm_tamp.tampkit.sim_tools.curobo_utils import (
     get_motion_gen_cfg,
     get_mpc_solver_cfg,
     get_tensor_device_type,
+    get_usd_helper,
     get_motion_gen,
     get_robot_world,
     get_collision_checker,
@@ -30,6 +31,14 @@ def fetch_problem(sim_cfg, curobo_cfg):
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
+
+    ########################
+
+    # setup physics
+    world._physics_context.enable_ccd(sim_cfg.use_ccd)
+    world._physics_context.enable_gpu_dynamics(sim_cfg.use_gpu_pipeline)
+    world._physics_context.set_physics_dt(sim_cfg.dt)
+    world._physics_context.set_solver_type(sim_cfg.physx.solver_type)
 
     ########################
 
@@ -49,11 +58,17 @@ def fetch_problem(sim_cfg, curobo_cfg):
     set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
     world.scene.add(table2)
 
-    # set momo parts
+    # set parts
     block1 = create_block(sim_cfg.block1.name,
                           sim_cfg.block1.translation,
                           sim_cfg.block1.orientation)
     world.scene.add(block1)
+
+    # set parts
+    block2 = create_block(sim_cfg.block2.name,
+                          sim_cfg.block2.translation,
+                          sim_cfg.block2.orientation)
+    world.scene.add(block2)
 
     # reset world
     world.reset()
@@ -62,7 +77,7 @@ def fetch_problem(sim_cfg, curobo_cfg):
     set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
     set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
     initial_conf = sim_cfg.robot.initial_configuration
-    set_initial_conf(xarm, initial_conf)
+    set_initial_conf(xarm, initial_conf, use_gripper=True)
     world.step(render=True)
 
     # play world
@@ -83,7 +98,13 @@ def fetch_problem(sim_cfg, curobo_cfg):
     
     # define tensor_args
     tensor_args = get_tensor_device_type()
-    
+
+    ########################
+
+    # usd helper
+    usd_helper = get_usd_helper()
+    usd_helper.load_stage(stage)
+
     ########################
 
     # define world model
@@ -142,18 +163,20 @@ def fetch_problem(sim_cfg, curobo_cfg):
         # PDDL
         world=world,
         robot=xarm,
-        movable=[block1],
+        movable=[block1, block2],
         fixed=[table1, table2],
         surfaces=[table1, table2],
-        bodies=[block1],
-        init_placeable=[(block1, table2)],
-        goal_placed=[(block1, table2)],
+        bodies=[block1, block2],
+        init_placeable=[(block1, table2), (block2, table2)],
+        goal_placed=[(block1, table2), (block2, table2)],
         # Config
         robot_cfg=robot_cfg,
         world_cfg=world_cfg,
         plan_cfg=plan_cfg,
         # Tensor args
         tensor_args=tensor_args,
+        # Usd helper
+        usd_helper=usd_helper,
         # World
         robot_world=robot_world,
         # Collision
