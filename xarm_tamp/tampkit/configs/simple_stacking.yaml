@@ -87,7 +87,7 @@ sim:
     restitution: 0.0
 
   physx:
-    worker_thread_count: ${....num_threads}
+    worker_thread_count: 4
     solver_type: "TGS"
     use_gpu: True
     solver_position_iteration_count: 32
