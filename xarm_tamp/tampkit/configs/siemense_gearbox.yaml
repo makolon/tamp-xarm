@@ -4,7 +4,7 @@ pddlstream:
   algorithm: adaptive
   unit: True
   deterministic: True
-  problem: fmb_momo_problem
+  problem: siemense_gearbox_problem
   cfree: True
   teleport: False
   simulate: True
@@ -74,7 +74,7 @@ sim:
   use_gpu_pipeline: True
   gravity: [0.0, 0.0, -9.81]
   disable_gravity: False
-  add_ground_plane: True
+  add_ground_plane: False
   add_distant_light: True
   use_flatcache: True
   enable_scene_query_support: True
@@ -91,7 +91,7 @@ sim:
     solver_type: "TGS"
     use_gpu: True
     solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 16
+    solver_velocity_iteration_count: 32
     contact_offset: 0.005
     rest_offset: 0.0
     bounce_threshold_velocity: 0.2
@@ -99,7 +99,7 @@ sim:
     friction_correlation_distance: 0.025
     enable_sleeping: True
     enable_stabilization: True
-    max_depenetration_velocity: 1000.0
+    max_depenetration_velocity: 3.0
 
     # GPU buffers
     gpu_max_rigid_contact_count: 16777216
@@ -123,10 +123,10 @@ sim:
 
   table:
     table_name: table
-    translation: [0.3, 0.0, 0.025]
+    translation: [0.4, 0.0, 0.025]
     orientation: [1.0, 0.0, 0.0, 0.0]
     color: [0.0, 0.0, 0.0]
-    width: 0.4
+    width: 0.5
     depth: 0.6
     height: 0.05
     size: 1.0
@@ -138,13 +138,12 @@ sim:
     initial_configuration: [0.0, -0.873, 0.0, 0.524, 0.0, 1.40, 0.0, 0.0, 0.0]
 
   base_block:
-    name: base
-    task: momo
-    translation: [0.3, 0.1, 0.05]
-    orientation: [0.0, 0.0, 0.0, 1.0]
-    scale: [0.5, 0.5, 0.5]
+    name: gearbox_base
+    task: siemense_gearbox
+    translation: [0.5, 0.0, 0.05] 
+    orientation: [0.38268, 0.0, 0.0, 0.92388]
     override_usd_defaults: False
-    make_kinematic: True
+    make_kinematic: False
     enable_self_collisions: False
     enable_gyroscopic_forces: True
     # also in stage params
@@ -160,20 +159,19 @@ sim:
     contact_offset: 0.005
     rest_offset: 0.0
 
-  block1:
-    name: block1
-    task: momo
-    translation: [0.35, -0.15, 0.1]
+  shaft1:
+    name: shaft1
+    task: siemense_gearbox
+    translation: [0.3, -0.0965, 0.1655]
     orientation: [0.0, 1.0, 0.0, 0.0]
-    scale: [0.5, 0.5, 0.5]
     override_usd_defaults: False
     make_kinematic: False
     enable_self_collisions: False
     enable_gyroscopic_forces: True
     # also in stage params
     # per-actor
-    solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 32
+    solver_position_iteration_count: 64
+    solver_velocity_iteration_count: 64
     sleep_threshold: 0.005
     stabilization_threshold: 0.001
     # per-body
@@ -183,66 +181,19 @@ sim:
     contact_offset: 0.005
     rest_offset: 0.0
 
-  block2:
-    name: block2
-    task: momo
-    translation: [0.35, -0.05, 0.1]
+  shaft2:
+    name: shaft2
+    task: siemense_gearbox
+    translation: [0.3, 0.0965, 0.1655]
     orientation: [0.0, 1.0, 0.0, 0.0]
-    scale: [0.5, 0.5, 0.5]
     override_usd_defaults: False
     make_kinematic: False
     enable_self_collisions: False
     enable_gyroscopic_forces: True
     # also in stage params
     # per-actor
-    solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 32
-    sleep_threshold: 0.005
-    stabilization_threshold: 0.001
-    # per-body
-    density: -1
-    max_depenetration_velocity: 3.0
-    # per-shape
-    contact_offset: 0.005
-    rest_offset: 0.0
-
-  block3:
-    name: block3
-    task: momo
-    translation: [0.25, -0.05, 0.1]
-    orientation: [0.0, 1.0, 0.0, 0.0]
-    scale: [0.5, 0.5, 0.5]
-    override_usd_defaults: False
-    make_kinematic: False
-    enable_self_collisions: False
-    enable_gyroscopic_forces: True
-    # also in stage params
-    # per-actor
-    solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 32
-    sleep_threshold: 0.005
-    stabilization_threshold: 0.001
-    # per-body
-    density: -1
-    max_depenetration_velocity: 3.0
-    # per-shape
-    contact_offset: 0.005
-    rest_offset: 0.0
-
-  block4:
-    name: block4
-    task: momo
-    translation: [0.25, -0.15, 0.06]
-    orientation: [0.5, -0.5, 0.5, -0.5]
-    scale: [0.5, 0.5, 0.5]
-    override_usd_defaults: False
-    make_kinematic: False
-    enable_self_collisions: False
-    enable_gyroscopic_forces: True
-    # also in stage params
-    # per-actor
-    solver_position_iteration_count: 32
-    solver_velocity_iteration_count: 32
+    solver_position_iteration_count: 64
+    solver_velocity_iteration_count: 64
     sleep_threshold: 0.005
     stabilization_threshold: 0.001
     # per-body
@@ -254,42 +205,14 @@ sim:
 
   surface1:
     name: surface1
-    translation: [0.2665, 0.1, 0.04]
+    task: siemense_gearbox
+    translation: [0.403, -0.0965, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   surface2:
     name: surface2
-    translation: [0.3335, 0.1, 0.04]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface3:
-    name: surface3
-    translation: [0.3, 0.1, 0.04]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  surface4:
-    name: surface4
-    translation: [0.3, 0.1, 0.04]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole1:
-    name: hole1
-    translation: [0.2665, 0.1, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole2:
-    name: hole2
-    translation: [0.3335, 0.1, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole3:
-    name: hole3
-    translation: [0.3, 0.1, 0.1]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-
-  hole4:
-    name: hole4
-    translation: [0.3, 0.1, 0.1]
+    task: siemense_gearbox
+    translation: [0.404, 0.0965, 0.125]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
   parts:

@@ -30,12 +30,9 @@
 
 import copy
 
-import carb
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
-from xarm_rl.utils.config_utils.default_scene_params import (
-    default_physics_material, default_physx_params, default_sim_params, default_actor_options
-)
+from xarm_rl.utils.config_utils.default_scene_params import default_actor_options
+
 
 class SimConfig:
     def __init__(self, config: dict = None):
@@ -44,102 +41,6 @@ class SimConfig:
 
         self._config = config
         self._cfg = config.get("task", dict())
-        self._parse_config()
-
-        if self._config["test"]:
-            self._sim_params["enable_scene_query_support"] = True
-
-        if (
-            self._config["headless"]
-            and not self._sim_params["enable_cameras"]
-            and not self._config["enable_livestream"]
-            and not self._config.get("enable_recording", False)
-        ):
-            self._sim_params["use_fabric"] = False
-            self._sim_params["enable_viewport"] = False
-        else:
-            self._sim_params["enable_viewport"] = True
-            enable_extension("omni.kit.viewport.bundle")
-            if self._sim_params["enable_cameras"] or self._config.get("enable_recording", False):
-                enable_extension("omni.replicator.isaac")
-
-        self._sim_params["warp"] = self._config["warp"]
-        self._sim_params["sim_device"] = self._config["sim_device"]
-
-        self._adjust_dt()
-
-        if self._sim_params["disable_contact_processing"]:
-            carb.settings.get_settings().set_bool("/physics/disableContactProcessing", True)
-
-        carb.settings.get_settings().set_bool("/physics/physxDispatcher", True)
-        # Force the background grid off all the time for RL tasks, to avoid the grid showing up in any RL camera task
-        carb.settings.get_settings().set("/app/viewport/grid/enabled", False)
-        # Disable framerate limiting which might cause rendering slowdowns
-        carb.settings.get_settings().set("/app/runLoops/main/rateLimitEnabled", False)
-
-        import omni.ui 
-        # Dock floating UIs this might not be needed anymore as extensions dock themselves
-        # Method for docking a particular window to a location
-        def dock_window(space, name, location, ratio=0.5):
-            window = omni.ui.Workspace.get_window(name)
-            if window and space:
-                window.dock_in(space, location, ratio=ratio)
-            return window
-        # Acquire the main docking station
-        main_dockspace = omni.ui.Workspace.get_window("DockSpace")
-        dock_window(main_dockspace, "Content", omni.ui.DockPosition.BOTTOM, 0.3)
-
-        window = omni.ui.Workspace.get_window("Content")
-        if window:
-            window.visible = False
-        window = omni.ui.Workspace.get_window("Simulation Settings")
-        if window:
-            window.visible = False
-
-    def _parse_config(self):
-        # general sim parameter
-        self._sim_params = copy.deepcopy(default_sim_params)
-        self._default_physics_material = copy.deepcopy(default_physics_material)
-        sim_cfg = self._cfg.get("sim", None)
-        if sim_cfg is not None:
-            for opt in sim_cfg.keys():
-                if opt in self._sim_params:
-                    if opt == "default_physics_material":
-                        for material_opt in sim_cfg[opt]:
-                            self._default_physics_material[material_opt] = sim_cfg[opt][material_opt]
-                    else:
-                        self._sim_params[opt] = sim_cfg[opt]
-                else:
-                    print("Sim params does not have attribute: ", opt)
-        self._sim_params["default_physics_material"] = self._default_physics_material
-
-        # physx parameters
-        self._physx_params = copy.deepcopy(default_physx_params)
-        if sim_cfg is not None and "physx" in sim_cfg:
-            for opt in sim_cfg["physx"].keys():
-                if opt in self._physx_params:
-                    self._physx_params[opt] = sim_cfg["physx"][opt]
-                else:
-                    print("Physx sim params does not have attribute: ", opt)
-
-        self._sanitize_device()
-
-    def _sanitize_device(self):
-        if self._sim_params["use_gpu_pipeline"]:
-            self._physx_params["use_gpu"] = True
-
-        # device should be in sync with pipeline
-        if self._sim_params["use_gpu_pipeline"]:
-            self._config["sim_device"] = f"cuda:{self._config['device_id']}"
-        else:
-            self._config["sim_device"] = "cpu"
-
-        # also write to physics params for setting sim device
-        self._physx_params["sim_device"] = self._config["sim_device"]
-
-        print("Pipeline: ", "GPU" if self._sim_params["use_gpu_pipeline"] else "CPU")
-        print("Pipeline Device: ", self._config["sim_device"])
-        print("Sim Device: ", "GPU" if self._physx_params["use_gpu"] else "CPU")
 
     def parse_actor_config(self, actor_name):
         actor_params = copy.deepcopy(default_actor_options)
@@ -167,24 +68,6 @@ class SimConfig:
         else:
             if actor_params[attribute_name] != -1:
                 return actor_params[attribute_name]
-            
-    def _adjust_dt(self):
-        # re-evaluate rendering dt to simulate physics substeps
-        physics_dt = self.sim_params["dt"]
-        rendering_dt = self.sim_params["rendering_dt"]
-
-        # by default, rendering dt = physics dt
-        if rendering_dt <= 0:
-            rendering_dt = physics_dt
-
-        self.task_config["renderingInterval"] = max(round((1/physics_dt) / (1/rendering_dt)), 1)
-
-        # we always set rendering dt to be the same as physics dt, stepping is taken care of in VecEnvRLGames
-        self.sim_params["rendering_dt"] = physics_dt
-
-    @property
-    def sim_params(self):
-        return self._sim_params
 
     @property
     def config(self):
@@ -197,9 +80,6 @@ class SimConfig:
     @property
     def physx_params(self):
         return self._physx_params
-
-    def get_physics_params(self):
-        return {**self.sim_params, **self.physx_params}
 
     def _get_physx_collision_api(self, prim):
         from pxr import PhysxSchema
@@ -315,12 +195,6 @@ class SimConfig:
         if value != -1:
             mass.Set(value)
 
-    def retain_acceleration(self, prim):
-        # retain accelerations if running with more than one substep
-        physx_rb_api = self._get_physx_rigid_body_api(prim)
-        if self._sim_params["substeps"] > 1:
-            physx_rb_api.GetRetainAccelerationsAttr().Set(True)
-
     def make_kinematic(self, name, prim, cfg, value=None):
         # make rigid body kinematic (fixed base and no collision)
         from pxr import UsdPhysics
@@ -411,8 +285,6 @@ class SimConfig:
             mass_attr.Set(0.0)  # mass is to be computed
         elif cfg["override_usd_defaults"] and not density_attr.IsAuthored() and not mass_attr.IsAuthored():
             density_attr.Set(self._physx_params["density"])
-
-        self.retain_acceleration(prim)
 
     def apply_rigid_shape_settings(self, name, prim, cfg):
         from pxr import PhysxSchema, UsdPhysics
