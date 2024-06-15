@@ -1,9 +1,9 @@
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Creater
     create_world, create_floor, create_robot,
-    create_table, create_block,
+    create_table, create_block, create_distant_light,
     # Setter
-    set_pose, set_initial_conf,
+    set_initial_conf,
 )
 from xarm_tamp.tampkit.sim_tools.curobo_utils import (
     # Config
@@ -27,20 +27,15 @@ from xarm_tamp.tampkit.problems.base_problem import Problem
 
 
 def fetch_problem(sim_cfg, curobo_cfg):
-    world = create_world()
+    world = create_world(sim_params=sim_cfg)
     stage = world.stage
     xform = stage.DefinePrim("/World", "Xform")
     stage.SetDefaultPrim(xform)
 
     ########################
 
-    # setup physics
-    world._physics_context.enable_ccd(sim_cfg.use_ccd)
-    world._physics_context.enable_gpu_dynamics(sim_cfg.use_gpu_pipeline)
-    world._physics_context.set_physics_dt(sim_cfg.dt)
-    world._physics_context.set_solver_type(sim_cfg.physx.solver_type)
-
-    ########################
+    # create light
+    create_distant_light()
 
     # create plane
     create_floor(world, sim_cfg.floor)
@@ -55,7 +50,6 @@ def fetch_problem(sim_cfg, curobo_cfg):
 
     # create table2
     table2 = create_table(sim_cfg.table2)
-    set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
     world.scene.add(table2)
 
     # set parts
@@ -64,7 +58,6 @@ def fetch_problem(sim_cfg, curobo_cfg):
                           sim_cfg.block1.orientation)
     world.scene.add(block1)
 
-    # set parts
     block2 = create_block(sim_cfg.block2.name,
                           sim_cfg.block2.translation,
                           sim_cfg.block2.orientation)
@@ -74,8 +67,6 @@ def fetch_problem(sim_cfg, curobo_cfg):
     world.reset()
 
     # initialize world
-    set_pose(table1, (sim_cfg.table1.translation, sim_cfg.table1.orientation))
-    set_pose(table2, (sim_cfg.table2.translation, sim_cfg.table2.orientation))
     initial_conf = sim_cfg.robot.initial_configuration
     set_initial_conf(xarm, initial_conf, use_gripper=True)
     world.step(render=True)
