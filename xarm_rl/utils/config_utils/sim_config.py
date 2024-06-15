@@ -31,12 +31,11 @@
 import copy
 
 import carb
-import numpy as np
 import omni.usd
-import torch
 from omni.isaac.core.utils.extensions import enable_extension
-from xarm_rl.utils.config_utils.default_scene_params import *
-
+from xarm_rl.utils.config_utils.default_scene_params import (
+    default_physics_material, default_physx_params, default_sim_params, default_actor_options
+)
 
 class SimConfig:
     def __init__(self, config: dict = None):
@@ -47,11 +46,11 @@ class SimConfig:
         self._cfg = config.get("task", dict())
         self._parse_config()
 
-        if self._config["test"] == True:
+        if self._config["test"]:
             self._sim_params["enable_scene_query_support"] = True
 
         if (
-            self._config["headless"] == True
+            self._config["headless"]
             and not self._sim_params["enable_cameras"]
             and not self._config["enable_livestream"]
             and not self._config.get("enable_recording", False)
@@ -203,7 +202,7 @@ class SimConfig:
         return {**self.sim_params, **self.physx_params}
 
     def _get_physx_collision_api(self, prim):
-        from pxr import PhysxSchema, UsdPhysics
+        from pxr import PhysxSchema
 
         physx_collision_api = PhysxSchema.PhysxCollisionAPI(prim)
         if not physx_collision_api:
@@ -211,7 +210,7 @@ class SimConfig:
         return physx_collision_api
 
     def _get_physx_rigid_body_api(self, prim):
-        from pxr import PhysxSchema, UsdPhysics
+        from pxr import PhysxSchema
 
         physx_rb_api = PhysxSchema.PhysxRigidBodyAPI(prim)
         if not physx_rb_api:
@@ -219,7 +218,7 @@ class SimConfig:
         return physx_rb_api
 
     def _get_physx_articulation_api(self, prim):
-        from pxr import PhysxSchema, UsdPhysics
+        from pxr import PhysxSchema
 
         arti_api = PhysxSchema.PhysxArticulationAPI(prim)
         if not arti_api:
@@ -324,12 +323,12 @@ class SimConfig:
 
     def make_kinematic(self, name, prim, cfg, value=None):
         # make rigid body kinematic (fixed base and no collision)
-        from pxr import PhysxSchema, UsdPhysics
+        from pxr import UsdPhysics
 
         stage = omni.usd.get_context().get_stage()
         if value is None:
             value = self._get_actor_config_value(name, "make_kinematic")
-        if value == True:
+        if value:
             # parse through all children prims
             prims = [prim]
             while len(prims) > 0:
@@ -382,7 +381,6 @@ class SimConfig:
         from pxr import PhysxSchema, UsdPhysics
 
         stage = omni.usd.get_context().get_stage()
-        rb_api = UsdPhysics.RigidBodyAPI.Get(stage, prim.GetPath())
         physx_rb_api = PhysxSchema.PhysxRigidBodyAPI.Get(stage, prim.GetPath())
         if not physx_rb_api:
             physx_rb_api = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
@@ -418,8 +416,6 @@ class SimConfig:
 
     def apply_rigid_shape_settings(self, name, prim, cfg):
         from pxr import PhysxSchema, UsdPhysics
-
-        stage = omni.usd.get_context().get_stage()
 
         # collision APIs
         collision_api = UsdPhysics.CollisionAPI(prim)

@@ -5,40 +5,32 @@ from collections import namedtuple
 from omegaconf import DictConfig
 
 # Initialize isaac sim
-import tampkit.sim_tools.isaacsim.sim_utils
+import xarm_tamp.tampkit.sim_tools.sim_utils
 
-from tampkit.sim_tools.isaacsim.sim_utils import (
+from xarm_tamp.tampkit.sim_tools.primitives import (
+    BodyPose, BodyConf, ArmCommand, GripperCommand
+)
+from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
-    connect, disconnect, \
+    connect, disconnect, step_simulation, apply_action,
+    create_grasp_action, create_trajectory, target_reached,
     # Getter
-    get_pose, get_max_limit, get_arm_joints, get_gripper_joints, \
-    get_joint_positions, \
-    # Utility
-    apply_commands, control_commands
+    get_pose, get_arm_joints, get_joint_positions, get_gripper_joints
 )
-from tampkit.sim_tools.isaacsim.geometry import (
-    Pose, Conf, State
-)
-from tampkit.sim_tools.isaacsim.control import (
-    GripperCommand, Attach, Detach
-)
-from tampkit.problems import PROBLEMS
-from tampkit.streams.plan_base_stream import plan_base_fn
-from tampkit.streams.plan_arm_stream import plan_arm_fn
-from tampkit.streams.grasp_stream import get_grasp_gen
-from tampkit.streams.place_stream import get_place_gen
-from tampkit.streams.insert_stream import get_insert_gen
-from tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
+
+from xarm_tamp.tampkit.problems import PROBLEMS
+from xarm_tamp.tampkit.streams.inverse_kinematics_stream import get_ik_fn
+from xarm_tamp.tampkit.streams.plan_motion_stream import get_free_motion_fn, get_holding_motion_fn
+from xarm_tamp.tampkit.streams.grasp_stream import get_grasp_gen
+from xarm_tamp.tampkit.streams.place_stream import get_place_gen
+from xarm_tamp.tampkit.streams.test_stream import get_cfree_pose_pose_test, get_cfree_approach_pose_test, \
     get_cfree_traj_pose_test, get_supported, get_inserted
 
 # PDDLStream functions
-from pddlstream.algorithms.meta import solve, create_parser
-from pddlstream.language.generator import from_gen_fn, from_list_fn, from_fn, from_test
-from pddlstream.language.constants import print_solution, Equal, AND, PDDLProblem
-from pddlstream.language.external import defer_shared, never_defer
-from pddlstream.language.function import FunctionInfo
+from pddlstream.algorithms.meta import solve
+from pddlstream.language.generator import from_gen_fn, from_fn, from_test
+from pddlstream.language.constants import print_solution, AND, PDDLProblem
 from pddlstream.language.stream import StreamInfo
-from pddlstream.language.object import SharedOptValue
 from pddlstream.utils import get_file_path, read, str_from_object, Profiler, INF
 
 BASE_CONSTANT = 1
@@ -51,37 +43,40 @@ CustomValue = namedtuple('CustomValue', ['stream', 'values'])
 def move_cost_fn(c):
     return 1
 
-def opt_grasp_fn(o, r):
-    p2 = CustomValue('p-sg', (r,))
+def opt_grasp_fn(o):
+    p2 = CustomValue('p-sg', (o,))
     return p2,
 
-def opt_place_fn(o, r):
-    p2 = CustomValue('p-sp', (r,))
+def opt_place_fn(o1, o2):
+    p2 = CustomValue('p-sp', (o2,))
     return p2,
 
-def opt_insert_fn(o, r):
-    p2 = CustomValue('p-si', (r,))
+def opt_insert_fn(o1, o2):
+    p2 = CustomValue('p-si', (o2,))
     return p2,
 
-def opt_motion_arm_fn(a, o, p, g):
-    q = CustomValue('q-ik', (p,))
-    t = CustomValue('t-ik', tuple())
-    return q, t
-
-def opt_motion_base_fn(q1, q2):
+def opt_free_motion_fn(q1, q2):
     t = CustomValue('t-pbm', (q1, q2))
+    return t,
+
+def opt_holding_motion_fn(q1, q2, o, g):
+    t = CustomValue('t-hm', (q1, q2, o, g))
     return t,
 
 #######################################################
 
 class TAMPPlanner(object):
-    def __init__(self, algorithm, unit, deterministic, problem, cfree, teleport):
+    def __init__(self, task, algorithm, unit, deterministic,
+                    problem, cfree, teleport, simulate, attach):
+        self._task = task
         self._algorithm = algorithm
         self._unit = unit
         self._deterministic = deterministic
         self._problem = problem
         self._cfree = cfree
         self._teleport = teleport
+        self._simulate = simulate
+        self._attach = attach
 
         np.set_printoptions(precision=2)
         if deterministic:
@@ -91,60 +86,58 @@ class TAMPPlanner(object):
     def pddlstream_from_problem(self, problem, collisions=True, teleport=False):
         robot = problem.robot
 
-        domain_pddl = read(get_file_path(__file__, 'problems/assemble/domain.pddl'))
-        stream_pddl = read(get_file_path(__file__, 'problems/assemble/stream.pddl'))
+        domain_pddl = read(get_file_path(__file__, f'problems/{self._task}/pddl/domain.pddl'))
+        stream_pddl = read(get_file_path(__file__, f'problems/{self._task}/pddl/stream.pddl'))
         constant_map = {}
 
         # Initlaize init & goal
         init, goal = [AND], [AND]
 
-        init += [
-            ('CanMove',),
-            Equal(('PickCost',), 1),
-            Equal(('PlaceCost',), 1),
-            Equal(('InsertCost',), 1),
-        ]
-
+        # Robot
         joints = get_arm_joints(robot)
-        conf = Conf(robot, joints, get_joint_positions(robot, joints))
-        init += [('Arm', 'arm'), ('Conf', 'arm', conf), ('HandEmpty', 'arm'), ('AtConf', 'arm', conf)]
-        init += [('Controllable', 'arm')]
+        conf = BodyConf(robot, joints, get_joint_positions(robot, joints))
+        init += [('CanMove',),
+                 ('HandEmpty',),
+                 ('Conf', conf),
+                 ('AtConf', conf),]
+        goal += [('AtConf', conf)]
 
+        # Body
         for body in problem.movable:
-            pose = Pose(body, get_pose(body))
+            pose = BodyPose(body, get_pose(body))
             init += [('Graspable', body),
                      ('Pose', body, pose),
                      ('AtPose', body, pose)]
 
-        # Surface pose
+        # Surface
         for body in problem.surfaces:
-            pose = Pose(body, get_pose(body))
-            init += [('RegionPose', body, pose)]
+            pose = BodyPose(body, get_pose(body))
+            init += [('Region', body)]
 
-        # Hole pose
+        # Hole
         for body in problem.holes:
-            pose = Pose(body, get_pose(body))
-            init += [('HolePose', body, pose)]
+            pose = BodyPose(body, get_pose(body))
+            init += [('Hole', body)]
 
-        init += [('Inserted', b1) for b1 in problem.holes]
         init += [('Placeable', b1, b2) for b1, b2 in problem.init_placeable]
         init += [('Insertable', b1, b2) for b1, b2 in problem.init_insertable]
         goal += [('Holding', a, b) for a, b in problem.goal_holding] + \
-                [('On', a, b) for a, b in problem.goal_on] + \
+                [('On', a, b) for a, b in problem.goal_placed] + \
                 [('InHole', a, b) for a, b in problem.goal_inserted] + \
                 [('Cleaned', b)  for b in problem.goal_cleaned] + \
                 [('Cooked', b)  for b in problem.goal_cooked]
 
         stream_map = {
             # Constrained sampler
-            'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=False)),
+            'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
             'sample-place': from_gen_fn(get_place_gen(problem, collisions=collisions)),
-            'sample-insert': from_gen_fn(get_insert_gen(problem, collisions=collisions)),
+            # Inverse kinematics
+            'inverse-kinematics': from_fn(get_ik_fn(problem, collisions=collisions)),
             # Planner
-            'plan-base-motion': from_fn(plan_base_fn(problem, collisions=True, teleport=teleport)),
-            'plan-arm-motion': from_fn(plan_arm_fn(problem, collisions=collisions, teleport=teleport)),
+            'plan-free-motion': from_fn(get_free_motion_fn(problem, collisions=collisions)),
+            'plan-holding-motion': from_fn(get_holding_motion_fn(problem, collisions=collisions)),
             # Test function
-            'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
+            'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(problem, collisions=collisions)),
             'test-cfree-approach-pose': from_test(get_cfree_approach_pose_test(problem, collisions=collisions)),
             'test-cfree-traj-pose': from_test(get_cfree_traj_pose_test(problem, collisions=collisions)),
             'test-supported': from_test(get_supported(problem, collisions=collisions)),
@@ -156,38 +149,43 @@ class TAMPPlanner(object):
     def post_process(self, problem, plan, teleport=False):
         if plan is None:
             return None
+
         commands = []
         for i, (name, args) in enumerate(plan):
-            if name == 'move':
+            new_commands = []
+            if name == 'move_free':
                 q1, q2, c = args
-                new_commands = c.commands
+                move_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, move_trajectory)]
+            elif name == 'move_holding':
+                q1, q2, o, g, c = args
+                move_trajectory = create_trajectory(c.path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, move_trajectory)]
             elif name == 'pick':
-                a, b, p, g, _, c = args
-                [traj_pick] = c.commands
-                close_gripper = GripperCommand(problem.robot, a, g.grasp_width, teleport=teleport)
-                attach = Attach(problem.robot, a, g, b)
-                new_commands = [traj_pick, close_gripper, attach, traj_pick.reverse()]
+                o, p, g, q, c = args
+                grasp_action = create_grasp_action([35.0 * np.pi / 180, -35.0 * np.pi / 180], get_gripper_joints(c.robot)) # create_grasp_action([10.0, 10.0], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('grasp', o, c.robot, grasp_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             elif name == 'place':
-                a, b1, b2, p, g, _, c = args
-                [traj_place] = c.commands
-                gripper_joint = get_gripper_joints(problem.robot, a)[0]
-                position = get_max_limit(problem.robot, gripper_joint)
-                new_commands = [traj_place,]
+                o, p, g, q, c = args
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('release', o, c.robot, release_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             elif name == 'insert':
-                a, b1, b2, p1, p2, g, _, _, c = args
-                [traj_insert, traj_depart, traj_return] = c.commands
-                gripper_joint = get_gripper_joints(problem.robot, a)[0]
-                position = get_max_limit(problem.robot, gripper_joint)
-                open_gripper = GripperCommand(problem.robot, a, position, teleport=teleport)
-                detach = Detach(problem.robot, a, b1)
-                new_commands = [traj_insert, detach, open_gripper, traj_depart, traj_return.reverse()]
+                o, p, g, q, c = args
+                release_action = create_grasp_action([0.0, 0.0], get_gripper_joints(c.robot))
+                new_commands += [GripperCommand('release', c.robot, release_action)]
+                return_trajectory = create_trajectory(c.reverse().path, c.joints)
+                new_commands += [ArmCommand(name, c.robot, return_trajectory)]
             else:
                 raise ValueError(name)
             print(i, name, args, new_commands)
             commands += new_commands
         return commands
 
-    def execute(self, sim_cfg):
+    def execute(self, sim_cfg, curobo_cfg):
         simulation_app = connect()
 
         # Instanciate problem 
@@ -196,7 +194,7 @@ class TAMPPlanner(object):
             raise ValueError(self._problem)
         print('Problem:', self._problem)
         problem_fn = problem_from_name[self._problem]
-        tamp_problem = problem_fn(sim_cfg)
+        tamp_problem = problem_fn(sim_cfg, curobo_cfg)
 
         pddlstream_problem = self.pddlstream_from_problem(tamp_problem, collisions=not self._cfree, teleport=self._teleport)
 
@@ -204,8 +202,8 @@ class TAMPPlanner(object):
             'sample-grasp': StreamInfo(opt_gen_fn=from_fn(opt_grasp_fn)),
             'sample-place': StreamInfo(opt_gen_fn=from_fn(opt_place_fn)),
             'sample-insert': StreamInfo(opt_gen_fn=from_fn(opt_insert_fn)),
-            'plan-arm_motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_arm_fn)),
-            'plan-base-motion': StreamInfo(opt_gen_fn=from_fn(opt_motion_base_fn)),
+            'plan-free-motion': StreamInfo(opt_gen_fn=from_fn(opt_free_motion_fn)),
+            'plan-holding-motion': StreamInfo(opt_gen_fn=from_fn(opt_holding_motion_fn))
         }
 
         _, _, _, stream_map, init, goal = pddlstream_problem
@@ -229,28 +227,43 @@ class TAMPPlanner(object):
 
         # Post process
         commands = self.post_process(tamp_problem, plan)
+        print('commands:', commands)
+        input('wait_for_user')
 
         # Execute commands
-        if sim_cfg.simulate:
-            control_commands(State(), commands, time_step=0.03)
-        else:
-            apply_commands(State(), commands, time_step=0.03)
+        for step, command in enumerate(commands):
+            print('step.{}: {} action'.format(step, command.name))
+            for path in command.path:
+                if command.name in ['grasp', 'release']:
+                    for _ in range(50):
+                        apply_action(command.robot, path)
+                        # command.robot.set_joint_positions(torch.tensor(path.joint_positions, device='cuda'), joint_indices=get_gripper_joints(command.robot))
+                        step_simulation(tamp_problem.world)
+                    continue
+
+                while not target_reached(command.robot, path):
+                    apply_action(command.robot, path)
+                    step_simulation(tamp_problem.world)
 
         # Close simulator
         disconnect()
 
 
-@hydra.main(version_base=None, config_name="config", config_path="./configs")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, siemense_gearbox, peg_in_hole, block_world): ")
+@hydra.main(version_base=None, config_name=config_file, config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(
+        task=cfg.pddlstream.task,
         algorithm=cfg.pddlstream.algorithm,
         unit=cfg.pddlstream.unit,
         deterministic=cfg.pddlstream.deterministic,
         problem=cfg.pddlstream.problem,
         cfree=cfg.pddlstream.cfree,
         teleport=cfg.pddlstream.teleport,
+        simulate=cfg.pddlstream.simulate,
+        attach=cfg.pddlstream.attach,
     )
-    tamp_planer.execute(cfg.sim)
+    tamp_planer.execute(cfg.sim, cfg.curobo)
 
 
 if __name__ == '__main__':

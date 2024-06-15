@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
-<robot name="board1_block2">
-    <link name="board1_block2">
+<robot name="block2">
+    <link name="block2">
         <visual>
-            <origin xyz="0 0 0 " rpy=" 0 0 0"/>
+            <origin xyz="0 0 0" rpy=" 0 0 0"/>
             <geometry>
-                <mesh filename="../meshes/MOMO_Board1_Block2.stl" scale="0.001 0.001 0.001"/>
+                <mesh filename="../meshes/block2.stl"/>
             </geometry>
             <material name="red">
                 <color rgba="0.0 0.0 1.0 1.0"/>
@@ -13,7 +13,7 @@
         <collision>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <mesh filename="../meshes/MOMO_Board1_Block2.stl" scale="0.001 0.001 0.001"/>
+                <mesh filename="../meshes/block2.stl"/>
             </geometry>
         </collision>
     </link>

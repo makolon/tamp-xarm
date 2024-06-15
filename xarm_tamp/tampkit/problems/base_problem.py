@@ -1,12 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Union
 
 
 @dataclass
 class Problem:
     # Objects
+    world: object
     robot: object
-    arms: tuple = field(default_factory=tuple)
     movable: tuple = field(default_factory=tuple)
     bodies: tuple = field(default_factory=tuple)
     fixed: tuple = field(default_factory=tuple)
@@ -20,7 +19,7 @@ class Problem:
     init_insertable: tuple = field(default_factory=tuple)
     goal_conf: object = None
     goal_holding: tuple = field(default_factory=tuple)
-    goal_on: tuple = field(default_factory=tuple)
+    goal_placed: tuple = field(default_factory=tuple)
     goal_inserted: tuple = field(default_factory=tuple)
     goal_cleaned: tuple = field(default_factory=tuple)
     goal_cooked: tuple = field(default_factory=tuple)
@@ -33,23 +32,22 @@ class Problem:
     robot_cfg: dict = field(default_factory=dict)
     world_cfg: dict = field(default_factory=dict)
     plan_cfg: dict = field(default_factory=dict)
+    # Tensor args
+    tensor_args: object = None
+    # Usd helper
+    usd_helper: object = None
+    # World
+    robot_world: object = None
+    # Collision
+    world_collision: object = None
     # Planner
     ik_solver: object = None
     motion_planner: object = None
     mpc: object = None
-    # Controller
-    curobot_controller: object = None
-    articulation_controller: object = None
 
     def get_gripper(self, gripper_name: str, visual: bool=True):
         if self.gripper is None:
             import omni.isaac.core.utils.prims as prims_utils
-            # self.gripper = prims_utils.create_prim(
-            #     prim_path=f"/World/{self.robot.name}/{gripper_name}",
-            #     prim_type="Xform",
-            #     usd_path=""
-            # )
-            # TODO: fix this
             self.gripper = prims_utils.define_prim(
                 prim_path=f"/World/{self.robot.name}/{gripper_name}",
                 prim_type="Xform",
@@ -59,7 +57,6 @@ class Problem:
     def remove_gripper(self):
         if self.gripper is not None:
             import omni.isaac.core.utils.prims as prims_utils
-            # TODO: must be prim_path
             prims_utils.delete_prim(self.gripper.prim_path)
             self.gripper = None
 

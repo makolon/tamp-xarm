@@ -130,6 +130,8 @@ venv.bak/
 
 # PDDLStream
 outputs
+statistics
+temp
 
 # IsaacSim
 .DS_Store
