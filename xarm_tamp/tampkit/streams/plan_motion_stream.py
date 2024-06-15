@@ -63,8 +63,7 @@ def get_free_motion_fn(problem, collisions=True, batch_size=64, threshold=0.1):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        arm_traj = trajectory.position.cpu().numpy()
-        traj = BodyPath(robot, arm_joints, arm_traj)
+        traj = BodyPath(robot, arm_joints, trajectory.position)
         return (traj,)
 
     return fn
@@ -122,8 +121,7 @@ def get_holding_motion_fn(problem, collisions=True, batch_size=64, threshold=0.1
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        arm_traj = trajectory.position.cpu().numpy()
-        traj = BodyPath(robot, arm_joints, arm_traj)
+        traj = BodyPath(robot, arm_joints, trajectory.position)
         return (traj,)
 
     return fn

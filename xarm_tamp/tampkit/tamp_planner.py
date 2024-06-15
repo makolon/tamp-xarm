@@ -10,16 +10,12 @@ import xarm_tamp.tampkit.sim_tools.sim_utils
 from xarm_tamp.tampkit.sim_tools.primitives import (
     BodyPose, BodyConf, ArmCommand, GripperCommand
 )
-from xarm_tamp.tampkit.sim_tools.curobo_utils import (
-    add_fixed_constraint, remove_fixed_constraint, update_world
-)
 from xarm_tamp.tampkit.sim_tools.sim_utils import (
     # Simulation utility
     connect, disconnect, step_simulation, apply_action,
     create_grasp_action, create_trajectory, target_reached,
     # Getter
-    get_pose, get_arm_joints, get_joint_positions,
-    get_gripper_joints,
+    get_pose, get_arm_joints, get_joint_positions, get_gripper_joints
 )
 
 from xarm_tamp.tampkit.problems import PROBLEMS
@@ -167,7 +163,7 @@ class TAMPPlanner(object):
                 new_commands += [ArmCommand(name, c.robot, move_trajectory)]
             elif name == 'pick':
                 o, p, g, q, c = args
-                grasp_action = create_grasp_action([40.0 / np.pi * 180, -40.0 / np.pi * 180], get_gripper_joints(c.robot))
+                grasp_action = create_grasp_action([35.0 * np.pi / 180, -35.0 * np.pi / 180], get_gripper_joints(c.robot)) # create_grasp_action([10.0, 10.0], get_gripper_joints(c.robot))
                 new_commands += [GripperCommand('grasp', o, c.robot, grasp_action)]
                 return_trajectory = create_trajectory(c.reverse().path, c.joints)
                 new_commands += [ArmCommand(name, c.robot, return_trajectory)]
@@ -239,25 +235,21 @@ class TAMPPlanner(object):
             print('step.{}: {} action'.format(step, command.name))
             for path in command.path:
                 if command.name in ['grasp', 'release']:
-                    apply_action(command.robot, path)
-                    step_simulation(tamp_problem.world)
+                    for _ in range(50):
+                        apply_action(command.robot, path)
+                        # command.robot.set_joint_positions(torch.tensor(path.joint_positions, device='cuda'), joint_indices=get_gripper_joints(command.robot))
+                        step_simulation(tamp_problem.world)
                     continue
 
                 while not target_reached(command.robot, path):
                     apply_action(command.robot, path)
                     step_simulation(tamp_problem.world)
 
-            if self._attach:
-                if command.name == 'grasp':
-                    tamp_problem.robot.gripper.close()
-                if command.name == 'release':
-                    tamp_problem.robot.gripper.open()
-
         # Close simulator
         disconnect()
 
 
-config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, siemense_gearbox, peg_in_hole, block_world): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="./configs")
 def main(cfg: DictConfig):
     tamp_planer = TAMPPlanner(

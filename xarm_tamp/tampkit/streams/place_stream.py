@@ -25,7 +25,7 @@ def sample_placement(top_body, bottom_body, max_attempts=25, **kwargs):
 
         # sample place pose
         x, y = sample_aabb(aabb)
-        z = (bottom_aabb[1] + extent/2.)[2] + 0.01 # TODO: fix
+        z = (bottom_aabb[1] + extent/2.)[2] + 0.01  # TODO: fix
         point = np.array([x, y, z])
         pose = [point, unit_quat()]
         return pose

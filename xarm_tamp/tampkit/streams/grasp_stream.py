@@ -22,7 +22,7 @@ def sample_grasps(body, tool_pose, body_pose, grasp_length=0.0, max_width=0.1):
         rotation = unit_quat()
 
     pose_diff = [tool_pose[0] - body_pose[0], rotation]  # TODO: fix
-    pose_diff[0][2] -= 0.07  # TODO: fix
+    # pose_diff[0][2] -= 0.03  # TODO: fix
     return pose_diff
 
 def get_grasp_gen(problem, collisions=True):

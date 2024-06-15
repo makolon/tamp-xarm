@@ -20,6 +20,7 @@ simulation_app = SimulationApp(
 )
 
 # Third party
+import carb
 import math
 import trimesh
 import numpy as np
@@ -32,13 +33,12 @@ from collections import namedtuple
 from itertools import product
 from typing import Dict, List, Tuple, Optional, Sequence, Union, Callable, Iterable
 from scipy.spatial.transform import Rotation
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdLux
 from omni.isaac.core import World
 from omni.isaac.core.objects import cuboid, sphere
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
-from omni.isaac.core.utils.numpy.rotations import xyzw2wxyz, wxyz2xyzw
-from omni.isaac.core.utils.torch.rotations import quat_diff_rad
+from omni.isaac.core.utils.torch.rotations import quat_diff_rad, xyzw2wxyz, wxyz2xyzw
 from omni.isaac.core.utils.torch.tensor import convert
 from omni.isaac.core.utils.types import ArticulationAction
 
@@ -85,14 +85,38 @@ def loop_simulation(world: 'World') -> None:
 
 # Create Simulation Environment API
 
-def create_world() -> 'World':
+def create_world(rendering_dt: float = 1.0 / 60.0,
+                 sim_params: 'Dict' = None,
+                 backend: str = 'torch',
+                 device: str = 'gpu') -> 'World':
     """
     Create a new simulation world.
 
     Returns:
         World: The simulation world.
     """
-    return World(stage_units_in_meters=1.0)
+    # parse device based on sim_param settings
+    if sim_params and "sim_device" in sim_params:
+        device = sim_params["sim_device"]
+    else:
+        device = "cpu"
+        physics_device_id = carb.settings.get_settings().get_as_int("/physics/cudaDevice")
+        gpu_id = 0 if physics_device_id < 0 else physics_device_id
+        if sim_params and "use_gpu_pipeline" in sim_params:
+            # GPU pipeline must use GPU simulation
+            if sim_params["use_gpu_pipeline"]:
+                device = "cuda:" + str(gpu_id)
+        elif sim_params and "use_gpu" in sim_params:
+            if sim_params["use_gpu"]:
+                device = "cuda:" + str(gpu_id)
+
+    return World(
+        stage_units_in_meters=1.0,
+        rendering_dt=rendering_dt,
+        backend=backend,
+        sim_params=sim_params,
+        device=device
+    )
 
 def create_floor(world: 'World', plane_cfg: 'Dict') -> 'object':
     """
@@ -105,20 +129,30 @@ def create_floor(world: 'World', plane_cfg: 'Dict') -> 'object':
     Returns:
         GroundPlane: The created ground plane.
     """
-    return world.scene.add_default_ground_plane(
-        static_friction=plane_cfg.static_friction,
-        dynamic_friction=plane_cfg.dynamic_friction,
-        restitution=plane_cfg.restitution,
+    return world.scene.add_ground_plane(
+        size=5000.0,
+        z_position=0.0,
+        name='ground_plane',
+        prim_path='/World/groundPlane',
+        static_friction=0.5,
+        dynamic_friction=0.5,
+        restitution=0.8,
+        color=np.array([0.3, 0.5, 0.4])
     )
 
-def create_block(block_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'RigidPrim':
+def create_distant_light(prim_path="/World/defaultDistantLight", intensity=1000):
+    stage = omni.usd.get_context().get_stage()
+    light = UsdLux.DistantLight.Define(stage, prim_path)
+    light.GetPrim().GetAttribute("inputs:intensity").Set(intensity)
+
+def create_block(block_name: str, translation: torch.Tensor, orientation: torch.Tensor) -> 'RigidPrim':
     """
     Create a dynamic block in the simulation world.
 
     Args:
         block_name (str): Name of the block.
-        translation (np.ndarray): Translation of the block.
-        orientation (np.ndarray): Orientation of the block.
+        translation (torch.Tensor): Translation of the block.
+        orientation (torch.Tensor): Orientation of the block.
 
     Returns:
         DynamicCuboid: The created block.
@@ -132,14 +166,35 @@ def create_block(block_name: str, translation: np.ndarray, orientation: np.ndarr
         size=0.03,
     )
 
-def create_surface(surface_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'GeometryPrim':
+def create_fixed_block(block_name: str, scale: List, translation: torch.Tensor, orientation: torch.Tensor) -> 'GeometryPrim':
+    """
+    Create a dynamic block in the simulation world.
+
+    Args:
+        block_name (str): Name of the block.
+        translation (torch.Tensor): Translation of the block.
+        orientation (torch.Tensor): Orientation of the block.
+
+    Returns:
+        DynamicCuboid: The created block.
+    """
+    return cuboid.FixedCuboid(
+        prim_path=f"/World/{block_name}",
+        name=block_name,
+        translation=translation,
+        orientation=orientation,
+        color=np.array([1.0, 1.0, 1.0]),
+        scale=np.array(scale),
+    )
+
+def create_surface(surface_name: str, translation: torch.Tensor, orientation: torch.Tensor) -> 'GeometryPrim':
     """
     Create a visual surface in the simulation world.
 
     Args:
         surface_name (str): Name of the surface.
-        translation (np.ndarray): Translation of the surface.
-        orientation (np.ndarray): Orientation of the surface.
+        translation (torch.Tensor): Translation of the surface.
+        orientation (torch.Tensor): Orientation of the surface.
 
     Returns:
         VisualCuboid: The created surface.
@@ -150,18 +205,18 @@ def create_surface(surface_name: str, translation: np.ndarray, orientation: np.n
         translation=translation,
         orientation=orientation,
         color=np.array([0.0, 0.0, 0.0]),
-        size=0.01,
+        size=0.03,
         visible=False,
     )
 
-def create_hole(hole_name: str, translation: np.ndarray, orientation: np.ndarray) -> 'GeometryPrim':
+def create_hole(hole_name: str, translation: torch.Tensor, orientation: torch.Tensor) -> 'GeometryPrim':
     """
     Create a visual hole in the simulation world.
 
     Args:
         hole_name (str): Name of the hole.
-        translation (np.ndarray): Translation of the hole.
-        orientation (np.ndarray): Orientation of the hole.
+        translation (torch.Tensor): Translation of the hole.
+        orientation (torch.Tensor): Orientation of the hole.
 
     Returns:
         VisualCuboid: The created hole.
@@ -172,7 +227,7 @@ def create_hole(hole_name: str, translation: np.ndarray, orientation: np.ndarray
         translation=translation,
         orientation=orientation,
         color=np.array([0.0, 0.0, 0.0]),
-        size=0.01,
+        size=0.07,
         visible=False,
     )
 
@@ -234,51 +289,78 @@ def create_fmb(fmb_cfg: 'Dict') -> 'XFormPrim':
         return fmb_momo.Block(
             prim_path=f"/World/{fmb_cfg.name}",
             name=fmb_cfg.name,
-            translation=np.array(fmb_cfg.translation),
-            orientation=np.array(fmb_cfg.orientation),
-            scale=np.array(fmb_cfg.scale),
+            translation=torch.tensor(fmb_cfg.translation),
+            orientation=torch.tensor(fmb_cfg.orientation),
+            scale=torch.tensor(fmb_cfg.scale),
         )
     elif fmb_cfg.task == 'simo':
         from xarm_tamp.tampkit.sim_tools.objects import fmb_simo
         return fmb_simo.Block(
             prim_path=f"/World/{fmb_cfg.name}",
             name=fmb_cfg.name,
-            translation=np.array(fmb_cfg.translation),
-            orientation=np.array(fmb_cfg.orientation),
-            scale=np.array(fmb_cfg.scale),
+            translation=torch.tensor(fmb_cfg.translation),
+            orientation=torch.tensor(fmb_cfg.orientation),
+            scale=torch.tensor(fmb_cfg.scale),
         )
     return None
 
+def create_shaft(siemense_cfg: 'Dict') -> 'XFormPrim':
+    from xarm_tamp.tampkit.sim_tools.objects import siemense_gearbox
+    return siemense_gearbox.Shaft(
+        prim_path=f"/World/{siemense_cfg.name}",
+        name=siemense_cfg.name,
+        translation=torch.tensor(siemense_cfg.translation),
+        orientation=torch.tensor(siemense_cfg.orientation),
+    )
+
+def create_gear(siemense_cfg: 'Dict') -> 'XFormPrim':
+    from xarm_tamp.tampkit.sim_tools.objects import siemense_gearbox
+    return siemense_gearbox.Gear(
+        prim_path=f"/World/{siemense_cfg.name}",
+        name=siemense_cfg.name,
+        translation=torch.tensor(siemense_cfg.translation),
+        orientation=torch.tensor(siemense_cfg.orientation),
+    )
+
+def create_gearbox_base(siemense_cfg: 'Dict') -> 'XFormPrim':
+    from xarm_tamp.tampkit.sim_tools.objects import siemense_gearbox
+    return siemense_gearbox.GearboxBase(
+        prim_path=f"/World/{siemense_cfg.name}",
+        name=siemense_cfg.name,
+        translation=torch.tensor(siemense_cfg.translation),
+        orientation=torch.tensor(siemense_cfg.orientation),
+    )
+
 # Unit API
 
-def unit_point() -> np.ndarray:
+def unit_point() -> torch.Tensor:
     """
     Get a unit point.
 
     Returns:
-        np.ndarray: A unit point [0.0, 0.0, 0.0].
+        torch.Tensor: A unit point [0.0, 0.0, 0.0].
     """
-    return np.array([0.0, 0.0, 0.0])
+    return torch.tneosr([0.0, 0.0, 0.0])
 
-def unit_quat() -> np.ndarray:
+def unit_quat() -> torch.Tensor:
     """
     Get a unit quaternion.
 
     Returns:
-        np.ndarray: A unit quaternion [0.0, 0.0, 0.0, 1.0].
+        torch.Tensor: A unit quaternion [0.0, 0.0, 0.0, 1.0].
     """
-    return np.array([0.0, 0.0, 0.0, 1.0])
+    return torch.tensor([0.0, 0.0, 0.0, 1.0])
 
-def unit_pose() -> Tuple[np.ndarray, np.ndarray]:
+def unit_pose() -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get a unit pose.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: A unit pose.
+        Tuple[torch.Tensor, torch.Tensor]: A unit pose.
     """
     return unit_point(), unit_quat()
 
-def get_point(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> np.ndarray:
+def get_point(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> torch.Tensor:
     """
     Get the position of a body.
 
@@ -286,11 +368,11 @@ def get_point(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -
         body (Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]): The body to get the position of.
 
     Returns:
-        np.ndarray: The position of the body.
+        torch.Tensor: The position of the body.
     """
     return get_pose(body)[0]
 
-def get_quat(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> np.ndarray:
+def get_quat(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> torch.Tensor:
     """
     Get the orientation of a body.
 
@@ -298,7 +380,7 @@ def get_quat(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) ->
         body (Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]): The body to get the orientation of.
 
     Returns:
-        np.ndarray: The orientation of the body.
+        torch.Tensor: The orientation of the body.
     """
     return get_pose(body)[1]
 
@@ -345,7 +427,7 @@ def get_body_name(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']
     """
     return body.name
 
-def get_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> Tuple[np.ndarray, np.ndarray]:
+def get_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the pose of a body.
 
@@ -353,12 +435,12 @@ def get_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']]) ->
         body (Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]): The body to get the pose of.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The position and orientation of the body.
+        Tuple[torch.Tensor, torch.Tensor]: The position and orientation of the body.
     """
     pos, rot = body.get_world_pose()
     return pos, wxyz2xyzw(rot)
 
-def get_velocity(body: Optional['RigidPrim']) -> Tuple[np.ndarray, np.ndarray]:
+def get_velocity(body: Optional['RigidPrim']) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the velocity of a rigid body.
 
@@ -366,13 +448,13 @@ def get_velocity(body: Optional['RigidPrim']) -> Tuple[np.ndarray, np.ndarray]:
         body (Optional[RigidPrim]): The rigid body to get the velocity of.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The linear and angular velocity of the body.
+        Tuple[torch.Tensor, torch.Tensor]: The linear and angular velocity of the body.
     """
     return body.linear_velocity, body.angular_velocity
 
 def get_transform_local(prim: 'Usd.Prim', 
                         time_code: Optional['Usd.TimeCode'] = None
-                       ) -> Tuple[np.ndarray, np.ndarray]:
+                       ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the transform of the given prim relative to the parent prim.
 
@@ -381,7 +463,7 @@ def get_transform_local(prim: 'Usd.Prim',
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The local position and orientation of the prim.
+        Tuple[torch.Tensor, torch.Tensor]: The local position and orientation of the prim.
     """
     if time_code is None:
         time_code = Usd.TimeCode.Default()
@@ -394,7 +476,7 @@ def get_transform_local(prim: 'Usd.Prim',
 
 def get_transform_world(prim: 'Usd.Prim',
                         time_code: Optional['Usd.TimeCode'] = None
-                       ) -> Tuple[np.ndarray, np.ndarray]:
+                       ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the transform of the given prim relative to the world frame.
 
@@ -403,7 +485,7 @@ def get_transform_world(prim: 'Usd.Prim',
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The world position and orientation of the prim.
+        Tuple[torch.Tensor, torch.Tensor]: The world position and orientation of the prim.
     """
     if time_code is None:
         time_code = Usd.TimeCode.Default()
@@ -417,7 +499,7 @@ def get_transform_world(prim: 'Usd.Prim',
 def get_transform_relative(prim: 'Usd.Prim', 
                            other_prim: 'Usd.Prim', 
                            time_code: Optional['Usd.TimeCode'] = None
-                          ) -> np.ndarray:
+                          ) -> torch.Tensor:
     """
     Get the transform of the given prim relative to the other prim.
 
@@ -427,47 +509,47 @@ def get_transform_relative(prim: 'Usd.Prim',
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
 
     Returns:
-        np.ndarray: The relative transform.
+        torch.Tensor: The relative transform.
     """
     if time_code is None:
         time_code = Usd.TimeCode.Default()
     world2prim = get_transform_world(prim, time_code)
     world2other = get_transform_world(other_prim, time_code)
-    other2world = np.linalg.inv(world2other)
+    other2world = torch.inverse(world2other)
     return other2world @ world2prim
 
 def set_pose(body: Optional[Union['GeometryPrim', 'RigidPrim', 'XFormPrim']],
-             pose: Tuple[np.ndarray, np.ndarray]
+             pose: Tuple[torch.Tensor, torch.Tensor]
             ) -> None:
     """
     Set the pose of a body.
 
     Args:
         body (Optional[Union[GeometryPrim, RigidPrim, XFormPrim]]): The body to set the pose of.
-        pose (Tuple[np.ndarray, np.ndarray]): The pose to set. Tuple containing position (np.ndarray) and orientation (np.ndarray).
+        pose (Tuple[torch.Tensor, torch.Tensor]): The pose to set. Tuple containing position (torch.Tensor) and orientation (np.ndarray).
     """
     position, orientation = pose
     assert isinstance(body, (GeometryPrim, RigidPrim, XFormPrim)), "Invalid body type."
     body.set_world_pose(position=position, orientation=xyzw2wxyz(orientation))
 
 def set_velocity(body: Optional['RigidPrim'], 
-                 translation: np.ndarray = np.array([0.0, 0.0, 0.0]), 
-                 rotation: np.ndarray = np.array([0.0, 0.0, 0.0])
+                 translation: torch.Tensor = torch.tensor([0.0, 0.0, 0.0]), 
+                 rotation: torch.Tensor = torch.tensor([0.0, 0.0, 0.0])
                 ) -> None:
     """
     Set the velocity of a rigid body.
 
     Args:
         body (Optional[RigidPrim]): The rigid body to set the velocity of.
-        translation (np.ndarray, optional): The linear velocity to set. Defaults to [0.0, 0.0, 0.0].
-        rotation (np.ndarray, optional): The angular velocity to set. Defaults to [0.0, 0.0, 0.0].
+        translation (torch.Tensor, optional): The linear velocity to set. Defaults to [0.0, 0.0, 0.0].
+        rotation (torch.Tensor, optional): The angular velocity to set. Defaults to [0.0, 0.0, 0.0].
     """
     assert isinstance(body, RigidPrim), "Invalid body type."
     body.set_linear_velocity(velocity=translation)
     body.set_angular_velocity(velocity=rotation)
 
 def set_transform_local(prim: 'Usd.Prim', 
-                        transform: np.ndarray, 
+                        transform: torch.Tensor, 
                         time_code: Optional['Usd.TimeCode'] = None
                        ) -> None:
     """
@@ -475,7 +557,7 @@ def set_transform_local(prim: 'Usd.Prim',
 
     Args:
         prim (Usd.Prim): The prim to set the transform for.
-        transform (np.ndarray): The transformation matrix to set.
+        transform (torch.Tensor): The transformation matrix to set.
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
     """
     animation_mode = time_code is not None
@@ -485,7 +567,7 @@ def set_transform_local(prim: 'Usd.Prim',
         prim.GetAttribute("xformOp:transform").Set(Gf.Matrix4d(transform.T), time_code)
     else:
         translation = transform[:3, 3].tolist()
-        rot = Rotation.from_matrix(transform[:3, :3])
+        rot = Rotation.from_matrix(transform[:3, :3].cpu())
         rot_quat = rot.as_quat()
         rot_quat_real = rot_quat[-1]
         rot_quat_imag = Gf.Vec3f(rot_quat[:3].tolist())
@@ -513,7 +595,7 @@ def set_transform_local(prim: 'Usd.Prim',
         rigid_body_enable_attr.Set(False)
 
 def set_transform_world(prim: 'Usd.Prim', 
-                        transform: np.ndarray, 
+                        transform: torch.Tensor, 
                         time_code: Optional['Usd.TimeCode'] = None
                        ) -> None:
     """
@@ -521,7 +603,7 @@ def set_transform_world(prim: 'Usd.Prim',
 
     Args:
         prim (Usd.Prim): The prim to set the transform for.
-        transform (np.ndarray): The transformation matrix to set.
+        transform (torch.Tensor): The transformation matrix to set.
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
 
     Raises:
@@ -537,7 +619,7 @@ def set_transform_world(prim: 'Usd.Prim',
 
 def set_transform_relative(prim: 'Usd.Prim', 
                            other_prim: 'Usd.Prim', 
-                           transform: np.ndarray, 
+                           transform: torch.Tensor, 
                            time_code: Optional['Usd.TimeCode'] = None
                           ) -> None:
     """
@@ -546,7 +628,7 @@ def set_transform_relative(prim: 'Usd.Prim',
     Args:
         prim (Usd.Prim): The prim to set the transform for.
         other_prim (Usd.Prim): The other prim to set the transform relative to.
-        transform (np.ndarray): The transformation matrix to set.
+        transform (torch.Tensor): The transformation matrix to set.
         time_code (Optional[Usd.TimeCode], optional): The time code. Defaults to None.
 
     Raises:
@@ -724,7 +806,7 @@ def get_link_subtree(robot: 'Robot', link: 'Usd.Prim') -> List['Usd.Prim']:
     """
     return [link] + get_link_descendants(robot, link)
 
-def get_link_pose(robot: 'Robot', link_name: str) -> Tuple[np.ndarray, np.ndarray]:
+def get_link_pose(robot: 'Robot', link_name: str) -> Tuple[torch.Tensor, torch.Tensor]:
     """Get the pose of the specified link.
 
     Args:
@@ -732,7 +814,7 @@ def get_link_pose(robot: 'Robot', link_name: str) -> Tuple[np.ndarray, np.ndarra
         link_name (str): The name of the link.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The local transform (position, orientation) of the link.
+        Tuple[torch.Tensor, torch.Tensor]: The local transform (position, orientation) of the link.
 
     Raises:
         ValueError: If the specified link does not exist.
@@ -742,14 +824,14 @@ def get_link_pose(robot: 'Robot', link_name: str) -> Tuple[np.ndarray, np.ndarra
             return get_transform_world(link_prim)
     raise ValueError("Specified link does not exist.")
 
-def get_tool_pose(robot: 'Robot') -> Tuple[np.ndarray, np.ndarray]:
+def get_tool_pose(robot: 'Robot') -> Tuple[torch.Tensor, torch.Tensor]:
     """Get the pose of the end effector.
 
     Args:
         robot (Robot): The robot object.mro
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The world transform (position, orientation)
+        Tuple[torch.Tensor, torch.Tensor]: The world transform (position, orientation)
     """
     end_effector = robot.end_effector
     return end_effector.get_world_pose()
@@ -894,12 +976,12 @@ def get_movable_joints(robot: 'Robot', use_gripper: bool = False) -> Optional[Un
     Returns:
         Optional[Union[list, np.ndarray, torch.Tensor]]: Movable joint indices.
     """
-    return robot.arm_joints + robot.gripper_joints if use_gripper else robot.arm_joints
+    return torch.cat((robot.arm_joints, robot.gripper_joints), dim=0) if use_gripper else robot.arm_joints
 
 def get_joint_positions(robot: 'Robot', 
                         joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None,
                         use_gripper: bool = False,
-                       ) -> np.ndarray:
+                       ) -> torch.Tensor:
     """
     Get joint positions.
 
@@ -908,7 +990,7 @@ def get_joint_positions(robot: 'Robot',
         joint_indices (Optional[Union[list, np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
 
     Returns:
-        np.ndarray: Joint positions.
+        torch.Tensor: Joint positions.
     """
     if joint_indices is None:
         joint_indices = get_movable_joints(robot, use_gripper=use_gripper)
@@ -916,7 +998,7 @@ def get_joint_positions(robot: 'Robot',
 
 def get_joint_velocities(robot: 'Robot', 
                          joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None
-                        ) -> np.ndarray:
+                        ) -> torch.Tensor:
     """
     Get joint velocities.
 
@@ -925,7 +1007,7 @@ def get_joint_velocities(robot: 'Robot',
         joint_indices (Optional[Union[list, np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
 
     Returns:
-        np.ndarray: Joint velocities.
+        torch.Tensor: Joint velocities.
     """
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
@@ -933,7 +1015,7 @@ def get_joint_velocities(robot: 'Robot',
 
 def get_min_limit(robot: 'Robot', 
                   joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None
-                 ) -> np.ndarray:
+                 ) -> torch.Tensor:
     """
     Get joint lower limit.
 
@@ -942,7 +1024,7 @@ def get_min_limit(robot: 'Robot',
         joint_indices (Optional[Union[np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
 
     Returns:
-        np.ndarray: Joint lower limits.
+        torch.Tensor: Joint lower limits.
     """
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
@@ -950,7 +1032,7 @@ def get_min_limit(robot: 'Robot',
 
 def get_max_limit(robot: 'Robot', 
                   joint_indices: Optional[Union[np.ndarray, torch.Tensor]] = None
-                 ) -> np.ndarray:
+                 ) -> torch.Tensor:
     """
     Get joint upper limit.
 
@@ -959,13 +1041,13 @@ def get_max_limit(robot: 'Robot',
         joint_indices (Optional[Union[np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
 
     Returns:
-        np.ndarray: Joint upper limits.
+        torch.Tensor: Joint upper limits.
     """
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
     return robot.dof_properties["upper"][joint_indices]
 
-def get_joint_limits(robot: 'Robot') -> Tuple[np.ndarray, np.ndarray]:
+def get_joint_limits(robot: 'Robot') -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get joint upper and lower limits.
 
@@ -973,14 +1055,14 @@ def get_joint_limits(robot: 'Robot') -> Tuple[np.ndarray, np.ndarray]:
         robot (Robot): The robot object.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: Joint upper and lower limits.
+        Tuple[torch.Tensor, torch.Tensor]: Joint upper and lower limits.
     """
     return get_min_limit(robot), get_max_limit(robot)
 
 def get_custom_limits(robot: 'Robot', 
                       joint_names: Optional[Union[list, np.ndarray, torch.Tensor]],
                       custom_limits: dict = {}
-                     ) -> Tuple[np.ndarray, np.ndarray]:
+                     ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get custom limits.
 
@@ -990,7 +1072,7 @@ def get_custom_limits(robot: 'Robot',
         custom_limits (dict, optional): Custom limits dictionary. Defaults to {}.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: Custom joint limits.
+        Tuple[torch.Tensor, torch.Tensor]: Custom joint limits.
     """
     joint_limits = [
         custom_limits[joint] if joint in custom_limits else get_joint_limits(robot)
@@ -1000,7 +1082,7 @@ def get_custom_limits(robot: 'Robot',
 
 def get_initial_conf(robot: 'Robot', 
                      joint_indices: Optional[Union[list, np.ndarray, torch.Tensor]] = None
-                    ) -> np.ndarray:
+                    ) -> torch.Tensor:
     """
     Get joint initial configuration.
 
@@ -1009,7 +1091,7 @@ def get_initial_conf(robot: 'Robot',
         joint_indices (Optional[Union[list, np.ndarray, torch.Tensor]], optional): Joint indices. Defaults to None.
 
     Returns:
-        np.ndarray: Joint initial configuration.
+        torch.Tensor: Joint initial configuration.
     """
     if joint_indices is None:
         joint_indices = get_movable_joints(robot)
@@ -1022,7 +1104,7 @@ def get_initial_conf(robot: 'Robot',
         initial_pos = state.positions[joint_indices]
     return initial_pos
 
-def get_group_conf(robot: 'Robot', group: str = 'arm') -> np.ndarray:
+def get_group_conf(robot: 'Robot', group: str = 'arm') -> torch.Tensor:
     """
     Get joint configuration corresponding to group.
 
@@ -1031,7 +1113,7 @@ def get_group_conf(robot: 'Robot', group: str = 'arm') -> np.ndarray:
         group (str, optional): The group to get configuration for. Defaults to 'arm'.
 
     Returns:
-        np.ndarray: Joint configuration.
+        torch.Tensor: Joint configuration.
     """
     if group == 'arm':
         joint_indices = robot.arm_joints
@@ -1076,6 +1158,8 @@ def set_initial_conf(robot: 'Robot',
         joint_indices = get_movable_joints(robot, use_gripper=use_gripper)
     if initial_conf is None:
         initial_conf = get_joint_positions(robot, joint_indices)
+    if type(initial_conf) is not torch.Tensor:
+        initial_conf = torch.tensor(initial_conf)
     robot.set_joint_positions(initial_conf, joint_indices=joint_indices)
 
 def create_grasp_action(gripper_command: List,
@@ -1132,18 +1216,23 @@ def apply_action(robot: 'Robot',
 def target_reached(robot: 'Robot',
                    configuration: Optional['ArticulationAction'],
                    threshold: float = 3e-2,
-                  ) -> None:
+                  ) -> bool:
     """
-    Check whether the robot reached to the target
+    Check whether the robot reached the target.
+
+    Args:
+        robot (Robot): The robot instance.
+        configuration (Optional[ArticulationAction]): The target configuration.
+        threshold (float): The threshold distance to consider the target reached.
+
+    Returns:
+        bool: True if the target is reached, False otherwise.
     """
-    target_position = configuration.joint_positions
+    target_position = torch.tensor(configuration.joint_positions)
     current_position = get_joint_positions(robot, configuration.joint_indices)
 
-    error = np.linalg.norm(target_position - current_position, ord=2)
-    if error <= threshold:
-        return True
-    else:
-        return False
+    error = torch.norm(target_position.cpu() - current_position.cpu(), p=2)
+    return error <= threshold
 
 def is_ancestor(prim: 'Usd.Prim', other_prim: 'Usd.Prim') -> bool:
     """
@@ -1191,7 +1280,7 @@ def is_circular(robot: 'Robot', joint: 'Usd.Prim') -> bool:
     upper, lower = robot.dof_properties['upper'][joint_index], robot.dof_properties['lower'][joint_index]
     return upper < lower
 
-def get_difference_fn(robot: 'Robot', joints: List['Usd.Prim']) -> Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], Tuple]:
+def get_difference_fn(robot: 'Robot', joints: List['Usd.Prim']) -> Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], Tuple]:
     """
     Get the difference function between joint configurations.
 
@@ -1200,7 +1289,7 @@ def get_difference_fn(robot: 'Robot', joints: List['Usd.Prim']) -> Callable[[Uni
         joints (List[Usd.Prim]): List of joint prims.
 
     Returns:
-        Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], Tuple]: Difference function.
+        Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], Tuple]: Difference function.
     """
     circular_joints = [is_circular(robot, joint) for joint in joints]
     def fn(q2: Union[list, np.ndarray], q1: Union[list, np.ndarray]) -> Tuple:
@@ -1211,7 +1300,7 @@ def get_difference_fn(robot: 'Robot', joints: List['Usd.Prim']) -> Callable[[Uni
 def get_refine_fn(robot: 'Robot', 
                   joints: List['Usd.Prim'], 
                   num_steps: int = 0
-                 ) -> Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], Iterable[Tuple]]:
+                 ) -> Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], Iterable[Tuple]]:
     """
     Refine the given joint configuration.
 
@@ -1221,11 +1310,11 @@ def get_refine_fn(robot: 'Robot',
         num_steps (int, optional): Number of steps for refinement. Defaults to 0.
 
     Returns:
-        Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], Iterable[Tuple]]: Refinement function.
+        Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], Iterable[Tuple]]: Refinement function.
     """
     difference_fn = get_difference_fn(robot, joints)
     num_steps += 1
-    def fn(q1: Union[list, np.ndarray], q2: Union[list, np.ndarray]) -> Iterable[Tuple]:
+    def fn(q1: Union[list, np.ndarray, torch.Tensor], q2: Union[list, np.ndarray, torch.Tensor]) -> Iterable[Tuple]:
         q = q1
         for i in range(num_steps):
             positions = (1. / (num_steps - i)) * np.array(difference_fn(q2, q)) + q
@@ -1236,7 +1325,7 @@ def get_refine_fn(robot: 'Robot',
 def get_extend_fn(robot: 'Robot', 
                   joints: List['Usd.Prim'], 
                   norm: int = 2
-                 ) -> Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], Iterable[Tuple]]:
+                 ) -> Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], Iterable[Tuple]]:
     """
     Extend the given joint configuration.
 
@@ -1258,7 +1347,7 @@ def get_extend_fn(robot: 'Robot',
 
 def get_distance_fn(robot: 'Robot', 
                     joints: List['Usd.Prim']
-                   ) -> Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], float]:
+                   ) -> Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], float]:
     """
     Get the distance function between two configurations.
 
@@ -1267,13 +1356,13 @@ def get_distance_fn(robot: 'Robot',
         joints (List[Usd.Prim]): List of joint prims.
 
     Returns:
-        Callable[[Union[list, np.ndarray], Union[list, np.ndarray]], float]: Distance function.
+        Callable[[Union[list, np.ndarray, torch.Tensor], Union[list, np.ndarray, torch.Tensor]], float]: Distance function.
     """
-    weights = np.ones(len(joints))
+    weights = torch.ones(len(joints))
     difference_fn = get_difference_fn(robot, joints)
-    def fn(q1: Union[list, np.ndarray], q2: Union[list, np.ndarray]) -> float:
-        diff = np.array(difference_fn(q2, q1))
-        return np.sqrt(np.dot(weights, diff * diff))
+    def fn(q1: Union[list, np.ndarray, torch.Tensor], q2: Union[list, np.ndarray, torch.Tensor]) -> float:
+        diff = torch.tensor(difference_fn(q2, q1))
+        return torch.sqrt(torch.dot(weights, diff * diff))
     return fn
 
 def refine_path(robot: 'Robot', 
@@ -1865,9 +1954,9 @@ def flatten(iterable_of_iterables: List[List]) -> List:
     """
     return [item for sublist in iterable_of_iterables for item in sublist]
 
-def convex_combination(x: Union[np.ndarray, List[float]], 
-                       y: Union[np.ndarray, List[float]], 
-                       w: float = 0.5) -> np.ndarray:
+def convex_combination(x: Union[np.ndarray, torch.Tensor, List[float]], 
+                       y: Union[np.ndarray, torch.Tensor, List[float]], 
+                       w: float = 0.5) -> torch.Tensor:
     """
     Compute the convex combination of two vectors.
 
@@ -1879,7 +1968,7 @@ def convex_combination(x: Union[np.ndarray, List[float]],
     Returns:
         np.ndarray: The convex combination of the two vectors.
     """
-    return (1 - w) * np.array(x) + w * np.array(y)
+    return (1 - w) * torch.tensor(x) + w * torch.tensor(y)
 
 def unit_vector(data: np.ndarray, axis: Optional[int] = None, out: Optional[np.ndarray] = None) -> np.ndarray:
     """
@@ -1910,19 +1999,19 @@ def unit_vector(data: np.ndarray, axis: Optional[int] = None, out: Optional[np.n
     if out is None:
         return data
 
-def quaternion_slerp(quat0: np.ndarray, quat1: np.ndarray, fraction: float, spin: int = 0, shortestpath: bool = True) -> np.ndarray:
+def quaternion_slerp(quat0: torch.Tensor, quat1: torch.Tensor, fraction: float, spin: int = 0, shortestpath: bool = True) -> torch.Tensor:
     """
     Return spherical linear interpolation between two quaternions.
 
     Args:
-        quat0 (np.ndarray): The first quaternion.
-        quat1 (np.ndarray): The second quaternion.
+        quat0 (torch.Tensor): The first quaternion.
+        quat1 (torch.Tensor): The second quaternion.
         fraction (float): The interpolation fraction.
         spin (int, optional): The number of extra spins.
         shortestpath (bool, optional): Whether to use the shortest path.
 
     Returns:
-        np.ndarray: The interpolated quaternion.
+        torch.Tensor: The interpolated quaternion.
     """
     q0 = unit_vector(quat0[:4])
     q1 = unit_vector(quat1[:4])
@@ -1930,20 +2019,20 @@ def quaternion_slerp(quat0: np.ndarray, quat1: np.ndarray, fraction: float, spin
         return q0
     elif fraction == 1.0:
         return q1
-    d = np.dot(q0, q1)
-    if abs(abs(d) - 1.0) < np.finfo(float).eps * 4.0:
+    d = torch.dot(q0, q1)
+    if abs(abs(d.item()) - 1.0) < np.finfo(float).eps * 4.0:
         return q0
     if shortestpath and d < 0.0:
         d = -d
         q1 *= -1.0
-    angle = np.arccos(d) + spin * np.pi
-    if abs(angle) < np.finfo(float).eps * 4.0:
+    angle = torch.acos(d) + spin * np.pi
+    if abs(angle.item()) < np.finfo(float).eps * 4.0:
         return q0
-    isin = 1.0 / np.sin(angle)
-    q0 *= np.sin((1.0 - fraction) * angle) * isin
-    q1 *= np.sin(fraction * angle) * isin
+    isin = 1.0 / torch.sin(angle)
+    q0 = q0 * torch.sin((1.0 - fraction) * angle) * isin
+    q1 = q1 * torch.sin(fraction * angle) * isin
     q0 += q1
-    return q0
+    return unit_vector(q0)
 
 def quat_combination(quat1: np.ndarray, quat2: np.ndarray, fraction: float = 0.5) -> np.ndarray:
     """
@@ -1972,54 +2061,54 @@ def get_pairs(sequence: List) -> zip:
     sequence = list(sequence)
     return zip(sequence[:-1], sequence[1:])
 
-def get_distance(p1: Union[List[float], np.ndarray], 
-                 p2: Union[List[float], np.ndarray]) -> float:
+def get_distance(p1: Union[List[float], np.ndarray, torch.Tensor], 
+                 p2: Union[List[float], np.ndarray, torch.Tensor]) -> float:
     """
     Calculate the Euclidean distance between two points.
 
     Args:
-        p1 (Union[List[float], np.ndarray]): The first point.
-        p2 (Union[List[float], np.ndarray]): The second point.
+        p1 (Union[List[float], np.ndarray, torch.Tensor]): The first point.
+        p2 (Union[List[float], np.ndarray, torch.Tensor]): The second point.
 
     Returns:
         float: The Euclidean distance between the points.
     """
     assert len(p1) == len(p2)
-    diff = np.array(p2) - np.array(p1)
-    return np.linalg.norm(diff, ord=2)
+    diff = torch.tensor(p2) - torch.tensor(p1)
+    return torch.norm(diff, ord=2)
 
-def multiply(pose1: Union[List, np.ndarray], 
-             pose2: Union[List, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def multiply(pose1: Union[List, np.ndarray, torch.Tensor], 
+             pose2: Union[List, np.ndarray, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Multiply two poses to get the resulting transformation.
 
     Args:
-        pose1 (Union[List, np.ndarray]): The first pose.
-        pose2 (Union[List, np.ndarray]): The second pose.
+        pose1 (Union[List, np.ndarray, torch.Tensor]): The first pose.
+        pose2 (Union[List, np.ndarray, torch.Tensor]): The second pose.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: A tuple containing the position and rotation of the resulting transformation.
+        Tuple[torch.Tensor, torch.Tensor]: A tuple containing the position and rotation of the resulting transformation.
     """
-    transform1 = np.eye(4)
+    transform1 = torch.eye(4)
     if len(pose1[1]) == 4:
-        transform1[:3, :3] = Rotation.from_quat(pose1[1]).as_matrix()
+        transform1[:3, :3] = torch.tensor(Rotation.from_quat(pose1[1].cpu()).as_matrix())
     elif len(pose1[1]) == 3:
-        transform1[:3, :3] = Rotation.from_euler('xyz', pose1[1]).as_matrix()
+        transform1[:3, :3] = torch.tensor(Rotation.from_euler('xyz', pose1[1].cpu()).as_matrix())
     transform1[:3, 3] = pose1[0]
 
-    transform2 = np.eye(4)
+    transform2 = torch.eye(4)
     if len(pose2[1]) == 4:
-        transform2[:3, :3] = Rotation.from_quat(pose2[1]).as_matrix()
+        transform2[:3, :3] = torch.tensor(Rotation.from_quat(pose2[1].cpu()).as_matrix())
     elif len(pose2[1]) == 3:
-        transform2[:3, :3] = Rotation.from_euler('xyz', pose2[1]).as_matrix()
+        transform2[:3, :3] = torch.tensor(Rotation.from_euler('xyz', pose2[1].cpu()).as_matrix())
     transform2[:3, 3] = pose2[0]
 
     result = transform1 @ transform2
     result_pos = result[:3, 3]
-    result_rot = Rotation.from_matrix(result[:3, :3]).as_quat()
-    return result_pos, result_rot
+    result_rot = Rotation.from_matrix(result[:3, :3].cpu()).as_quat()
+    return torch.tensor(result_pos), torch.tensor(result_rot)
 
-def multiply_array(*poses: Union[List, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def multiply_array(*poses: Union[List, np.ndarray, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Multiply an array of poses to get the resulting transformation.
 
@@ -2034,67 +2123,74 @@ def multiply_array(*poses: Union[List, np.ndarray]) -> Tuple[np.ndarray, np.ndar
         pose = multiply(pose, next_pose)
     return pose
 
-def invert(pose: Union[List, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def invert(pose: Union[List, np.ndarray, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the inverse of a transformation.
 
     Args:
-        pose (Union[List, np.ndarray]): The pose to invert.
+        pose (Union[List, np.ndarray, torch.Tensor]): The pose to invert.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: A tuple containing the position and rotation of the inverse transformation.
+        Tuple[torch.Tensor, torch.Tensor]: A tuple containing the position and rotation of the inverse transformation.
     """
-    transform = np.eye(4)
-    if len(pose[1]) == 4:
-        transform[:3, :3] = Rotation.from_quat(pose[1]).as_matrix()
-    elif len(pose[1]) == 3:
-        transform[:3, :3] = Rotation.from_euler('xyz', pose[1]).as_matrix()
+    if isinstance(pose, list) or isinstance(pose, np.ndarray):
+        pose = torch.tensor(pose)
+    
+    transform = torch.eye(4)
+    
+    if pose[1].shape[0] == 4:
+        rot_matrix = torch.tensor(Rotation.from_quat(pose[1].cpu()).as_matrix())
+    elif pose[1].shape[0] == 3:
+        rot_matrix = torch.tensor(Rotation.from_euler('xyz', pose[1].cpu()).as_matrix())
+    
+    transform[:3, :3] = rot_matrix
     transform[:3, 3] = pose[0]
-
-    result = np.linalg.inv(transform)
+    
+    result = torch.inverse(transform)
     result_pos = result[:3, 3]
-    result_rot = Rotation.from_matrix(result[:3, :3]).as_quat()
+    result_rot = torch.tensor(Rotation.from_matrix(result[:3, :3].cpu().numpy()).as_quat())
+    
     return result_pos, result_rot
 
-def transform_point(affine: np.ndarray, point: np.ndarray) -> np.ndarray:
+def transform_point(affine: torch.Tensor, point: torch.Tensor) -> torch.Tensor:
     """
     Transform a point using an affine transformation.
 
     Args:
-        affine (np.ndarray): The affine transformation matrix.
-        point (np.ndarray): The point to transform.
+        affine (torch.Tensor): The affine transformation matrix.
+        point (torch.Tensor): The point to transform.
 
     Returns:
-        np.ndarray: The transformed point.
+        torch.Tensor: The transformed point.
     """
     return multiply(affine, [point, [0, 0, 0, 1]])[0]
 
-def apply_affine(affine: np.ndarray, points: List[np.ndarray]) -> List[np.ndarray]:
+def apply_affine(affine: torch.Tensor, points: List[torch.Tensor]) -> List[torch.Tensor]:
     """
     Apply an affine transformation to a list of points.
 
     Args:
-        affine (np.ndarray): The affine transformation matrix.
-        points (List[np.ndarray]): The list of points.
+        affine (torch.Tensor): The affine transformation matrix.
+        points (List[torch.Tensor]): The list of points.
 
     Returns:
-        List[np.ndarray]: A list of transformed points.
+        List[torch.Tensor]: A list of transformed points.
     """
     return [transform_point(affine, p) for p in points]
 
-def tf_matrices_from_poses(position: np.ndarray, quaternion: np.ndarray) -> np.ndarray:
+def tf_matrices_from_poses(position: torch.Tensor, quaternion: torch.Tensor) -> torch.Tensor:
     """
     Create a 4x4 transformation matrix from a position vector and a quaternion.
 
     Args:
-        position (np.ndarray): Position vector [x, y, z]
-        quaternion (np.ndarray): Quaternion [w, x, y, z]
+        position (torch.Tensor): Position vector [x, y, z]
+        quaternion (torch.Tensor): Quaternion [w, x, y, z]
 
     Returns:
-        np.ndarray: 4x4 transformation matrix.
+        torch.Tensor: 4x4 transformation matrix.
     """
-    rotation = Rotation.from_quat(quaternion).as_matrix()
-    T = np.zeros((4, 4))
+    rotation = torch.tensor(Rotation.from_quat(quaternion.cpu()).as_matrix())
+    T = torch.zeros((4, 4))
     T[:3, :3] = rotation
     T[:3, 3] = position
     T[3, 3] = 1
@@ -2102,7 +2198,7 @@ def tf_matrices_from_poses(position: np.ndarray, quaternion: np.ndarray) -> np.n
 
 def compute_configuration_distance(conf1: torch.Tensor,
                                    conf2: torch.Tensor,
-                                   device: str = 'cpu') -> float:
+                                   device: str = 'cuda') -> float:
     """
     Calculate euclidean distance of two different configurations.
 
@@ -2119,7 +2215,7 @@ def compute_configuration_distance(conf1: torch.Tensor,
 
 def compute_homogeneous_transform(pose1: Union[List, np.ndarray, torch.Tensor],
                                   pose2: Union[List, np.ndarray, torch.Tensor],
-                                  device: str = 'cpu'):
+                                  device: str = 'cuda'):
     """
     Create a homogeneous transformation matrix from the difference between two poses.
 
@@ -2148,7 +2244,7 @@ def compute_homogeneous_transform(pose1: Union[List, np.ndarray, torch.Tensor],
     
     return homogeneous_matrix
 
-def end_effector_from_body(body_pose: Union[List, np.ndarray], grasp_pose: Union[List, np.ndarray]):
+def end_effector_from_body(body_pose: Union[List, np.ndarray, torch.Tensor], grasp_pose: Union[List, np.ndarray, torch.Tensor]):
     """
     grasp_pose: the body's pose in gripper's frame
 
@@ -2159,6 +2255,49 @@ def end_effector_from_body(body_pose: Union[List, np.ndarray], grasp_pose: Union
                          = Pose_{world,block}*(Pose_{gripper,block})^{-1}
     """
     homogeneous_matrix = compute_homogeneous_transform(grasp_pose, body_pose)
-    pose_diff = [homogeneous_matrix[:3, 3], Rotation.from_matrix(homogeneous_matrix[:3, :3]).as_quat()]
+    pose_diff = [homogeneous_matrix[:3, 3], torch.tensor(Rotation.from_matrix(homogeneous_matrix[:3, :3].cpu()).as_quat())]
     target_position, target_rotation = multiply(pose_diff, grasp_pose)
     return target_position, target_rotation
+
+def apply_physics_settings(body, physics_cfg):
+    from .sim_config import SimConfig
+    cfg = SimConfig()
+    cfg.apply_articulation_settings(body.name, body.prim, physics_cfg)
+
+def add_anchor(body, robot):
+    # The (x, y, z) axes in the global coordinate system are transformed to (z, y, x) in the local coordinate system
+    stage = omni.usd.get_context().get_stage()
+    fixed_joint_path = f"{robot.prim_path}/xarm_gripper_base_link/fingertip_fixed_joint"
+
+    # Fix the object to left hand
+    fixed_pos = np.array([0.0, 0.0, 0.0])
+    anchor_pos = Gf.Vec3d(fixed_pos.tolist())
+
+    fixed_rot = np.array([-0.70710678, 0.0, 0.70710678, 0.0])
+    fixed_rot = Rotation.from_quat(fixed_rot).as_euler('xyz')
+    fixed_rot = np.array([fixed_rot[0], fixed_rot[1], fixed_rot[2]])
+    fixed_rot = Rotation.from_euler('xyz', fixed_rot).as_quat()
+    anchor_rot = Gf.Quatf(fixed_rot[3], Gf.Vec3f(fixed_rot[0], fixed_rot[1], fixed_rot[2]))
+
+    fix_to_hand(stage, fixed_joint_path, body.prim_path, anchor_pos, anchor_rot)
+
+def fix_to_hand(stage, joint_path, prim_path, anchor_pos, anchor_rot):
+    # Calculate anchor rotation
+    anchor1_rot = anchor_rot
+    anchor2_rot = Gf.Quatf(1.0, Gf.Vec3f(0.0, 0.0, 0.0))
+
+    # D6 fixed joint
+    FixedJoint = UsdPhysics.FixedJoint.Define(stage, joint_path)
+    FixedJoint.CreateBody0Rel().SetTargets(["/World/xarm7/fingertip_centered"])
+    FixedJoint.CreateBody1Rel().SetTargets([prim_path])
+    FixedJoint.CreateLocalPos0Attr().Set(Gf.Vec3f(anchor_pos))
+    FixedJoint.CreateLocalRot0Attr().Set(anchor1_rot)
+    FixedJoint.CreateLocalPos1Attr().Set(Gf.Vec3f(0, 0, 0))
+    FixedJoint.CreateLocalRot1Attr().Set(anchor2_rot)
+
+def remove_anchor(robot):
+    from omni.isaac.core.utils.prims import delete_prim, is_prim_path_valid
+    fixed_joint_path = f"{robot.prim_path}/xarm_gripper_base_link/fingertip_fixed_joint"
+    is_valid = is_prim_path_valid(fixed_joint_path)
+    if is_valid:
+        delete_prim(fixed_joint_path)

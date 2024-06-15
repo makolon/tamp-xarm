@@ -19,7 +19,8 @@ def get_ik_fn(problem, collisions=True):
     arm_joints = get_arm_joints(robot)
     def fn(body, pose, grasp):
         # Target pose
-        target_position, target_rotation = end_effector_from_body(pose.value, grasp.value)
+        body_pose = (pose.value[0], [0.0, 0.0, 0.0, 1.0])
+        target_position, target_rotation = end_effector_from_body(body_pose, grasp.value)
         target_rotation = [0.0, 1.0, 0.0, 0.0]  # TODO: fix
 
         # Set ik goal
@@ -49,9 +50,8 @@ def get_ik_fn(problem, collisions=True):
             carb.log_warn("Plan did not converge to a solution.")
             return None
 
-        conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position.squeeze().cpu().numpy())
-        arm_traj = trajectory.position.cpu().numpy()
-        traj = BodyPath(robot, arm_joints, arm_traj)
+        conf = BodyConf(robot=robot, configuration=goal_conf.js_solution.position.squeeze())
+        traj = BodyPath(robot, arm_joints, trajectory.position)
         return (conf, traj)
 
     return fn
