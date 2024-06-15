@@ -122,7 +122,7 @@ class BodyPath:
         return self.path
 
     def reverse(self):
-        return self.__class__(self.robot, self.joints, self.path[::-1])
+        return self.__class__(self.robot, self.joints, torch.flip(self.path, [0]))  # TODO: fix
 
     def __repr__(self):
         index = self.index

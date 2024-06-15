@@ -11,14 +11,11 @@ from xarm_tamp.tampkit.sim_tools.sim_utils import (
 )
 
 
-config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo): ")
+config_file = input("Please input the problem name from (simple_fetch, simple_stacking, fmb_momo, siemense_gearbox, peg_in_hole, block_world): ")
 @hydra.main(version_base=None, config_name=config_file, config_path="../configs")
 def main(cfg: DictConfig):
     # connect
     sim_app = connect()
-
-    # create world
-    world = create_world()
 
     # Instanciate problem 
     problem_from_name = {fn.__name__: fn for fn in PROBLEMS}
@@ -27,6 +24,9 @@ def main(cfg: DictConfig):
     print('Problem:', cfg.pddlstream.problem)
     problem_fn = problem_from_name[cfg.pddlstream.problem]
     problem_fn(cfg.sim, cfg.curobo)
+
+    # copy world
+    world = create_world(sim_params=cfg.sim)
 
     while sim_app.is_running():
         world.step(render=True)

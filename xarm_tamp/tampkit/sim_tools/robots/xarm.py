@@ -17,14 +17,14 @@ class xArm(Robot):
         prim_path: str,
         name: Optional[str] = "xarm7",
         usd_path: Optional[str] = None,
-        translation: Optional[np.ndarray] = None,
-        orientation: Optional[np.ndarray] = None,
+        translation: Optional[torch.Tensor] = None,
+        orientation: Optional[torch.Tensor] = None,
         end_effector_prim_name: Optional[str] = None,
         arm_dof_names: Optional[List[str]] = None,
         gripper_dof_names: Optional[List[str]] = None,
-        gripper_open_position: Optional[np.ndarray] = None,
-        gripper_closed_position: Optional[np.ndarray] = None,
-        deltas: Optional[np.ndarray] = None,
+        gripper_open_position: Optional[torch.Tensor] = None,
+        gripper_closed_position: Optional[torch.Tensor] = None,
+        deltas: Optional[torch.Tensor] = None,
     ) -> None:
         prim = get_prim_at_path(prim_path)
         self._end_effector = None
@@ -50,9 +50,9 @@ class xArm(Robot):
             if gripper_dof_names is None:
                 self._gripper_dof_names = ["left_drive_joint", "right_drive_joint"]
             if gripper_open_position is None:
-                gripper_open_position = np.array([0.0, 0.0]) / get_stage_units()
+                gripper_open_position = torch.tensor([0.0, 0.0]) / get_stage_units()
             if gripper_closed_position is None:
-                gripper_closed_position = np.array([-40.0, 40.0])
+                gripper_closed_position = torch.tensor([-40.0, 40.0])
         
         super().__init__(
             prim_path=prim_path,
@@ -142,11 +142,11 @@ class xArm(Robot):
 
     @property
     def arm_joints(self):
-        return self.arm_dof_idxs
+        return torch.tensor(self.arm_dof_idxs)
 
     @property
     def gripper_joints(self):
-        return self.gripper_dof_idxs
+        return torch.tensor(self.gripper_dof_idxs)
 
     @property
     def end_effector(self) -> RigidPrim:
@@ -164,7 +164,6 @@ class xArm(Robot):
         self._gripper.initialize(
             physics_sim_view=physics_sim_view,
         )
-        self.set_drive_property()
         self.set_dof_idxs()
         self.set_dof_limits()
 
